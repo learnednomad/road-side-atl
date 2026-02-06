@@ -2,15 +2,33 @@ import { Hono } from "hono";
 import servicesRoutes from "./routes/services";
 import bookingsRoutes from "./routes/bookings";
 import adminRoutes from "./routes/admin";
+import adminProvidersRoutes from "./routes/admin-providers";
+import adminPayoutsRoutes from "./routes/admin-payouts";
 import paymentsRoutes from "./routes/payments";
 import webhooksRoutes from "./routes/webhooks";
+import authRoutes from "./routes/auth";
+import providerRoutes from "./routes/provider";
+import geocodingRoutes from "./routes/geocoding";
+import receiptsRoutes from "./routes/receipts";
+import reviewsRoutes from "./routes/reviews";
+import customerRoutes from "./routes/customer";
+import pushRoutes from "./routes/push";
 
 const app = new Hono().basePath("/api");
 
 app.route("/services", servicesRoutes);
 app.route("/bookings", bookingsRoutes);
 app.route("/admin", adminRoutes);
+app.route("/admin/providers", adminProvidersRoutes);
+app.route("/admin/payouts", adminPayoutsRoutes);
 app.route("/payments", paymentsRoutes);
 app.route("/webhooks", webhooksRoutes);
+app.route("/auth-routes", authRoutes);
+app.route("/provider", providerRoutes);
+app.route("/geocoding", geocodingRoutes);
+app.route("/receipts", receiptsRoutes);
+app.route("/reviews", reviewsRoutes);
+app.route("/customer", customerRoutes);
+app.route("/push", pushRoutes);
 
 export default app;

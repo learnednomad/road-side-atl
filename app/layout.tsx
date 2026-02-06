@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { WebSocketWrapper } from "@/components/providers/websocket-wrapper";
+import { AuthSessionProvider } from "@/components/providers/session-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +31,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <AuthSessionProvider>
+          <WebSocketWrapper>{children}</WebSocketWrapper>
+        </AuthSessionProvider>
         <Toaster />
       </body>
     </html>

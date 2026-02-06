@@ -27,3 +27,15 @@ export const requireAdmin = createMiddleware<AuthEnv>(async (c, next) => {
   c.set("user", session.user as AuthEnv["Variables"]["user"]);
   await next();
 });
+
+export const requireProvider = createMiddleware<AuthEnv>(async (c, next) => {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  if (session.user.role !== "provider") {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  c.set("user", session.user as AuthEnv["Variables"]["user"]);
+  await next();
+});

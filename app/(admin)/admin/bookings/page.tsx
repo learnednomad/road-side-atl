@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { BookingsTable } from "@/components/admin/bookings-table";
 import { db } from "@/db";
 import { bookings, services, payments } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, count } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,12 @@ export const metadata: Metadata = {
   title: "Bookings | Admin | RoadSide ATL",
 };
 
+const PAGE_SIZE = 20;
+
 export default async function AdminBookingsPage() {
+  // Get total count
+  const [totalResult] = await db.select({ count: count() }).from(bookings);
+
   const results = await db
     .select({
       booking: bookings,
@@ -20,7 +25,8 @@ export default async function AdminBookingsPage() {
     .from(bookings)
     .innerJoin(services, eq(bookings.serviceId, services.id))
     .leftJoin(payments, eq(payments.bookingId, bookings.id))
-    .orderBy(desc(bookings.createdAt));
+    .orderBy(desc(bookings.createdAt))
+    .limit(PAGE_SIZE);
 
   // Group payments by booking
   const bookingMap = new Map<
@@ -45,10 +51,18 @@ export default async function AdminBookingsPage() {
     }
   }
 
+  const total = totalResult.count;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Bookings</h1>
-      <BookingsTable bookings={Array.from(bookingMap.values())} />
+      <BookingsTable
+        bookings={Array.from(bookingMap.values())}
+        total={total}
+        page={1}
+        totalPages={totalPages}
+      />
     </div>
   );
 }

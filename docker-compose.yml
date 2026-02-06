@@ -1,41 +1,72 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+        - NEXT_PUBLIC_CASHAPP_TAG=${NEXT_PUBLIC_CASHAPP_TAG:-}
+        - NEXT_PUBLIC_ZELLE_INFO=${NEXT_PUBLIC_ZELLE_INFO:-}
+        - NEXT_PUBLIC_BUSINESS_PHONE=${NEXT_PUBLIC_BUSINESS_PHONE:-}
+        - NEXT_PUBLIC_BUSINESS_NAME=${NEXT_PUBLIC_BUSINESS_NAME:-RoadSide ATL}
+        - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/roadside_atl
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://dealer:dealer_pass@db:5432/roadside_atl
       - AUTH_SECRET=${AUTH_SECRET}
-      - AUTH_GOOGLE_ID=${AUTH_GOOGLE_ID}
-      - AUTH_GOOGLE_SECRET=${AUTH_GOOGLE_SECRET}
+      - AUTH_TRUST_HOST=true
       - AUTH_URL=${AUTH_URL:-http://localhost:3000}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
-      - NEXT_PUBLIC_CASHAPP_TAG=${NEXT_PUBLIC_CASHAPP_TAG}
-      - NEXT_PUBLIC_ZELLE_INFO=${NEXT_PUBLIC_ZELLE_INFO}
-      - NEXT_PUBLIC_BUSINESS_PHONE=${NEXT_PUBLIC_BUSINESS_PHONE}
-      - NEXT_PUBLIC_BUSINESS_NAME=${NEXT_PUBLIC_BUSINESS_NAME}
-      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - AUTH_GOOGLE_ID=${AUTH_GOOGLE_ID:-}
+      - AUTH_GOOGLE_SECRET=${AUTH_GOOGLE_SECRET:-}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+      - NEXT_PUBLIC_CASHAPP_TAG=${NEXT_PUBLIC_CASHAPP_TAG:-}
+      - NEXT_PUBLIC_ZELLE_INFO=${NEXT_PUBLIC_ZELLE_INFO:-}
+      - NEXT_PUBLIC_BUSINESS_PHONE=${NEXT_PUBLIC_BUSINESS_PHONE:-}
+      - NEXT_PUBLIC_BUSINESS_NAME=${NEXT_PUBLIC_BUSINESS_NAME:-RoadSide ATL}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@roadsideatl.com}
+      - GOOGLE_MAPS_API_KEY_SERVER=${GOOGLE_MAPS_API_KEY_SERVER:-}
+      - AUTO_DISPATCH_ENABLED=${AUTO_DISPATCH_ENABLED:-true}
+      - MAX_DISPATCH_DISTANCE_MILES=${MAX_DISPATCH_DISTANCE_MILES:-50}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM=${RESEND_FROM:-noreply@roadsideatl.com}
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - roadside-network
 
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: dealer
+      POSTGRES_PASSWORD: dealer_pass
       POSTGRES_DB: roadside_atl
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U dealer -d roadside_atl"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - roadside-network
+
+networks:
+  roadside-network:
+    driver: bridge
 
 volumes:
   pgdata:
+    driver: local

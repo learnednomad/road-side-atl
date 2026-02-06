@@ -52,7 +52,7 @@ export default async function HomePage() {
       <section className="bg-muted/50 py-16">
         <div className="container mx-auto px-4">
           <h2 className="mb-10 text-center text-3xl font-bold">How It Works</h2>
-          <div className="grid gap-8 md:grid-cols-3">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
                 icon: Clock,

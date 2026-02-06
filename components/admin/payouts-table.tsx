@@ -1,0 +1,282 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+import { DollarSign, Clock, Download, Users } from "lucide-react";
+import { exportToCSV } from "@/lib/csv";
+
+interface Payout {
+  payout: {
+    id: string;
+    providerId: string;
+    bookingId: string;
+    amount: number;
+    status: "pending" | "paid";
+    paidAt: string | null;
+    createdAt: string;
+  };
+  provider: {
+    id: string;
+    name: string;
+  };
+  booking: {
+    id: string;
+    contactName: string;
+  };
+}
+
+interface PayoutsTableProps {
+  payouts: Payout[];
+  summary: {
+    totalPending: number;
+    totalPaid: number;
+    pendingCount: number;
+    paidCount: number;
+  };
+}
+
+function formatPrice(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableProps) {
+  const [payouts, setPayouts] = useState(initialPayouts);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [providerFilter, setProviderFilter] = useState("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Get unique providers for filter
+  const providers = Array.from(
+    new Map(payouts.map((p) => [p.provider.id, p.provider])).values()
+  );
+
+  const filtered = payouts.filter((p) => {
+    if (statusFilter !== "all" && p.payout.status !== statusFilter) return false;
+    if (providerFilter !== "all" && p.provider.id !== providerFilter) return false;
+    return true;
+  });
+
+  const pendingPayouts = filtered.filter((p) => p.payout.status === "pending");
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === pendingPayouts.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(pendingPayouts.map((p) => p.payout.id)));
+    }
+  }
+
+  async function markPaid() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+
+    const res = await fetch("/api/admin/payouts/mark-paid", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payoutIds: ids }),
+    });
+
+    if (res.ok) {
+      const { updated } = await res.json();
+      setPayouts((prev) =>
+        prev.map((p) =>
+          ids.includes(p.payout.id)
+            ? { ...p, payout: { ...p.payout, status: "paid" as const, paidAt: new Date().toISOString() } }
+            : p
+        )
+      );
+      setSelected(new Set());
+      toast.success(`${updated} payout(s) marked as paid`);
+    } else {
+      toast.error("Failed to update payouts");
+    }
+  }
+
+  function handleExport() {
+    const rows = filtered.map((p) => ({
+      "Payout ID": p.payout.id,
+      "Provider": p.provider.name,
+      "Booking Customer": p.booking.contactName,
+      "Amount": formatPrice(p.payout.amount),
+      "Status": p.payout.status,
+      "Created": new Date(p.payout.createdAt).toLocaleDateString(),
+      "Paid At": p.payout.paidAt ? new Date(p.payout.paidAt).toLocaleDateString() : "",
+    }));
+    exportToCSV(rows, `payouts-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+
+  // Calculate filtered totals
+  const filteredPending = filtered
+    .filter((p) => p.payout.status === "pending")
+    .reduce((sum, p) => sum + p.payout.amount, 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Payouts</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatPrice(summary.totalPending)}</p>
+            <p className="text-xs text-muted-foreground">
+              {summary.pendingCount} payout{summary.pendingCount !== 1 ? "s" : ""}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Paid</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatPrice(summary.totalPaid)}</p>
+            <p className="text-xs text-muted-foreground">
+              {summary.paidCount} payout{summary.paidCount !== 1 ? "s" : ""}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters & Actions */}
+      <div className="flex flex-wrap items-center gap-4">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="paid">Paid</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={providerFilter} onValueChange={setProviderFilter}>
+          <SelectTrigger className="w-48">
+            <Users className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Provider" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Providers</SelectItem>
+            {providers.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {selected.size > 0 && (
+          <Button size="sm" onClick={markPaid}>
+            Mark {selected.size} as Paid
+          </Button>
+        )}
+
+        <div className="flex-1" />
+
+        <Button variant="outline" size="sm" onClick={handleExport}>
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
+
+        <span className="text-sm text-muted-foreground">
+          {filtered.length} payout{filtered.length !== 1 ? "s" : ""}
+          {filteredPending > 0 && ` (${formatPrice(filteredPending)} pending)`}
+        </span>
+      </div>
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                {pendingPayouts.length > 0 && (
+                  <Checkbox
+                    checked={selected.size === pendingPayouts.length && pendingPayouts.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                )}
+              </TableHead>
+              <TableHead>Provider</TableHead>
+              <TableHead>Booking</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Paid At</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  No payouts found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map(({ payout, provider, booking }) => (
+                <TableRow key={payout.id}>
+                  <TableCell>
+                    {payout.status === "pending" && (
+                      <Checkbox
+                        checked={selected.has(payout.id)}
+                        onCheckedChange={() => toggleSelect(payout.id)}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">{provider.name}</TableCell>
+                  <TableCell className="text-sm">{booking.contactName}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatPrice(payout.amount)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={payout.status === "paid" ? "default" : "secondary"}>
+                      {payout.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {new Date(payout.createdAt).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {payout.paidAt
+                      ? new Date(payout.paidAt).toLocaleDateString()
+                      : "—"}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}

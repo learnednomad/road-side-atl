@@ -9,8 +9,13 @@ export const vehicleInfoSchema = z.object({
 
 export const locationSchema = z.object({
   address: z.string().min(5, "Address is required"),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  placeId: z.string().optional(),
   notes: z.string().optional(),
   destination: z.string().optional(),
+  destinationLatitude: z.number().optional(),
+  destinationLongitude: z.number().optional(),
   estimatedMiles: z.number().min(0).optional(),
 });
 
@@ -43,6 +48,41 @@ export const confirmPaymentSchema = z.object({
 
 export const createStripeCheckoutSchema = z.object({
   bookingId: z.string().uuid("Invalid booking"),
+});
+
+export const createProviderSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  email: z.email("Valid email is required"),
+  phone: z.string().min(10, "Phone number is required"),
+  commissionType: z.enum(["percentage", "flat_per_job"]),
+  commissionRate: z.number().int().min(0).max(10000), // basis points
+  flatFeeAmount: z.number().int().min(0).optional(),
+  specialties: z.array(z.string()).optional(),
+  status: z.enum(["active", "inactive", "pending"]).optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  address: z.string().optional(),
+});
+
+export const updateProviderSchema = createProviderSchema.partial();
+
+export const assignProviderSchema = z.object({
+  providerId: z.string().uuid("Invalid provider"),
+});
+
+export const markPayoutPaidSchema = z.object({
+  payoutIds: z.array(z.string().uuid()),
+});
+
+export const registerSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  email: z.email("Valid email is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export const loginSchema = z.object({
+  email: z.email("Valid email is required"),
+  password: z.string().min(1, "Password is required"),
 });
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;

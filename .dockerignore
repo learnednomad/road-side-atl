@@ -1,8 +1,54 @@
+# Dependencies
 node_modules
+
+# Build outputs
 .next
+dist
+out
+
+# Git
 .git
-.env*
-_bmad*
+.gitignore
+
+# Environment files (don't copy secrets into the image)
+.env
+.env.*
+!.env.example
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+coverage
+.nyc_output
+
+# Documentation and misc
+README.md
+CHANGELOG.md
+docs
+
+# Claude/AI files
 .claude
 .codex
-.idea
+_bmad*
+
+# Playwright
+.playwright-mcp
+playwright-report
+test-results
+
+# Screenshots and temporary files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.log
+*.tmp
+
+# Docker files (no need to copy these into the image)
+docker-compose*.yml
+Dockerfile*

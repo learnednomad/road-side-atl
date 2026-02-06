@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS } from "@/lib/constants";
+import { AddressAutocomplete } from "@/components/maps/address-autocomplete";
 
 interface Service {
   id: string;
@@ -48,6 +49,8 @@ export function BookingForm({ services }: { services: Service[] }) {
   const [contactEmail, setContactEmail] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
+  const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
+  const [destCoords, setDestCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -89,8 +92,13 @@ export function BookingForm({ services }: { services: Service[] }) {
           },
           location: {
             address,
+            latitude: pickupCoords?.latitude,
+            longitude: pickupCoords?.longitude,
+            placeId: pickupCoords?.placeId,
             notes: locationNotes || undefined,
             destination: destination || undefined,
+            destinationLatitude: destCoords?.latitude,
+            destinationLongitude: destCoords?.longitude,
             estimatedMiles: estimatedMiles ? parseFloat(estimatedMiles) : undefined,
           },
           contactName,
@@ -120,11 +128,11 @@ export function BookingForm({ services }: { services: Service[] }) {
       {/* Service Selection */}
       <Card>
         <CardHeader>
-          <CardTitle>Select Service</CardTitle>
+          <CardTitle>Select Service <span className="text-destructive">*</span></CardTitle>
         </CardHeader>
         <CardContent>
-          <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
-            <SelectTrigger>
+          <Select value={selectedServiceId} onValueChange={setSelectedServiceId} required>
+            <SelectTrigger aria-required="true">
               <SelectValue placeholder="Choose a service..." />
             </SelectTrigger>
             <SelectContent>
@@ -142,7 +150,7 @@ export function BookingForm({ services }: { services: Service[] }) {
       {/* Vehicle Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Vehicle Information</CardTitle>
+          <CardTitle>Vehicle Information <span className="text-destructive">*</span></CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -191,16 +199,20 @@ export function BookingForm({ services }: { services: Service[] }) {
       {/* Location */}
       <Card>
         <CardHeader>
-          <CardTitle>Location</CardTitle>
+          <CardTitle>Location <span className="text-destructive">*</span></CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <Label htmlFor="address">Your Address / Location</Label>
-            <Input
+            <AddressAutocomplete
               id="address"
               placeholder="123 Peachtree St, Atlanta, GA"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={setAddress}
+              onPlaceSelected={(place) => {
+                setAddress(place.address);
+                setPickupCoords({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId });
+              }}
               required
             />
           </div>
@@ -217,11 +229,15 @@ export function BookingForm({ services }: { services: Service[] }) {
             <>
               <div>
                 <Label htmlFor="destination">Tow Destination</Label>
-                <Input
+                <AddressAutocomplete
                   id="destination"
                   placeholder="456 Main St, Atlanta, GA"
                   value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
+                  onChange={setDestination}
+                  onPlaceSelected={(place) => {
+                    setDestination(place.address);
+                    setDestCoords({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId });
+                  }}
                 />
               </div>
               <div>
@@ -244,7 +260,7 @@ export function BookingForm({ services }: { services: Service[] }) {
       {/* Contact Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Contact Information</CardTitle>
+          <CardTitle>Contact Information <span className="text-destructive">*</span></CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">

@@ -9,8 +9,16 @@ import {
   TOWING_BASE_MILES,
   TOWING_PRICE_PER_MILE_CENTS,
 } from "@/lib/constants";
+import { geocodeAddress } from "@/lib/geocoding";
+import { notifyBookingCreated } from "@/lib/notifications";
+import { broadcastToAdmins } from "@/server/websocket/broadcast";
+import { rateLimitStrict } from "../middleware/rate-limit";
+import { logAudit, getRequestInfo } from "../lib/audit-logger";
 
 const app = new Hono();
+
+// Rate limit booking creation to prevent abuse
+app.use("/", rateLimitStrict);
 
 // Create booking (guest or authenticated)
 app.post("/", async (c) => {
@@ -44,13 +52,31 @@ app.post("/", async (c) => {
   const session = await auth();
   const userId = session?.user?.id || null;
 
+  // Server-side geocoding fallback if no coordinates provided
+  const locationData = { ...data.location };
+  if (!locationData.latitude || !locationData.longitude) {
+    const geocoded = await geocodeAddress(locationData.address).catch(() => null);
+    if (geocoded) {
+      locationData.latitude = geocoded.latitude;
+      locationData.longitude = geocoded.longitude;
+      locationData.placeId = geocoded.placeId;
+    }
+  }
+  if (locationData.destination && !locationData.destinationLatitude) {
+    const geocoded = await geocodeAddress(locationData.destination).catch(() => null);
+    if (geocoded) {
+      locationData.destinationLatitude = geocoded.latitude;
+      locationData.destinationLongitude = geocoded.longitude;
+    }
+  }
+
   const [booking] = await db
     .insert(bookings)
     .values({
       userId,
       serviceId: data.serviceId,
       vehicleInfo: data.vehicleInfo,
-      location: data.location,
+      location: locationData,
       contactName: data.contactName,
       contactPhone: data.contactPhone,
       contactEmail: data.contactEmail,
@@ -60,6 +86,29 @@ app.post("/", async (c) => {
       notes: data.notes,
     })
     .returning();
+
+  // Audit log the booking creation
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "booking.create",
+    userId: userId || undefined,
+    resourceType: "booking",
+    resourceId: booking.id,
+    details: {
+      serviceName: service.name,
+      contactEmail: data.contactEmail,
+      estimatedPrice,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  // Fire-and-forget notifications + broadcast
+  notifyBookingCreated(booking).catch(() => {});
+  broadcastToAdmins({
+    type: "booking:created",
+    data: { bookingId: booking.id, contactName: booking.contactName, status: booking.status, serviceName: service.name },
+  });
 
   return c.json(booking, 201);
 });
@@ -127,6 +176,18 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
     .set({ status: "cancelled", updatedAt: new Date() })
     .where(eq(bookings.id, bookingId))
     .returning();
+
+  // Audit log the cancellation
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "booking.cancel",
+    userId: user.id,
+    resourceType: "booking",
+    resourceId: bookingId,
+    details: { previousStatus: booking.status },
+    ipAddress,
+    userAgent,
+  });
 
   return c.json(updated);
 });

@@ -39,8 +39,13 @@ export const bookings = pgTable("bookings", {
   location: jsonb("location")
     .$type<{
       address: string;
+      latitude?: number;
+      longitude?: number;
+      placeId?: string;
       notes?: string;
       destination?: string;
+      destinationLatitude?: number;
+      destinationLongitude?: number;
       estimatedMiles?: number;
     }>()
     .notNull(),
@@ -52,6 +57,7 @@ export const bookings = pgTable("bookings", {
   finalPrice: integer("finalPrice"), // cents
   towingMiles: integer("towingMiles"),
   notes: text("notes"),
+  providerId: text("providerId"), // FK to providers, managed at app level to avoid circular imports
   tenantId: text("tenantId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),

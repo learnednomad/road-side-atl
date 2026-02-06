@@ -47,3 +47,13 @@ export const verificationTokens = pgTable(
   },
   (vt) => [primaryKey({ columns: [vt.identifier, vt.token] })]
 );
+
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires", { mode: "date" }).notNull(),
+  },
+  (prt) => [primaryKey({ columns: [prt.identifier, prt.token] })]
+);

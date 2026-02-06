@@ -1,7 +1,7 @@
 import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createId } from "./utils";
 
-export const userRoleEnum = pgEnum("user_role", ["customer", "admin"]);
+export const userRoleEnum = pgEnum("user_role", ["customer", "admin", "provider"]);
 
 export const users = pgTable("users", {
   id: text("id")
@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
   phone: text("phone"),
+  password: text("password"),
   role: userRoleEnum("role").default("customer").notNull(),
   tenantId: text("tenantId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),

@@ -1,6 +1,7 @@
 export const BUSINESS = {
   name: process.env.NEXT_PUBLIC_BUSINESS_NAME || "RoadSide ATL",
   phone: process.env.NEXT_PUBLIC_BUSINESS_PHONE || "(404) 555-0199",
+  email: "support@roadsideatl.com",
   cashAppTag: process.env.NEXT_PUBLIC_CASHAPP_TAG || "$RoadsideATL",
   zelleInfo: process.env.NEXT_PUBLIC_ZELLE_INFO || "pay@roadsideatl.com",
   serviceArea: "Atlanta Metro Area (ITP & OTP)",
@@ -31,8 +32,17 @@ export const PAYMENT_STATUSES = [
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
-export const USER_ROLES = ["customer", "admin"] as const;
+export const USER_ROLES = ["customer", "admin", "provider"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+export const PROVIDER_STATUSES = ["active", "inactive", "pending"] as const;
+export type ProviderStatus = (typeof PROVIDER_STATUSES)[number];
+
+export const COMMISSION_TYPES = ["percentage", "flat_per_job"] as const;
+export type CommissionType = (typeof COMMISSION_TYPES)[number];
+
+export const PAYOUT_STATUSES = ["pending", "paid"] as const;
+export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
 
 export const TOWING_BASE_MILES = 10;
 export const TOWING_PRICE_PER_MILE_CENTS = 600; // $6/mile

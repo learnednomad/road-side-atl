@@ -1,7 +1,5 @@
 import { Metadata } from "next";
-import { StatsCards } from "@/components/admin/stats-cards";
-import { StatusBadge } from "@/components/dashboard/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminOverviewClient } from "./overview-client";
 import { db } from "@/db";
 import { bookings, services, payments } from "@/db/schema";
 import { eq, desc, gte, count, sql, and } from "drizzle-orm";
@@ -50,52 +48,25 @@ export default async function AdminOverviewPage() {
     .orderBy(desc(bookings.createdAt))
     .limit(10);
 
+  const serializedBookings = recentBookings.map(({ booking, service }) => ({
+    booking: {
+      ...booking,
+      createdAt: booking.createdAt.toISOString(),
+      updatedAt: booking.updatedAt.toISOString(),
+      scheduledAt: booking.scheduledAt?.toISOString() || null,
+    },
+    service,
+  }));
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
-
-      <StatsCards
-        todayBookings={todayBookings.count}
-        pendingBookings={pendingBookings.count}
-        weeklyRevenue={Number(weeklyRevenue.total)}
-        monthlyRevenue={Number(monthlyRevenue.total)}
-      />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Bookings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentBookings.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              No bookings yet.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {recentBookings.map(({ booking, service }) => (
-                <div
-                  key={booking.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{booking.contactName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {service.name} &middot;{" "}
-                      {new Date(booking.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium">
-                      {formatPrice(booking.estimatedPrice)}
-                    </span>
-                    <StatusBadge status={booking.status as any} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <AdminOverviewClient
+      stats={{
+        todayBookings: todayBookings.count,
+        pendingBookings: pendingBookings.count,
+        weeklyRevenue: Number(weeklyRevenue.total),
+        monthlyRevenue: Number(monthlyRevenue.total),
+      }}
+      recentBookings={serializedBookings}
+    />
   );
 }
