@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CalendarDays, Clock, DollarSign, TrendingUp } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { formatPrice } from "@/lib/utils";
 
 interface StatsCardsProps {
   todayBookings: number;
@@ -10,10 +11,6 @@ interface StatsCardsProps {
   weeklyRevenue: number;
   monthlyRevenue: number;
   sparklines?: { bookings: number[]; revenue: number[] };
-}
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {

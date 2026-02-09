@@ -12,7 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, TrendingUp, Target, AlertTriangle } from "lucide-react";
+import { DollarSign, TrendingUp, Target, AlertTriangle, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DateRangePicker, type DateRange } from "./date-range-picker";
 import {
   DailyRevenueChart,
@@ -20,6 +21,7 @@ import {
   PaymentMethodChart,
 } from "./revenue-charts";
 import { ExportButton } from "./export-button";
+import { formatPrice } from "@/lib/utils";
 
 interface AnalyticsData {
   dailySeries: Array<{ date: string; total: number; count: number }>;
@@ -49,10 +51,6 @@ interface AnalyticsData {
       contactEmail: string;
     };
   }>;
-}
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export function RevenueAnalytics() {
@@ -94,8 +92,22 @@ export function RevenueAnalytics() {
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Revenue Analytics</h1>
         </div>
-        <div className="flex items-center justify-center py-20">
-          <p className="text-muted-foreground">Loading analytics...</p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4 rounded" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-20 mb-1" />
+                <Skeleton className="h-3 w-28" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </div>
     );

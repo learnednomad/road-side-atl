@@ -1,23 +1,22 @@
 import { Metadata } from "next";
-import { CheckCircle, Phone } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle, Phone, MapPin, ClipboardList } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { BUSINESS } from "@/lib/constants";
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Booking Confirmed | RoadSide ATL",
 };
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
 
 export default async function ConfirmationPage({
   searchParams,
@@ -125,6 +124,22 @@ export default async function ConfirmationPage({
         bookingId={booking.id}
         paid={paid}
       />
+
+      {/* Next Steps */}
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <Button asChild className="flex-1">
+          <Link href={`/track/${bookingId}`}>
+            <MapPin className="mr-2 h-4 w-4" />
+            Track Your Booking
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="flex-1">
+          <Link href="/my-bookings">
+            <ClipboardList className="mr-2 h-4 w-4" />
+            View All Bookings
+          </Link>
+        </Button>
+      </div>
 
       {/* Contact */}
       <Card className="mt-6">

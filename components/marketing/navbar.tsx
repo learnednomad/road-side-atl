@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Menu, X, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { BUSINESS } from "@/lib/constants";
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/services", label: "Services" },
+  { href: "/about", label: "About" },
   { href: "/book", label: "Book Now" },
 ];
 
@@ -27,6 +29,7 @@ function getPortalLink(role?: string): { href: string; label: string } {
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
   const { data: session, status } = useSession();
   const isLoggedIn = status === "authenticated";
   const portal = getPortalLink(session?.user?.role);
@@ -40,38 +43,43 @@ export function Navbar() {
 
         {/* Desktop nav */}
         <div className="hidden items-center gap-6 lg:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {link.label}
-            </Link>
-          ))}
-          <a href={`tel:${BUSINESS.phone}`}>
-            <Button variant="outline" size="sm">
+          {navLinks.map((link) => {
+            const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`text-sm font-medium transition-colors hover:text-foreground ${
+                  isActive ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+          <Button asChild variant="outline" size="sm">
+            <a href={`tel:${BUSINESS.phone}`}>
               <Phone className="mr-2 h-4 w-4" />
               {BUSINESS.phone}
-            </Button>
-          </a>
+            </a>
+          </Button>
           {isLoggedIn ? (
             <>
               {session?.user?.role === "customer" && (
-                <Link href="/my-bookings">
-                  <Button variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/my-bookings">
                     <ClipboardList className="mr-2 h-4 w-4" />
                     My Bookings
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               )}
               {(session?.user?.role === "admin" || session?.user?.role === "provider") && (
-                <Link href={portal.href}>
-                  <Button variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm">
+                  <Link href={portal.href}>
                     <LayoutDashboard className="mr-2 h-4 w-4" />
                     {portal.label}
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               )}
               <Button
                 variant="ghost"
@@ -84,15 +92,15 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Link href="/login">
-                <Button variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/login">
                   <LogIn className="mr-2 h-4 w-4" />
                   Sign In
-                </Button>
-              </Link>
-              <Link href="/book">
-                <Button size="sm">Get Help Now</Button>
-              </Link>
+                </Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link href="/book">Get Help Now</Link>
+              </Button>
             </>
           )}
         </div>
@@ -108,39 +116,44 @@ export function Navbar() {
             <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
             <SheetDescription className="sr-only">Main navigation links and service booking options</SheetDescription>
             <div className="mt-8 flex flex-col gap-4">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  className="text-lg font-medium"
-                >
-                  {link.label}
-                </Link>
-              ))}
-              <a href={`tel:${BUSINESS.phone}`}>
-                <Button variant="outline" className="w-full">
+              {navLinks.map((link) => {
+                const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setOpen(false)}
+                    className={`text-lg font-medium ${
+                      isActive ? "text-primary" : ""
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+              <Button asChild variant="outline" className="w-full">
+                <a href={`tel:${BUSINESS.phone}`}>
                   <Phone className="mr-2 h-4 w-4" />
                   {BUSINESS.phone}
-                </Button>
-              </a>
+                </a>
+              </Button>
               {isLoggedIn ? (
                 <>
                   {session?.user?.role === "customer" && (
-                    <Link href="/my-bookings" onClick={() => setOpen(false)}>
-                      <Button variant="outline" className="w-full">
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href="/my-bookings" onClick={() => setOpen(false)}>
                         <ClipboardList className="mr-2 h-4 w-4" />
                         My Bookings
-                      </Button>
-                    </Link>
+                      </Link>
+                    </Button>
                   )}
                   {(session?.user?.role === "admin" || session?.user?.role === "provider") && (
-                    <Link href={portal.href} onClick={() => setOpen(false)}>
-                      <Button variant="outline" className="w-full">
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href={portal.href} onClick={() => setOpen(false)}>
                         <LayoutDashboard className="mr-2 h-4 w-4" />
                         {portal.label}
-                      </Button>
-                    </Link>
+                      </Link>
+                    </Button>
                   )}
                   <Button
                     variant="ghost"
@@ -156,15 +169,17 @@ export function Navbar() {
                 </>
               ) : (
                 <>
-                  <Link href="/login" onClick={() => setOpen(false)}>
-                    <Button variant="outline" className="w-full">
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/login" onClick={() => setOpen(false)}>
                       <LogIn className="mr-2 h-4 w-4" />
                       Sign In
-                    </Button>
-                  </Link>
-                  <Link href="/book" onClick={() => setOpen(false)}>
-                    <Button className="w-full">Get Help Now</Button>
-                  </Link>
+                    </Link>
+                  </Button>
+                  <Button asChild className="w-full">
+                    <Link href="/book" onClick={() => setOpen(false)}>
+                      Get Help Now
+                    </Link>
+                  </Button>
                 </>
               )}
             </div>

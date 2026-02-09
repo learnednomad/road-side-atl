@@ -6,16 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { BUSINESS } from "@/lib/constants";
+import { formatPrice } from "@/lib/utils";
 
 interface PaymentInstructionsProps {
   isDiagnostics: boolean;
   estimatedPrice: number;
   bookingId: string;
   paid?: boolean;
-}
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export function PaymentInstructions({

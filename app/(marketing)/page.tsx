@@ -1,3 +1,4 @@
+import { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Clock, MapPin, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -5,9 +6,69 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Hero } from "@/components/marketing/hero";
 import { ServiceCard } from "@/components/marketing/service-card";
 import { BUSINESS } from "@/lib/constants";
+import { buildMetadata, SITE_URL } from "@/lib/seo";
+import {
+  LocalBusinessJsonLd,
+  FAQJsonLd,
+  WebSiteJsonLd,
+  BreadcrumbJsonLd,
+} from "@/components/seo/json-ld";
 import { db } from "@/db";
 import { services } from "@/db/schema";
 import { eq } from "drizzle-orm";
+
+export const metadata: Metadata = buildMetadata({
+  title:
+    "RoadSide ATL | 24/7 Roadside Assistance Atlanta GA - Towing, Jump Start, Lockout",
+  description:
+    "Need roadside help in Atlanta? RoadSide ATL provides 24/7 emergency towing, jump starts, lockout service, flat tire changes, fuel delivery & car diagnostics across metro Atlanta. Fast response, affordable prices. Call now!",
+  path: "",
+  keywords: [
+    "roadside assistance Atlanta",
+    "24/7 roadside assistance Atlanta GA",
+    "emergency roadside help Atlanta",
+    "towing Atlanta",
+    "jump start Atlanta",
+    "lockout service Atlanta",
+    "flat tire change Atlanta",
+    "fuel delivery Atlanta",
+    "car diagnostics Atlanta",
+    "roadside assistance near me",
+  ],
+});
+
+const HOMEPAGE_FAQS = [
+  {
+    question: "How fast can you get to me in Atlanta?",
+    answer:
+      "We aim to reach you as quickly as possible within the Atlanta metro area. Our dispatched technicians are strategically located across ITP and OTP to minimize wait times.",
+  },
+  {
+    question: "What areas do you serve in Atlanta?",
+    answer:
+      "We serve the entire Atlanta metro area including Buckhead, Midtown, Downtown, Decatur, Marietta, Sandy Springs, Roswell, Alpharetta, Dunwoody, Brookhaven, and surrounding areas — both Inside the Perimeter (ITP) and Outside the Perimeter (OTP).",
+  },
+  {
+    question: "What payment methods do you accept?",
+    answer:
+      "We accept Cash, CashApp, Zelle, and credit/debit cards. Payment is collected after service is completed (except for Car Purchase Diagnostics which requires upfront payment).",
+  },
+  {
+    question: "How much does roadside assistance cost in Atlanta?",
+    answer:
+      "Our services start at $75 for jump starts, lockout service, and fuel delivery. Flat tire changes start at $100. Towing starts at $125 (includes first 10 miles, $6/mile after). Car Purchase Diagnostics are $250.",
+  },
+  {
+    question: "Do you offer 24/7 emergency roadside assistance?",
+    answer:
+      "Yes! RoadSide ATL provides 24/7 emergency roadside assistance across the entire Atlanta metro area. Whether it's day or night, weekday or weekend, we're here to help.",
+  },
+  {
+    question: "What roadside services do you offer in Atlanta?",
+    answer:
+      "We offer jump starts, local towing, lockout service, flat tire changes, fuel delivery, and comprehensive pre-purchase car diagnostics with OBD2 scanning across the Atlanta metro area.",
+  },
+];
 
 export default async function HomePage() {
   let allServices: any[] = [];
@@ -31,14 +92,24 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Structured Data */}
+      <LocalBusinessJsonLd />
+      <WebSiteJsonLd />
+      <FAQJsonLd faqs={HOMEPAGE_FAQS} />
+      <BreadcrumbJsonLd
+        items={[{ name: "Home", url: SITE_URL }]}
+      />
+
       <Hero />
 
       {/* Services Grid */}
-      <section className="py-16">
+      <section className="py-16" id="services" aria-labelledby="services-heading">
         <div className="container mx-auto px-4">
-          <h2 className="mb-2 text-center text-3xl font-bold">Our Services</h2>
+          <h2 id="services-heading" className="mb-2 text-center text-3xl font-bold">
+            Roadside Assistance Services in Atlanta
+          </h2>
           <p className="mb-10 text-center text-muted-foreground">
-            Professional roadside assistance and vehicle diagnostics
+            Professional 24/7 roadside assistance and vehicle diagnostics across the Atlanta metro area
           </p>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {allServices.map((service) => (
@@ -49,25 +120,27 @@ export default async function HomePage() {
       </section>
 
       {/* How It Works */}
-      <section className="bg-muted/50 py-16">
+      <section className="bg-muted/50 py-16" aria-labelledby="how-it-works-heading">
         <div className="container mx-auto px-4">
-          <h2 className="mb-10 text-center text-3xl font-bold">How It Works</h2>
+          <h2 id="how-it-works-heading" className="mb-10 text-center text-3xl font-bold">
+            How Our Atlanta Roadside Assistance Works
+          </h2>
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
                 icon: Clock,
                 title: "1. Book Your Service",
-                desc: "Choose your service and tell us where you are. Book online or call us directly.",
+                desc: "Choose your service and tell us where you are. Book online in minutes or call us directly for immediate assistance.",
               },
               {
                 icon: MapPin,
                 title: "2. We Come to You",
-                desc: "Our technician is dispatched to your location across the Atlanta metro area.",
+                desc: "Our trained technician is dispatched to your exact location anywhere in the Atlanta metro area — ITP or OTP.",
               },
               {
                 icon: DollarSign,
                 title: "3. Pay Your Way",
-                desc: "Pay with Cash, CashApp, or Zelle after service. Card payments also accepted.",
+                desc: "Pay with Cash, CashApp, Zelle, or card after service is completed. Transparent pricing, no hidden fees.",
               },
             ].map((step) => (
               <Card key={step.title}>
@@ -84,20 +157,46 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Service Area */}
-      <section className="py-16">
+      {/* Service Area - keyword rich for local SEO */}
+      <section className="py-16" aria-labelledby="service-area-heading">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="mb-4 text-3xl font-bold">Serving All of Atlanta</h2>
-          <p className="mx-auto mb-6 max-w-xl text-muted-foreground">
-            We cover the entire {BUSINESS.serviceArea}, including Buckhead, Midtown,
-            Downtown, Decatur, Marietta, Sandy Springs, and surrounding areas.
+          <h2 id="service-area-heading" className="mb-4 text-3xl font-bold">
+            Roadside Assistance Across All of Atlanta
+          </h2>
+          <p className="mx-auto mb-6 max-w-2xl text-muted-foreground">
+            We cover the entire {BUSINESS.serviceArea}. Our roadside assistance technicians
+            serve Buckhead, Midtown, Downtown Atlanta, Decatur, Marietta, Sandy Springs,
+            Roswell, Alpharetta, Dunwoody, Brookhaven, and all surrounding communities.
+            Stranded on I-285, I-85, I-75, or I-20? We&apos;ll be there fast.
           </p>
-          <Link href="/book">
-            <Button size="lg">
-              Book a Service
+          <Button asChild size="lg">
+            <Link href="/book">
+              Get Roadside Help Now
               <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
+        </div>
+      </section>
+
+      {/* FAQ Section - directly boosts SEO with FAQ schema */}
+      <section className="bg-muted/50 py-16" aria-labelledby="faq-heading">
+        <div className="container mx-auto max-w-3xl px-4">
+          <h2 id="faq-heading" className="mb-10 text-center text-3xl font-bold">
+            Frequently Asked Questions About Roadside Assistance in Atlanta
+          </h2>
+          <div className="space-y-6">
+            {HOMEPAGE_FAQS.map((faq) => (
+              <details
+                key={faq.question}
+                className="group rounded-lg border bg-background p-4"
+              >
+                <summary className="cursor-pointer text-lg font-semibold">
+                  {faq.question}
+                </summary>
+                <p className="mt-3 text-muted-foreground">{faq.answer}</p>
+              </details>
+            ))}
+          </div>
         </div>
       </section>
     </>

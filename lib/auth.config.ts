@@ -10,7 +10,7 @@ import { loginSchema } from "./validators";
 
 export default {
   providers: [
-    Google({ allowDangerousEmailAccountLinking: true }),
+    Google,
     Credentials({
       credentials: {
         email: { label: "Email", type: "email" },

@@ -6,9 +6,10 @@ import { LiveTrackingMap } from "@/components/maps/live-tracking-map";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, MapPin, Car, Clock, DollarSign, CheckCircle2, Truck, CircleDot, Star } from "lucide-react";
+import { Phone, MapPin, Car, Clock, DollarSign, CheckCircle2, Truck, CircleDot, Star, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { ReviewForm } from "@/components/reviews/review-form";
+import { BUSINESS } from "@/lib/constants";
 
 interface BookingData {
   id: string;
@@ -82,8 +83,9 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Back to Home
+        <Link href="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Back to Home
         </Link>
       </div>
 
@@ -196,12 +198,12 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
                   <p className="font-medium">{initialProvider.name}</p>
                   <p className="text-sm text-muted-foreground">On the way to help you</p>
                 </div>
-                <a href={`tel:${initialProvider.phone}`}>
-                  <Button size="sm" variant="outline">
+                <Button asChild size="sm" variant="outline">
+                  <a href={`tel:${initialProvider.phone}`}>
                     <Phone className="h-4 w-4 mr-2" />
                     Call
-                  </Button>
-                </a>
+                  </a>
+                </Button>
               </div>
               {providerLocation && (
                 <p className="text-xs text-muted-foreground mt-2">
@@ -281,12 +283,12 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
         <CardContent className="py-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Need help with your booking?</p>
-            <a href="tel:+16787448092">
-              <Button variant="outline" size="sm">
+            <Button asChild variant="outline" size="sm">
+              <a href={`tel:${BUSINESS.phone}`}>
                 <Phone className="h-4 w-4 mr-2" />
                 Call Support
-              </Button>
-            </a>
+              </a>
+            </Button>
           </div>
         </CardContent>
       </Card>

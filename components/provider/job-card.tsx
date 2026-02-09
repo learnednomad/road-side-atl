@@ -3,7 +3,19 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { BookingStatus } from "@/lib/constants";
+import { formatPrice } from "@/lib/utils";
 
 interface JobCardProps {
   booking: {
@@ -21,10 +33,6 @@ interface JobCardProps {
   showActions?: boolean;
 }
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
   confirmed: "bg-blue-100 text-blue-800",
@@ -38,16 +46,16 @@ export function JobCard({ booking, serviceName, onAccept, onReject, showActions 
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-medium">{booking.contactName}</h3>
               <Badge className={statusColors[booking.status] || ""}>
                 {booking.status.replace("_", " ")}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">{serviceName}</p>
-            <p className="text-sm text-muted-foreground">{booking.location.address}</p>
+            <p className="text-sm text-muted-foreground truncate">{booking.location.address}</p>
             <p className="text-sm text-muted-foreground">
               {booking.vehicleInfo.year} {booking.vehicleInfo.make} {booking.vehicleInfo.model} ({booking.vehicleInfo.color})
             </p>
@@ -55,16 +63,34 @@ export function JobCard({ booking, serviceName, onAccept, onReject, showActions 
           </div>
 
           {showActions && (booking.status === "dispatched" || booking.status === "confirmed") && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               {onAccept && (
                 <Button size="sm" onClick={onAccept}>
                   Accept
                 </Button>
               )}
               {onReject && (
-                <Button size="sm" variant="outline" onClick={onReject}>
-                  Reject
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      Reject
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reject Job</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to reject this job? The customer will need to be reassigned to another provider.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={onReject}>
+                        Reject Job
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
             </div>
           )}

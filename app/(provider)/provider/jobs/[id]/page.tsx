@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusUpdater } from "@/components/provider/status-updater";
 import { LocationTracker } from "@/components/provider/location-tracker";
-import { ArrowLeft } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, Navigation, Phone, RefreshCw } from "lucide-react";
 import type { BookingStatus } from "@/lib/constants";
+import { formatPrice } from "@/lib/utils";
 
 interface JobDetail {
   booking: {
@@ -29,30 +30,50 @@ interface JobDetail {
   payments: Array<{ id: string; method: string; status: string; amount: number }>;
 }
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
 export default function ProviderJobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  function fetchJob() {
+    setLoading(true);
+    setError(false);
+    fetch(`/api/provider/jobs/${params.id}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to fetch");
+        return r.json();
+      })
+      .then((data) => setJob(data))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
-    fetch(`/api/provider/jobs/${params.id}`)
-      .then((r) => r.json())
-      .then((data) => setJob(data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    fetchJob();
   }, [params.id]);
 
   if (loading) {
-    return <p className="text-muted-foreground">Loading...</p>;
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
-  if (!job) {
-    return <p className="text-destructive">Job not found.</p>;
+  if (error || !job) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-16">
+        <AlertCircle className="h-8 w-8 text-destructive" />
+        <p className="text-sm text-muted-foreground">
+          {error ? "Failed to load job details. Please try again." : "Job not found."}
+        </p>
+        <Button variant="outline" size="sm" onClick={() => error ? fetchJob() : router.back()}>
+          {error ? <><RefreshCw className="mr-2 h-4 w-4" />Retry</> : <><ArrowLeft className="mr-2 h-4 w-4" />Go Back</>}
+        </Button>
+      </div>
+    );
   }
 
   const { booking, service, payments } = job;
@@ -85,9 +106,16 @@ export default function ProviderJobDetailPage() {
           <CardHeader>
             <CardTitle>Customer</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3">
             <p className="font-medium">{booking.contactName}</p>
-            <p className="text-sm text-muted-foreground">{booking.contactPhone}</p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button asChild variant="outline" size="sm" className="flex-1">
+                <a href={`tel:${booking.contactPhone}`}>
+                  <Phone className="mr-2 h-4 w-4" />
+                  {booking.contactPhone}
+                </a>
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground">{booking.contactEmail}</p>
           </CardContent>
         </Card>
@@ -121,7 +149,7 @@ export default function ProviderJobDetailPage() {
           <CardHeader>
             <CardTitle>Location</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3">
             <p className="font-medium">{booking.location.address}</p>
             {booking.location.destination && (
               <p className="text-sm">
@@ -134,6 +162,16 @@ export default function ProviderJobDetailPage() {
             {booking.notes && (
               <p className="text-sm text-muted-foreground">Notes: {booking.notes}</p>
             )}
+            <Button asChild className="w-full" size="sm">
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(booking.location.address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Navigation className="mr-2 h-4 w-4" />
+                Navigate to Customer
+              </a>
+            </Button>
           </CardContent>
         </Card>
       </div>

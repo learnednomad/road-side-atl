@@ -1,16 +1,34 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { BookingForm } from "@/components/booking/booking-form";
+import { buildMetadata } from "@/lib/seo";
 import { db } from "@/db";
 import { services } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { auth } from "@/lib/auth";
 
-export const metadata: Metadata = {
-  title: "Book a Service | RoadSide ATL",
-  description: "Book roadside assistance or car diagnostics in Atlanta.",
-};
+export const metadata: Metadata = buildMetadata({
+  title: "Book Roadside Assistance in Atlanta - Get Help Now",
+  description:
+    "Book 24/7 roadside assistance in Atlanta online. Towing, jump starts, lockout service, flat tire changes, fuel delivery & car diagnostics. Fast dispatch, affordable prices. Book now!",
+  path: "/book",
+  keywords: [
+    "book roadside assistance Atlanta",
+    "schedule towing Atlanta",
+    "request roadside help Atlanta GA",
+    "book jump start Atlanta",
+    "emergency roadside booking Atlanta",
+    "roadside assistance online booking",
+  ],
+});
 
 export default async function BookPage() {
+  const session = await auth();
+  const userInfo = session?.user ? {
+    name: session.user.name || "",
+    email: session.user.email || "",
+  } : undefined;
+
   let allServices: any[] = [];
   try {
     allServices = await db
@@ -31,12 +49,12 @@ export default async function BookPage() {
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-16">
-      <h1 className="mb-2 text-3xl font-bold">Book a Service</h1>
+      <h1 className="mb-2 text-3xl font-bold">Book Roadside Assistance in Atlanta</h1>
       <p className="mb-8 text-muted-foreground">
-        Fill out the details below and we&apos;ll get you taken care of.
+        Select your service and location below. We&apos;ll dispatch a technician to you fast.
       </p>
       <Suspense fallback={<div>Loading...</div>}>
-        <BookingForm services={allServices} />
+        <BookingForm services={allServices} userInfo={userInfo} />
       </Suspense>
     </div>
   );

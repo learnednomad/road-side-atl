@@ -1,3 +1,5 @@
+import { formatPrice } from "@/lib/utils";
+
 interface TwilioClient {
   messages: {
     create: (opts: { body: string; to: string; from: string }) => Promise<unknown>;
@@ -69,10 +71,6 @@ interface BookingInfo {
   contactName: string;
   location: { address: string };
   estimatedPrice: number;
-}
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export async function sendBookingConfirmationSMS(phone: string, booking: BookingInfo) {

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { StatsCards } from "@/components/admin/stats-cards";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BookingStatus } from "@/lib/constants";
+import { formatPrice } from "@/lib/utils";
 
 interface Props {
   stats: {
@@ -25,10 +27,6 @@ interface Props {
       name: string;
     };
   }>;
-}
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export function AdminOverviewClient({ stats, recentBookings }: Props) {
@@ -68,9 +66,10 @@ export function AdminOverviewClient({ stats, recentBookings }: Props) {
           ) : (
             <div className="space-y-3">
               {recentBookings.map(({ booking, service }) => (
-                <div
+                <Link
                   key={booking.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  href={`/admin/bookings/${booking.id}`}
+                  className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
                 >
                   <div>
                     <p className="text-sm font-medium">{booking.contactName}</p>
@@ -85,7 +84,7 @@ export function AdminOverviewClient({ stats, recentBookings }: Props) {
                     </span>
                     <StatusBadge status={booking.status as BookingStatus} />
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

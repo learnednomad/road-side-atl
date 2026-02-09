@@ -2,6 +2,17 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import type { BookingStatus } from "@/lib/constants";
 
@@ -51,16 +62,40 @@ export function StatusUpdater({ bookingId, currentStatus, onStatusChange }: Stat
 
   return (
     <div className="flex gap-2">
-      {nextStatuses.map((status) => (
-        <Button
-          key={status}
-          onClick={() => handleStatusUpdate(status)}
-          disabled={loading}
-          size="sm"
-        >
-          {loading ? "Updating..." : statusLabels[status] || status.replace("_", " ")}
-        </Button>
-      ))}
+      {nextStatuses.map((status) =>
+        status === "completed" ? (
+          <AlertDialog key={status}>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" disabled={loading}>
+                {loading ? "Updating..." : statusLabels[status]}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Complete this job?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Mark this job as complete? This will finalize the booking and trigger payout calculations.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleStatusUpdate(status)}>
+                  Complete Job
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button
+            key={status}
+            onClick={() => handleStatusUpdate(status)}
+            disabled={loading}
+            size="sm"
+          >
+            {loading ? "Updating..." : statusLabels[status] || status.replace("_", " ")}
+          </Button>
+        )
+      )}
     </div>
   );
 }

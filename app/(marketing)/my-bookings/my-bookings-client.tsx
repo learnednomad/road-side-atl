@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { formatPrice } from "@/lib/utils";
 
 interface Booking {
   booking: {
@@ -79,12 +80,8 @@ const statusConfig: Record<
   dispatched: { label: "Dispatched", color: "bg-purple-100 text-purple-800", icon: Truck },
   in_progress: { label: "In Progress", color: "bg-orange-100 text-orange-800", icon: Truck },
   completed: { label: "Completed", color: "bg-green-100 text-green-800", icon: CheckCircle2 },
-  cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-800", icon: XCircle },
+  cancelled: { label: "Cancelled", color: "bg-muted text-muted-foreground", icon: XCircle },
 };
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -162,9 +159,9 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
           {activeBookings.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
-                <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900">No active bookings</h3>
-                <p className="text-gray-500 mt-2">
+                <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground">No active bookings</h3>
+                <p className="text-muted-foreground mt-2">
                   You don't have any active service requests at the moment.
                 </p>
                 <Button asChild className="mt-4">
@@ -184,7 +181,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
         <TabsContent value="completed" className="mt-6">
           {completedBookings.length === 0 ? (
             <Card>
-              <CardContent className="py-12 text-center text-gray-500">
+              <CardContent className="py-12 text-center text-muted-foreground">
                 No completed bookings yet.
               </CardContent>
             </Card>
@@ -200,7 +197,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
         <TabsContent value="cancelled" className="mt-6">
           {cancelledBookings.length === 0 ? (
             <Card>
-              <CardContent className="py-12 text-center text-gray-500">
+              <CardContent className="py-12 text-center text-muted-foreground">
                 No cancelled bookings.
               </CardContent>
             </Card>
@@ -237,7 +234,7 @@ function BookingCard({ data }: { data: Booking }) {
               {status.label}
             </Badge>
           </div>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted-foreground">
             {formatDate(booking.createdAt)}
           </span>
         </div>
@@ -245,14 +242,14 @@ function BookingCard({ data }: { data: Booking }) {
       <CardContent className="space-y-4">
         {/* Vehicle Info */}
         <div className="flex items-start gap-2">
-          <Car className="h-4 w-4 text-gray-400 mt-0.5" />
+          <Car className="h-4 w-4 text-muted-foreground mt-0.5" />
           <div>
             <p className="text-sm font-medium">
               {booking.vehicleInfo.year} {booking.vehicleInfo.make}{" "}
               {booking.vehicleInfo.model}
             </p>
             {booking.vehicleInfo.color && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 {booking.vehicleInfo.color}
                 {booking.vehicleInfo.licensePlate &&
                   ` - ${booking.vehicleInfo.licensePlate}`}
@@ -263,11 +260,11 @@ function BookingCard({ data }: { data: Booking }) {
 
         {/* Location */}
         <div className="flex items-start gap-2">
-          <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
+          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
           <div>
             <p className="text-sm">{booking.location.address}</p>
             {booking.location.destination && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 To: {booking.location.destination}
               </p>
             )}
@@ -293,14 +290,14 @@ function BookingCard({ data }: { data: Booking }) {
         {/* Price & Payment */}
         <div className="flex items-center justify-between pt-3 border-t">
           <div>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {booking.finalPrice ? "Final Price" : "Estimated Price"}
             </p>
             <p className="text-lg font-bold">
               {formatPrice(booking.finalPrice || booking.estimatedPrice)}
             </p>
             {booking.towingMiles && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Includes {booking.towingMiles} miles towing
               </p>
             )}

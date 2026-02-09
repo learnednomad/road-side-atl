@@ -16,6 +16,7 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatPrice } from "@/lib/utils";
 
 const COLORS = [
   "hsl(var(--chart-1, 220 70% 50%))",
@@ -24,10 +25,6 @@ const COLORS = [
   "hsl(var(--chart-4, 280 65% 60%))",
   "hsl(var(--chart-5, 340 75% 55%))",
 ];
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(0)}`;
-}
 
 interface DailyRevenueChartProps {
   data: Array<{ date: string; total: number; count: number }>;
