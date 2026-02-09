@@ -1,13 +1,31 @@
 import { Metadata } from "next";
 import { ServiceCard } from "@/components/marketing/service-card";
+import { buildMetadata, SITE_URL } from "@/lib/seo";
+import { BreadcrumbJsonLd } from "@/components/seo/json-ld";
 import { db } from "@/db";
 import { services } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-export const metadata: Metadata = {
-  title: "Services | RoadSide ATL",
-  description: "Roadside assistance and car purchase diagnostic services in Atlanta.",
-};
+export const metadata: Metadata = buildMetadata({
+  title: "Roadside Assistance Services Atlanta GA - Towing, Jump Start, Lockout & More",
+  description:
+    "Full range of 24/7 roadside assistance services in Atlanta: towing, battery jump starts, car lockout, flat tire change, fuel delivery & pre-purchase car diagnostics. Affordable prices starting at $75. Book now!",
+  path: "/services",
+  keywords: [
+    "roadside assistance services Atlanta",
+    "towing service Atlanta GA",
+    "jump start service Atlanta",
+    "car lockout service Atlanta",
+    "flat tire change Atlanta",
+    "fuel delivery service Atlanta",
+    "car diagnostics Atlanta GA",
+    "pre-purchase car inspection Atlanta",
+    "OBD2 scan Atlanta",
+    "emergency roadside services near me",
+    "affordable towing Atlanta",
+    "24/7 roadside services Atlanta",
+  ],
+});
 
 export default async function ServicesPage() {
   let allServices: any[] = [];
@@ -33,19 +51,33 @@ export default async function ServicesPage() {
 
   return (
     <div className="container mx-auto px-4 py-16">
-      <h1 className="mb-2 text-3xl font-bold">Our Services</h1>
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", url: SITE_URL },
+          { name: "Services", url: `${SITE_URL}/services` },
+        ]}
+      />
+
+      <h1 className="mb-2 text-3xl font-bold">
+        Roadside Assistance & Vehicle Diagnostic Services in Atlanta
+      </h1>
       <p className="mb-10 text-muted-foreground">
-        Professional roadside assistance and vehicle diagnostics across the Atlanta metro area.
+        Professional 24/7 roadside assistance and comprehensive vehicle diagnostics
+        serving the entire Atlanta metro area. Affordable, fast, and reliable.
       </p>
 
-      <h2 className="mb-6 text-2xl font-semibold">Roadside Assistance</h2>
+      <h2 className="mb-6 text-2xl font-semibold" id="roadside">
+        24/7 Emergency Roadside Assistance in Atlanta
+      </h2>
       <div className="mb-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {roadsideServices.map((service) => (
           <ServiceCard key={service.slug} {...service} />
         ))}
       </div>
 
-      <h2 className="mb-6 text-2xl font-semibold">Vehicle Diagnostics</h2>
+      <h2 className="mb-6 text-2xl font-semibold" id="diagnostics">
+        Pre-Purchase Vehicle Diagnostics in Atlanta
+      </h2>
       <div className="grid gap-6 sm:grid-cols-2">
         {diagnosticsServices.map((service) => (
           <ServiceCard key={service.slug} {...service} />

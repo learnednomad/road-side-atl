@@ -3,16 +3,13 @@ import { AdminOverviewClient } from "./overview-client";
 import { db } from "@/db";
 import { bookings, services, payments } from "@/db/schema";
 import { eq, desc, gte, count, sql, and } from "drizzle-orm";
+import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | RoadSide ATL",
 };
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
 
 export default async function AdminOverviewPage() {
   const now = new Date();

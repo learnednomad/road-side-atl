@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { formatPrice } from "@/lib/utils";
 
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY;
@@ -37,10 +38,6 @@ interface ProviderInfo {
   name: string;
   email: string;
   phone: string;
-}
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export async function sendBookingConfirmation(booking: BookingInfo) {

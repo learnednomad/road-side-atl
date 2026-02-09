@@ -3,8 +3,11 @@ import { notFound } from "next/navigation";
 import { db } from "@/db";
 import { providers, providerPayouts, bookings } from "@/db/schema";
 import { eq, desc, sql, count } from "drizzle-orm";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -13,16 +16,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Provider Detail | Admin | RoadSide ATL",
 };
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
 
 export default async function ProviderDetailPage({
   params,
@@ -67,6 +67,14 @@ export default async function ProviderDetailPage({
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/admin/providers">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Providers
+          </Link>
+        </Button>
+      </div>
       <h1 className="text-3xl font-bold">{provider.name}</h1>
 
       {/* Provider Info */}

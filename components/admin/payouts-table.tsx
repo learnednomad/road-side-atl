@@ -21,8 +21,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { DollarSign, Clock, Download, Users } from "lucide-react";
+import { DollarSign, Clock, Download, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { exportToCSV } from "@/lib/csv";
+import { formatPrice } from "@/lib/utils";
 
 interface Payout {
   payout: {
@@ -54,15 +55,14 @@ interface PayoutsTableProps {
   };
 }
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+const PAYOUTS_PAGE_SIZE = 20;
 
 export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableProps) {
   const [payouts, setPayouts] = useState(initialPayouts);
   const [statusFilter, setStatusFilter] = useState("all");
   const [providerFilter, setProviderFilter] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
 
   // Get unique providers for filter
   const providers = Array.from(
@@ -75,6 +75,8 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
     return true;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAYOUTS_PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAYOUTS_PAGE_SIZE, page * PAYOUTS_PAGE_SIZE);
   const pendingPayouts = filtered.filter((p) => p.payout.status === "pending");
 
   function toggleSelect(id: string) {
@@ -243,7 +245,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map(({ payout, provider, booking }) => (
+              paginated.map(({ payout, provider, booking }) => (
                 <TableRow key={payout.id}>
                   <TableCell>
                     {payout.status === "pending" && (
@@ -277,6 +279,34 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
           </TableBody>
         </Table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

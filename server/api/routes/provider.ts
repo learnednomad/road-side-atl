@@ -278,7 +278,7 @@ app.get("/stats", async (c) => {
       and(
         eq(bookings.providerId, provider.id),
         eq(bookings.status, "completed"),
-        sql`${bookings.updatedAt} >= ${todayStart}`
+        sql`${bookings.updatedAt} >= ${todayStart.toISOString()}`
       )
     );
 
@@ -290,7 +290,7 @@ app.get("/stats", async (c) => {
       and(
         eq(bookings.providerId, provider.id),
         eq(payments.status, "confirmed"),
-        sql`${payments.createdAt} >= ${weekStart}`
+        sql`${payments.createdAt} >= ${weekStart.toISOString()}`
       )
     );
 

@@ -106,6 +106,20 @@ export default function ProviderSettingsPage() {
     }
   }
 
+  // Unsaved changes warning
+  const isDirty =
+    profile !== null &&
+    (name !== profile.name || phone !== profile.phone || address !== (profile.address || ""));
+
+  useEffect(() => {
+    if (!isDirty) return;
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">

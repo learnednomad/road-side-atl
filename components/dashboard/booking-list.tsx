@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
 import type { BookingStatus } from "@/lib/constants";
+import { formatPrice } from "@/lib/utils";
 import Link from "next/link";
 
 interface BookingItem {
@@ -24,10 +25,6 @@ interface BookingItem {
   };
 }
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
 export function BookingList({ bookings }: { bookings: BookingItem[] }) {
   if (bookings.length === 0) {
     return (
@@ -36,9 +33,9 @@ export function BookingList({ bookings }: { bookings: BookingItem[] }) {
           <p className="mb-4 text-muted-foreground">
             You don&apos;t have any bookings yet.
           </p>
-          <Link href="/book">
-            <Button>Book a Service</Button>
-          </Link>
+          <Button asChild>
+            <Link href="/book">Book a Service</Link>
+          </Button>
         </CardContent>
       </Card>
     );

@@ -16,6 +16,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS } from "@/lib/constants";
 import { AddressAutocomplete } from "@/components/maps/address-autocomplete";
+import { Check, ArrowRight, ArrowLeft, Loader2 } from "lucide-react";
+import { cn, formatPrice } from "@/lib/utils";
 
 interface Service {
   id: string;
@@ -26,15 +28,19 @@ interface Service {
   category: string;
 }
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+const STEPS = [
+  { label: "Service", shortLabel: "Service" },
+  { label: "Location & Vehicle", shortLabel: "Details" },
+  { label: "Contact & Schedule", shortLabel: "Contact" },
+  { label: "Review & Book", shortLabel: "Review" },
+];
 
-export function BookingForm({ services }: { services: Service[] }) {
+export function BookingForm({ services, userInfo }: { services: Service[]; userInfo?: { name: string; email: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedSlug = searchParams.get("service");
 
+  const [step, setStep] = useState(1);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [vehicleYear, setVehicleYear] = useState("");
   const [vehicleMake, setVehicleMake] = useState("");
@@ -44,21 +50,25 @@ export function BookingForm({ services }: { services: Service[] }) {
   const [locationNotes, setLocationNotes] = useState("");
   const [destination, setDestination] = useState("");
   const [estimatedMiles, setEstimatedMiles] = useState("");
-  const [contactName, setContactName] = useState("");
+  const [contactName, setContactName] = useState(userInfo?.name || "");
   const [contactPhone, setContactPhone] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
+  const [contactEmail, setContactEmail] = useState(userInfo?.email || "");
   const [scheduledAt, setScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
   const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
   const [destCoords, setDestCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [stepErrors, setStepErrors] = useState<string[]>([]);
 
   // Pre-select service from query param
   useEffect(() => {
     if (preselectedSlug) {
       const match = services.find((s) => s.slug === preselectedSlug);
-      if (match) setSelectedServiceId(match.id);
+      if (match) {
+        setSelectedServiceId(match.id);
+        setStep(2); // Skip to step 2 if service is pre-selected
+      }
     }
   }, [preselectedSlug, services]);
 
@@ -73,8 +83,62 @@ export function BookingForm({ services }: { services: Service[] }) {
     estimatedPrice += extraMiles * TOWING_PRICE_PER_MILE_CENTS;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function validateStep(s: number): string[] {
+    const errors: string[] = [];
+    if (s === 1) {
+      if (!selectedServiceId) errors.push("Please select a service.");
+    }
+    if (s === 2) {
+      if (!address) errors.push("Address is required.");
+      if (!vehicleYear) {
+        errors.push("Vehicle year is required.");
+      } else {
+        const yearNum = parseInt(vehicleYear, 10);
+        if (isNaN(yearNum) || yearNum < 1900 || yearNum > new Date().getFullYear() + 2) {
+          errors.push("Please enter a valid vehicle year.");
+        }
+      }
+      if (!vehicleMake) errors.push("Vehicle make is required.");
+      if (!vehicleModel) errors.push("Vehicle model is required.");
+      if (!vehicleColor) errors.push("Vehicle color is required.");
+    }
+    if (s === 3) {
+      if (!contactName) errors.push("Full name is required.");
+      if (!contactPhone) {
+        errors.push("Phone number is required.");
+      } else {
+        const phoneDigits = contactPhone.replace(/\D/g, "");
+        if (phoneDigits.length < 10) {
+          errors.push("Please enter a valid phone number (at least 10 digits).");
+        }
+      }
+      if (!contactEmail) {
+        errors.push("Email is required.");
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+        errors.push("Please enter a valid email address.");
+      }
+    }
+    return errors;
+  }
+
+  function handleNext() {
+    const errors = validateStep(step);
+    if (errors.length > 0) {
+      setStepErrors(errors);
+      // Scroll to validation errors
+      document.querySelector("[data-validation-errors]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    setStepErrors([]);
+    setStep((s) => Math.min(s + 1, 4));
+  }
+
+  function handleBack() {
+    setStepErrors([]);
+    setStep((s) => Math.max(s - 1, 1));
+  }
+
+  async function handleSubmit() {
     setLoading(true);
     setError("");
 
@@ -124,235 +188,422 @@ export function BookingForm({ services }: { services: Service[] }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      {/* Service Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Select Service <span className="text-destructive">*</span></CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Select value={selectedServiceId} onValueChange={setSelectedServiceId} required>
-            <SelectTrigger aria-required="true">
-              <SelectValue placeholder="Choose a service..." />
-            </SelectTrigger>
-            <SelectContent>
+    <div className="space-y-8">
+      {/* Step Progress Indicator */}
+      <nav aria-label="Booking progress" className="mb-8">
+        <ol className="flex items-center justify-between">
+          {STEPS.map((s, i) => {
+            const stepNum = i + 1;
+            const isCompleted = step > stepNum;
+            const isCurrent = step === stepNum;
+            return (
+              <li key={s.label} className="flex flex-1 items-center">
+                <div className="flex flex-col items-center gap-1.5">
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors",
+                      isCompleted
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : isCurrent
+                          ? "border-primary bg-background text-primary"
+                          : "border-muted-foreground/30 bg-background text-muted-foreground/50"
+                    )}
+                  >
+                    {isCompleted ? <Check className="h-4 w-4" /> : stepNum}
+                  </div>
+                  <span
+                    className={cn(
+                      "text-xs font-medium",
+                      isCurrent ? "text-primary" : isCompleted ? "text-foreground" : "text-muted-foreground/50"
+                    )}
+                  >
+                    <span className="hidden sm:inline">{s.label}</span>
+                    <span className="sm:hidden">{s.shortLabel}</span>
+                  </span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <div
+                    className={cn(
+                      "mx-2 h-0.5 flex-1",
+                      step > stepNum ? "bg-primary" : "bg-muted-foreground/20"
+                    )}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+
+      {/* Validation Errors */}
+      {stepErrors.length > 0 && (
+        <div data-validation-errors className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <ul className="space-y-1 text-sm text-destructive">
+            {stepErrors.map((err) => (
+              <li key={err}>{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Step 1: Service Selection */}
+      {step === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Select Your Service</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               {services.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name} — {formatPrice(s.basePrice)}
-                  {s.pricePerMile ? `+` : ""}
-                </SelectItem>
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSelectedServiceId(s.id)}
+                  className={cn(
+                    "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
+                    selectedServiceId === s.id
+                      ? "border-primary bg-primary/5"
+                      : "border-muted"
+                  )}
+                >
+                  <span className="font-semibold">{s.name}</span>
+                  <span className="mt-1 text-2xl font-bold">
+                    {formatPrice(s.basePrice)}
+                    {s.pricePerMile && (
+                      <span className="text-sm font-normal text-muted-foreground">+</span>
+                    )}
+                  </span>
+                  {s.category === "diagnostics" && (
+                    <span className="mt-1 text-xs text-muted-foreground">Payment upfront</span>
+                  )}
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Vehicle Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Vehicle Information <span className="text-destructive">*</span></CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="year">Year</Label>
-            <Input
-              id="year"
-              placeholder="2020"
-              value={vehicleYear}
-              onChange={(e) => setVehicleYear(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="make">Make</Label>
-            <Input
-              id="make"
-              placeholder="Honda"
-              value={vehicleMake}
-              onChange={(e) => setVehicleMake(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="model">Model</Label>
-            <Input
-              id="model"
-              placeholder="Civic"
-              value={vehicleModel}
-              onChange={(e) => setVehicleModel(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="color">Color</Label>
-            <Input
-              id="color"
-              placeholder="Silver"
-              value={vehicleColor}
-              onChange={(e) => setVehicleColor(e.target.value)}
-              required
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Location */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Location <span className="text-destructive">*</span></CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="address">Your Address / Location</Label>
-            <AddressAutocomplete
-              id="address"
-              placeholder="123 Peachtree St, Atlanta, GA"
-              value={address}
-              onChange={setAddress}
-              onPlaceSelected={(place) => {
-                setAddress(place.address);
-                setPickupCoords({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId });
-              }}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="locationNotes">Location Notes (optional)</Label>
-            <Textarea
-              id="locationNotes"
-              placeholder="Near the gas station on the corner..."
-              value={locationNotes}
-              onChange={(e) => setLocationNotes(e.target.value)}
-            />
-          </div>
-          {isTowing && (
-            <>
+      {/* Step 2: Location & Vehicle */}
+      {step === 2 && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Location</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="destination">Tow Destination</Label>
+                <Label htmlFor="address">Address / Location <span className="text-destructive">*</span></Label>
                 <AddressAutocomplete
-                  id="destination"
-                  placeholder="456 Main St, Atlanta, GA"
-                  value={destination}
-                  onChange={setDestination}
+                  id="address"
+                  placeholder="123 Peachtree St, Atlanta, GA"
+                  value={address}
+                  onChange={setAddress}
                   onPlaceSelected={(place) => {
-                    setDestination(place.address);
-                    setDestCoords({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId });
+                    setAddress(place.address);
+                    setPickupCoords({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId });
                   }}
+                  required
                 />
               </div>
               <div>
-                <Label htmlFor="miles">Estimated Distance (miles)</Label>
-                <Input
-                  id="miles"
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="15"
-                  value={estimatedMiles}
-                  onChange={(e) => setEstimatedMiles(e.target.value)}
+                <Label htmlFor="locationNotes">Location Notes (optional)</Label>
+                <Textarea
+                  id="locationNotes"
+                  placeholder="Near the gas station on the corner..."
+                  value={locationNotes}
+                  onChange={(e) => setLocationNotes(e.target.value)}
                 />
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              {isTowing && (
+                <>
+                  <div>
+                    <Label htmlFor="destination">Tow Destination</Label>
+                    <AddressAutocomplete
+                      id="destination"
+                      placeholder="456 Main St, Atlanta, GA"
+                      value={destination}
+                      onChange={setDestination}
+                      onPlaceSelected={(place) => {
+                        setDestination(place.address);
+                        setDestCoords({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId });
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="miles">Estimated Distance (miles)</Label>
+                    <Input
+                      id="miles"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="15"
+                      value={estimatedMiles}
+                      onChange={(e) => setEstimatedMiles(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
-      {/* Contact Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Contact Information <span className="text-destructive">*</span></CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input
-              id="name"
-              placeholder="John Doe"
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="phone">Phone Number</Label>
-            <Input
-              id="phone"
-              type="tel"
-              placeholder="(404) 555-0100"
-              value={contactPhone}
-              onChange={(e) => setContactPhone(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="john@example.com"
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              required
-            />
-          </div>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Vehicle Information</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="year">Year <span className="text-destructive">*</span></Label>
+                <Input
+                  id="year"
+                  placeholder="2020"
+                  value={vehicleYear}
+                  onChange={(e) => setVehicleYear(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="make">Make <span className="text-destructive">*</span></Label>
+                <Input
+                  id="make"
+                  placeholder="Honda"
+                  value={vehicleMake}
+                  onChange={(e) => setVehicleMake(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="model">Model <span className="text-destructive">*</span></Label>
+                <Input
+                  id="model"
+                  placeholder="Civic"
+                  value={vehicleModel}
+                  onChange={(e) => setVehicleModel(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="color">Color <span className="text-destructive">*</span></Label>
+                <Input
+                  id="color"
+                  placeholder="Silver"
+                  value={vehicleColor}
+                  onChange={(e) => setVehicleColor(e.target.value)}
+                  required
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
-      {/* Schedule */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Schedule (Optional)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-3 text-sm text-muted-foreground">
-            Leave blank for ASAP service, or pick a date and time.
-          </p>
-          <Input
-            type="datetime-local"
-            value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
-          />
-        </CardContent>
-      </Card>
+      {/* Step 3: Contact & Schedule */}
+      {step === 3 && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Contact Information</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label htmlFor="name">Full Name <span className="text-destructive">*</span></Label>
+                <Input
+                  id="name"
+                  placeholder="John Doe"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="phone">Phone Number <span className="text-destructive">*</span></Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="(404) 555-0100"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="john@example.com"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Additional Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            placeholder="Anything else we should know..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Schedule</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Leave blank for ASAP service, or pick a date and time.
+              </p>
+              <Input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+              />
+            </CardContent>
+          </Card>
 
-      {/* Price Estimate + Submit */}
-      <Card>
-        <CardContent className="pt-6">
-          {selectedService && (
-            <div className="mb-4 rounded-lg bg-muted p-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Additional Notes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                placeholder="Anything else we should know..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Step 4: Review & Submit */}
+      {step === 4 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Review Your Booking</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Service */}
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Service</p>
+                  <p className="font-semibold">{selectedService?.name}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+
+            {/* Location & Vehicle */}
+            <div className="rounded-lg border p-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Location</p>
+                    <p className="font-medium">{address}</p>
+                    {isTowing && destination && (
+                      <p className="text-sm text-muted-foreground">To: {destination}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Vehicle</p>
+                    <p className="font-medium">
+                      {vehicleYear} {vehicleMake} {vehicleModel} ({vehicleColor})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+
+            {/* Contact */}
+            <div className="rounded-lg border p-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Contact</p>
+                  <p className="font-medium">{contactName}</p>
+                  <p className="text-sm text-muted-foreground">{contactPhone}</p>
+                  <p className="text-sm text-muted-foreground">{contactEmail}</p>
+                  {scheduledAt && (
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Scheduled:</span>{" "}
+                      {new Date(scheduledAt).toLocaleString()}
+                    </p>
+                  )}
+                  {!scheduledAt && (
+                    <p className="text-sm font-medium text-primary">ASAP Service</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+
+            {notes && (
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Notes</p>
+                <p className="text-sm">{notes}</p>
+              </div>
+            )}
+
+            {/* Price */}
+            <div className="rounded-lg bg-muted p-4">
               <p className="text-sm text-muted-foreground">Estimated Total</p>
               <p className="text-3xl font-bold">{formatPrice(estimatedPrice)}</p>
-              {isTowing && estimatedMiles && (
+              {isTowing && estimatedMiles && selectedService && (
                 <p className="text-sm text-muted-foreground">
                   Base: {formatPrice(selectedService.basePrice)} + mileage
                 </p>
               )}
             </div>
-          )}
 
-          {error && (
-            <p className="mb-4 text-sm text-destructive">{error}</p>
-          )}
+            {error && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-          <Button type="submit" size="lg" className="w-full" disabled={loading || !selectedServiceId}>
-            {loading ? "Submitting..." : "Book Service"}
+      {/* Navigation Buttons */}
+      <div className="flex items-center justify-between gap-4">
+        {step > 1 ? (
+          <Button type="button" variant="outline" size="lg" onClick={handleBack}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
           </Button>
-        </CardContent>
-      </Card>
-    </form>
+        ) : (
+          <div />
+        )}
+
+        {step < 4 ? (
+          <Button type="button" size="lg" onClick={handleNext}>
+            Continue
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="lg"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="min-w-[200px]"
+          >
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? "Submitting..." : "Confirm Booking"}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }

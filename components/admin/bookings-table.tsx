@@ -32,6 +32,7 @@ import type { BookingStatus, PaymentMethod } from "@/lib/constants";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Search, Zap } from "lucide-react";
 import { useWS } from "@/components/providers/websocket-provider";
+import { formatPrice } from "@/lib/utils";
 
 interface BookingRow {
   booking: {
@@ -71,10 +72,6 @@ interface BookingsTableProps {
   total: number;
   page: number;
   totalPages: number;
-}
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 const statusFlow: BookingStatus[] = [
@@ -196,6 +193,8 @@ export function BookingsTable({
     }
   }
 
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState<string | null>(null);
+
   async function confirmPayment(bookingId: string, method: PaymentMethod) {
     const res = await fetch(`/api/admin/bookings/${bookingId}/confirm-payment`, {
       method: "POST",
@@ -204,6 +203,7 @@ export function BookingsTable({
     });
     if (res.ok) {
       toast.success("Payment confirmed");
+      setPaymentDialogOpen(null);
       setBookings((prev) =>
         prev.map((b) =>
           b.booking.id === bookingId
@@ -318,7 +318,7 @@ export function BookingsTable({
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -424,13 +424,19 @@ export function BookingsTable({
                             size="sm"
                             onClick={() => autoAssign(booking.id)}
                             title="Auto-assign nearest provider"
+                            aria-label="Auto-assign nearest provider"
                           >
                             <Zap className="h-3 w-3" />
                           </Button>
                         )}
 
                         {!confirmedPayment && (
-                          <Dialog>
+                          <Dialog
+                            open={paymentDialogOpen === booking.id}
+                            onOpenChange={(open) =>
+                              setPaymentDialogOpen(open ? booking.id : null)
+                            }
+                          >
                             <DialogTrigger asChild>
                               <Button variant="outline" size="sm">
                                 Confirm Pay

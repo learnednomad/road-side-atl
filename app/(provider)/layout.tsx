@@ -1,5 +1,5 @@
 import { ProviderSidebar } from "@/components/provider/provider-sidebar";
-import Link from "next/link";
+import { ProviderMobileNav } from "@/components/provider/provider-mobile-nav";
 
 export default function ProviderLayout({
   children,
@@ -10,11 +10,7 @@ export default function ProviderLayout({
     <div className="flex min-h-screen">
       <ProviderSidebar />
       <div className="flex-1">
-        <header className="flex h-16 items-center border-b px-6 lg:hidden">
-          <Link href="/provider" className="text-lg font-bold">
-            Provider Portal
-          </Link>
-        </header>
+        <ProviderMobileNav />
         <div className="p-6">{children}</div>
       </div>
     </div>

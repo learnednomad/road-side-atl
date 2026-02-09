@@ -20,6 +20,7 @@ const app = new Hono();
 app.use("/register", rateLimitAuth);
 app.use("/forgot-password", rateLimitAuth);
 app.use("/reset-password", rateLimitAuth);
+app.use("/resend-verification", rateLimitAuth);
 
 // Register new user
 app.post("/register", async (c) => {

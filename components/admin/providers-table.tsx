@@ -16,11 +16,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProviderForm } from "./provider-form";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ProviderStatus, CommissionType } from "@/lib/constants";
 
 interface Provider {
@@ -49,10 +61,27 @@ const statusVariant: Record<ProviderStatus, "default" | "secondary" | "destructi
   inactive: "destructive",
 };
 
+const PAGE_SIZE = 10;
+
 export function ProvidersTable({ providers: initialProviders }: { providers: Provider[] }) {
   const [providers, setProviders] = useState(initialProviders);
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  const filtered = providers.filter((p) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      p.name.toLowerCase().includes(q) ||
+      p.email.toLowerCase().includes(q) ||
+      p.phone.includes(q)
+    );
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   async function createProvider(data: any) {
     const res = await fetch("/api/admin/providers", {
@@ -100,10 +129,20 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search providers..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="w-64 pl-9"
+          />
+        </div>
         <span className="text-sm text-muted-foreground">
-          {providers.length} provider{providers.length !== 1 ? "s" : ""}
+          {filtered.length} provider{filtered.length !== 1 ? "s" : ""}
         </span>
+        <div className="flex-1" />
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
             <Button size="sm">
@@ -133,14 +172,14 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
             </TableRow>
           </TableHeader>
           <TableBody>
-            {providers.length === 0 ? (
+            {paginated.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   No providers found.
                 </TableCell>
               </TableRow>
             ) : (
-              providers.map((provider) => (
+              paginated.map((provider) => (
                 <TableRow key={provider.id}>
                   <TableCell className="font-medium">{provider.name}</TableCell>
                   <TableCell className="text-sm">{provider.email}</TableCell>
@@ -160,7 +199,7 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
                         onOpenChange={(open) => setEditOpen(open ? provider.id : null)}
                       >
                         <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" aria-label="Edit provider">
                             <Pencil className="h-3 w-3" />
                           </Button>
                         </DialogTrigger>
@@ -185,13 +224,27 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
                         </DialogContent>
                       </Dialog>
                       {provider.status !== "inactive" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteProvider(provider.id)}
-                        >
-                          <Trash2 className="h-3 w-3 text-destructive" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm" aria-label="Deactivate provider">
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Deactivate Provider</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to deactivate {provider.name}? They will stop receiving new job assignments.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteProvider(provider.id)}>
+                                Deactivate
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   </TableCell>
@@ -201,6 +254,34 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
           </TableBody>
         </Table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

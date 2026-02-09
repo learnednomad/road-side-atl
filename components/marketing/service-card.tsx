@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatPrice } from "@/lib/utils";
 
 const iconMap: Record<string, React.ElementType> = {
   "jump-start": Battery,
@@ -29,10 +30,6 @@ interface ServiceCardProps {
   category: string;
 }
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(0)}`;
-}
-
 export function ServiceCard({
   name,
   slug,
@@ -45,17 +42,20 @@ export function ServiceCard({
   const isDiagnostics = category === "diagnostics";
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col" id={slug}>
       <CardHeader>
         <div className="mb-2 flex items-center justify-between">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-5 w-5 text-primary" />
+            <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
           </div>
           {isDiagnostics && (
             <Badge variant="secondary">Payment Upfront</Badge>
           )}
         </div>
-        <CardTitle className="text-lg">{name}</CardTitle>
+        <CardTitle className="text-lg">
+          <span>{name}</span>
+          <span className="sr-only"> in Atlanta</span>
+        </CardTitle>
       </CardHeader>
       <CardContent className="flex-1">
         <p className="mb-3 text-sm text-muted-foreground">{description}</p>
@@ -70,9 +70,14 @@ export function ServiceCard({
         </p>
       </CardContent>
       <CardFooter>
-        <Link href={`/book?service=${slug}`} className="w-full">
-          <Button className="w-full">Book Now</Button>
-        </Link>
+        <Button asChild className="w-full">
+          <Link
+            href={`/book?service=${slug}`}
+            aria-label={`Book ${name} service in Atlanta`}
+          >
+            Book Now
+          </Link>
+        </Button>
       </CardFooter>
     </Card>
   );

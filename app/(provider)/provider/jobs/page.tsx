@@ -19,9 +19,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusUpdater } from "@/components/provider/status-updater";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import type { BookingStatus } from "@/lib/constants";
+import { formatPrice } from "@/lib/utils";
 
 interface JobData {
   booking: {
@@ -36,29 +37,33 @@ interface JobData {
   service: { name: string };
 }
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
 export default function ProviderJobsPage() {
   const [jobs, setJobs] = useState<JobData[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    params.set("page", page.toString());
-    params.set("limit", "20");
-    if (filter !== "all") params.set("status", filter);
+    setFetchError(false);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", page.toString());
+      params.set("limit", "20");
+      if (filter !== "all") params.set("status", filter);
 
-    const res = await fetch(`/api/provider/jobs?${params}`);
-    if (res.ok) {
-      const data = await res.json();
-      setJobs(data.data || []);
-      setTotalPages(data.totalPages || 1);
+      const res = await fetch(`/api/provider/jobs?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setJobs(data.data || []);
+        setTotalPages(data.totalPages || 1);
+      } else {
+        setFetchError(true);
+      }
+    } catch {
+      setFetchError(true);
     }
     setLoading(false);
   }, [page, filter]);
@@ -102,8 +107,21 @@ export default function ProviderJobsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                  Loading...
+                <TableCell colSpan={7} className="py-8 text-center">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            ) : fetchError ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <AlertCircle className="h-6 w-6 text-destructive" />
+                    <p className="text-sm text-muted-foreground">Failed to load jobs.</p>
+                    <Button variant="outline" size="sm" onClick={fetchJobs}>
+                      <RefreshCw className="mr-2 h-3 w-3" />
+                      Retry
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : jobs.length === 0 ? (

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Car, Loader2, Mail, CheckCircle2 } from "lucide-react";
+import { Car, Loader2, Mail, CheckCircle2, Check } from "lucide-react";
 import Link from "next/link";
 
 export default function RegisterPage() {
@@ -16,6 +16,8 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,16 +87,28 @@ export default function RegisterPage() {
               Didn&apos;t receive the email? Check your spam folder or{" "}
               <button
                 onClick={async () => {
-                  await fetch("/api/auth-routes/resend-verification", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email }),
-                  });
+                  setResending(true);
+                  try {
+                    await fetch("/api/auth-routes/resend-verification", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email }),
+                    });
+                    setResent(true);
+                  } finally {
+                    setResending(false);
+                  }
                 }}
-                className="text-primary hover:underline"
+                className="text-primary hover:underline disabled:opacity-50"
+                disabled={resending || resent}
               >
-                click here to resend
+                {resending ? "Sending..." : resent ? "Sent!" : "click here to resend"}
               </button>
+              {resent && (
+                <span className="ml-1 inline-flex items-center text-green-600">
+                  <Check className="h-3 w-3" />
+                </span>
+              )}
             </p>
           </CardContent>
         </Card>

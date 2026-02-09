@@ -43,6 +43,8 @@ function LoginForm() {
   const [loading, setLoading] = useState<"credentials" | "magic" | "google" | null>(null);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationResent, setVerificationResent] = useState(false);
 
   async function handleCredentialsSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -115,18 +117,28 @@ function LoginForm() {
             <Button
               variant="outline"
               className="w-full"
+              disabled={resendingVerification || verificationResent}
               onClick={async () => {
-                await fetch("/api/auth-routes/resend-verification", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email }),
-                });
-                setError("");
-                setShowVerificationMessage(false);
-                setMagicLinkSent(true);
+                setResendingVerification(true);
+                try {
+                  await fetch("/api/auth-routes/resend-verification", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email }),
+                  });
+                  setVerificationResent(true);
+                  setTimeout(() => {
+                    setError("");
+                    setShowVerificationMessage(false);
+                    setMagicLinkSent(true);
+                  }, 1500);
+                } finally {
+                  setResendingVerification(false);
+                }
               }}
             >
-              Resend Verification Email
+              {resendingVerification && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {verificationResent ? "Sent! Redirecting..." : "Resend Verification Email"}
             </Button>
             <Button
               variant="ghost"

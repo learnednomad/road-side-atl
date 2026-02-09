@@ -12,7 +12,15 @@ export const metadata: Metadata = {
 
 const PAGE_SIZE = 20;
 
-export default async function AdminBookingsPage() {
+export default async function AdminBookingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const params = await searchParams;
+  const currentPage = Math.max(1, parseInt(params.page || "1", 10) || 1);
+  const offset = (currentPage - 1) * PAGE_SIZE;
+
   // Get total count
   const [totalResult] = await db.select({ count: count() }).from(bookings);
 
@@ -26,7 +34,8 @@ export default async function AdminBookingsPage() {
     .innerJoin(services, eq(bookings.serviceId, services.id))
     .leftJoin(payments, eq(payments.bookingId, bookings.id))
     .orderBy(desc(bookings.createdAt))
-    .limit(PAGE_SIZE);
+    .limit(PAGE_SIZE)
+    .offset(offset);
 
   // Group payments by booking
   const bookingMap = new Map<
@@ -60,7 +69,7 @@ export default async function AdminBookingsPage() {
       <BookingsTable
         bookings={Array.from(bookingMap.values())}
         total={total}
-        page={1}
+        page={currentPage}
         totalPages={totalPages}
       />
     </div>

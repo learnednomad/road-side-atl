@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { formatPrice } from "@/lib/utils";
 
 interface Customer {
   user: {
@@ -31,10 +33,6 @@ interface CustomersTableProps {
   total: number;
   page: number;
   totalPages: number;
-}
-
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export function CustomersTable({
@@ -137,9 +135,12 @@ export function CustomersTable({
                                 .toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="text-sm font-medium">
+                          <Link
+                            href={`/admin/bookings?search=${encodeURIComponent(user.name || user.email || "")}`}
+                            className="text-sm font-medium hover:underline"
+                          >
                             {user.name || "—"}
-                          </span>
+                          </Link>
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
