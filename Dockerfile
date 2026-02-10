@@ -38,7 +38,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Install production dependencies only
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat curl
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
