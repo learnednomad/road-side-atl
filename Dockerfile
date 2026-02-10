@@ -2,6 +2,9 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
+# Force install all deps (including devDependencies like TypeScript)
+# even when NODE_ENV=production is injected as a build ARG by Coolify
+ENV NODE_ENV=development
 RUN npm ci
 
 # Stage 2: Build the application
