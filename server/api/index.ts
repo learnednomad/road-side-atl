@@ -13,6 +13,7 @@ import receiptsRoutes from "./routes/receipts";
 import reviewsRoutes from "./routes/reviews";
 import customerRoutes from "./routes/customer";
 import pushRoutes from "./routes/push";
+import providerRegistrationRoutes from "./routes/provider-registration";
 
 const app = new Hono().basePath("/api");
 
@@ -30,5 +31,6 @@ app.route("/receipts", receiptsRoutes);
 app.route("/reviews", reviewsRoutes);
 app.route("/customer", customerRoutes);
 app.route("/push", pushRoutes);
+app.route("/provider-registration", providerRegistrationRoutes);
 
 export default app;

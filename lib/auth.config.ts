@@ -29,8 +29,8 @@ export default {
         const valid = await bcrypt.compare(parsed.data.password, user.password);
         if (!valid) return null;
 
-        // Check if email is verified (skip for admin and provider accounts)
-        if (!user.emailVerified && user.role === "customer") {
+        // Check if email is verified (skip for admin accounts)
+        if (!user.emailVerified && user.role !== "admin") {
           throw new Error("EmailNotVerified");
         }
 

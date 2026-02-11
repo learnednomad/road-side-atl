@@ -4,9 +4,11 @@ import {
   timestamp,
   primaryKey,
   integer,
+  pgEnum,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 import { users } from "./users";
+import { providers } from "./providers";
 
 export const accounts = pgTable(
   "accounts",
@@ -56,4 +58,29 @@ export const passwordResetTokens = pgTable(
     expires: timestamp("expires", { mode: "date" }).notNull(),
   },
   (prt) => [primaryKey({ columns: [prt.identifier, prt.token] })]
+);
+
+export const providerInviteStatusEnum = pgEnum("provider_invite_status", [
+  "pending",
+  "accepted",
+  "expired",
+]);
+
+export const providerInviteTokens = pgTable(
+  "provider_invite_tokens",
+  {
+    identifier: text("identifier").notNull(), // email
+    token: text("token").notNull(),
+    providerId: text("providerId")
+      .notNull()
+      .references(() => providers.id, { onDelete: "cascade" }),
+    invitedBy: text("invitedBy").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    status: providerInviteStatusEnum("status").notNull().default("pending"),
+    expires: timestamp("expires", { mode: "date" }).notNull(),
+    acceptedAt: timestamp("acceptedAt", { mode: "date" }),
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  },
+  (pit) => [primaryKey({ columns: [pit.identifier, pit.token] })]
 );

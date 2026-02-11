@@ -22,6 +22,13 @@
       "when": 1770380674855,
       "tag": "0002_numerous_peter_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1770790245267,
+      "tag": "0003_condemned_james_howlett",
+      "breakpoints": true
     }
   ]
 }

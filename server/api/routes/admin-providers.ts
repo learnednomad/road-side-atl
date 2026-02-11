@@ -1,10 +1,17 @@
 import { Hono } from "hono";
 import { db } from "@/db";
 import { providers, providerPayouts, bookings, payments } from "@/db/schema";
+import { providerInviteTokens } from "@/db/schema/auth";
+import { users } from "@/db/schema/users";
 import { eq, desc, sql, count, and } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import { createProviderSchema, updateProviderSchema } from "@/lib/validators";
 import { geocodeAddress } from "@/lib/geocoding";
+import {
+  createProviderInviteToken,
+  sendProviderInviteEmail,
+} from "@/lib/auth/provider-invite";
+import { logAudit, getRequestInfo } from "../lib/audit-logger";
 
 type AuthEnv = {
   Variables: {
@@ -183,6 +190,94 @@ app.get("/:id/payouts", async (c) => {
     .orderBy(desc(providerPayouts.createdAt));
 
   return c.json(payouts);
+});
+
+// Send invite to provider
+app.post("/:id/invite", async (c) => {
+  const providerId = c.req.param("id");
+  const adminUser = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.id, providerId),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider not found" }, 404);
+  }
+
+  // Check if provider already has a linked user account
+  if (provider.userId) {
+    return c.json({ error: "Provider already has an account" }, 400);
+  }
+
+  // Check if a user with that email already exists
+  const existingUser = await db.query.users.findFirst({
+    where: eq(users.email, provider.email),
+  });
+
+  if (existingUser) {
+    return c.json(
+      { error: "A user with this email already exists" },
+      400
+    );
+  }
+
+  const token = await createProviderInviteToken(
+    provider.email,
+    providerId,
+    adminUser.id
+  );
+
+  await sendProviderInviteEmail(provider.email, provider.name, token).catch(
+    (err) => {
+      console.error("Failed to send provider invite email:", err);
+    }
+  );
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "provider.invite",
+    userId: adminUser.id,
+    resourceType: "provider",
+    resourceId: providerId,
+    details: { email: provider.email },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json({ success: true, message: "Invite sent" });
+});
+
+// Get invite status for provider
+app.get("/:id/invite-status", async (c) => {
+  const providerId = c.req.param("id");
+
+  const [invite] = await db
+    .select()
+    .from(providerInviteTokens)
+    .where(eq(providerInviteTokens.providerId, providerId))
+    .orderBy(desc(providerInviteTokens.createdAt))
+    .limit(1);
+
+  if (!invite) {
+    return c.json({ status: "none" });
+  }
+
+  // Check if expired but not yet marked
+  if (invite.status === "pending" && new Date() > invite.expires) {
+    return c.json({
+      status: "expired",
+      sentAt: invite.createdAt,
+      expiresAt: invite.expires,
+    });
+  }
+
+  return c.json({
+    status: invite.status,
+    sentAt: invite.createdAt,
+    expiresAt: invite.expires,
+    acceptedAt: invite.acceptedAt,
+  });
 });
 
 export default app;

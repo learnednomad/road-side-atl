@@ -25,7 +25,10 @@ export type AuditAction =
   | "settings.update"
   | "auto_dispatch.attempt"
   | "auto_dispatch.success"
-  | "auto_dispatch.failure";
+  | "auto_dispatch.failure"
+  | "provider.invite"
+  | "provider.invite_accepted"
+  | "provider.self_register";
 
 export interface AuditLogEntry {
   action: AuditAction;

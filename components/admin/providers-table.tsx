@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProviderForm } from "./provider-form";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, Mail, Loader2 } from "lucide-react";
 import type { ProviderStatus, CommissionType } from "@/lib/constants";
 
 interface Provider {
@@ -45,6 +45,7 @@ interface Provider {
   flatFeeAmount: number | null;
   status: ProviderStatus;
   specialties: string[] | null;
+  userId: string | null;
   createdAt: string;
 }
 
@@ -69,6 +70,7 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
   const [editOpen, setEditOpen] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [inviting, setInviting] = useState<string | null>(null);
 
   const filtered = providers.filter((p) => {
     if (!search) return true;
@@ -124,6 +126,25 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
       toast.success("Provider deactivated");
     } else {
       toast.error("Failed to deactivate provider");
+    }
+  }
+
+  async function sendInvite(id: string) {
+    setInviting(id);
+    try {
+      const res = await fetch(`/api/admin/providers/${id}/invite`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Invite sent successfully");
+      } else {
+        toast.error(data.error || "Failed to send invite");
+      }
+    } catch {
+      toast.error("Failed to send invite");
+    } finally {
+      setInviting(null);
     }
   }
 
@@ -194,6 +215,21 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
+                      {!provider.userId && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label="Send invite"
+                          onClick={() => sendInvite(provider.id)}
+                          disabled={inviting === provider.id}
+                        >
+                          {inviting === provider.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Mail className="h-3 w-3" />
+                          )}
+                        </Button>
+                      )}
                       <Dialog
                         open={editOpen === provider.id}
                         onOpenChange={(open) => setEditOpen(open ? provider.id : null)}
