@@ -4,6 +4,13 @@ import { eq, sql, and } from "drizzle-orm";
 import { logAudit } from "@/server/api/lib/audit-logger";
 import { TRUST_TIER_PROMOTION_THRESHOLD } from "@/lib/constants";
 
+export const TIER_1_ALLOWED_METHODS = ["cash", "cashapp", "zelle"] as const;
+export const TIER_2_ALLOWED_METHODS = ["cash", "cashapp", "zelle", "stripe"] as const;
+
+export function getAllowedPaymentMethods(trustTier: number): readonly string[] {
+  return trustTier >= 2 ? TIER_2_ALLOWED_METHODS : TIER_1_ALLOWED_METHODS;
+}
+
 /**
  * Increment clean transaction count and auto-promote if threshold met.
  * Uses atomic SQL increment to prevent race conditions.

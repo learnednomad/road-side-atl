@@ -137,6 +137,11 @@ export const trustTierUpdateSchema = z.object({
 
 export type TrustTierUpdateInput = z.infer<typeof trustTierUpdateSchema>;
 
+export function isPaymentMethodAllowedForTier(method: string, trustTier: number): boolean {
+  if (method === "stripe" && trustTier < 2) return false;
+  return true;
+}
+
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
 export type LocationInfo = z.infer<typeof locationSchema>;
