@@ -53,3 +53,13 @@ export const TOWING_PRICE_PER_MILE_CENTS = 600; // $6/mile
 export const TRUST_TIER_LEVELS = [1, 2] as const;
 export type TrustTier = (typeof TRUST_TIER_LEVELS)[number];
 export const TRUST_TIER_PROMOTION_THRESHOLD = 3; // clean transactions to reach Tier 2
+
+export const OBSERVATION_SEVERITIES = ["low", "medium", "high"] as const;
+export type ObservationSeverity = (typeof OBSERVATION_SEVERITIES)[number];
+
+export const REFERRAL_STATUSES = ["pending", "credited", "expired"] as const;
+export type ReferralStatus = (typeof REFERRAL_STATUSES)[number];
+export const REFERRAL_CREDIT_AMOUNT_CENTS = 1000; // $10.00
+
+export const INSPECTION_CONDITIONS = ["good", "fair", "poor", "critical"] as const;
+export type InspectionCondition = (typeof INSPECTION_CONDITIONS)[number];

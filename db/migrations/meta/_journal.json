@@ -50,6 +50,20 @@
       "when": 1771127447768,
       "tag": "0006_handy_mister_fear",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1771135365768,
+      "tag": "0007_ancient_mockingbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1771136225011,
+      "tag": "0008_windy_korg",
+      "breakpoints": true
     }
   ]
 }

@@ -36,7 +36,14 @@ export type AuditAction =
   | "trust_tier.promote"
   | "trust_tier.demote"
   | "trust_tier.admin_override"
-  | "trust_tier.bypass_attempt";
+  | "trust_tier.bypass_attempt"
+  | "observation.submit"
+  | "observation.follow_up_sent"
+  | "referral.create"
+  | "referral.credit"
+  | "referral.expire"
+  | "inspection.generate"
+  | "inspection.email_sent";
 
 export interface AuditLogEntry {
   action: AuditAction;

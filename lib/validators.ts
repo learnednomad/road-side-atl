@@ -142,6 +142,64 @@ export function isPaymentMethodAllowedForTier(method: string, trustTier: number)
   return true;
 }
 
+export const updatePromotionThresholdSchema = z.object({
+  promotionThreshold: z.number().int().min(1).max(100),
+});
+
+export type UpdatePromotionThresholdInput = z.infer<typeof updatePromotionThresholdSchema>;
+
+export const createObservationSchema = z.object({
+  bookingId: z.string().uuid("Invalid booking"),
+  items: z
+    .array(
+      z.object({
+        category: z.string().min(1, "Category is required"),
+        description: z.string().min(1, "Description is required"),
+        severity: z.enum(["low", "medium", "high"]),
+        photoUrl: z.string().url().optional(),
+      })
+    )
+    .min(1, "At least one observation item is required"),
+});
+
+export type CreateObservationInput = z.infer<typeof createObservationSchema>;
+
+export const createReferralSchema = z.object({
+  referralCode: z.string().min(1, "Referral code is required"),
+});
+
+export type CreateReferralInput = z.infer<typeof createReferralSchema>;
+
+export const createInspectionReportSchema = z.object({
+  bookingId: z.string().uuid("Invalid booking"),
+  findings: z
+    .array(
+      z.object({
+        category: z.string().min(1, "Category is required"),
+        component: z.string().min(1, "Component is required"),
+        condition: z.enum(["good", "fair", "poor", "critical"]),
+        description: z.string().min(1, "Description is required"),
+        measurement: z.string().optional(),
+        photoUrl: z.string().url().optional(),
+        obdCode: z.string().optional(),
+      })
+    )
+    .min(1, "At least one finding is required"),
+});
+
+export type CreateInspectionReportInput = z.infer<typeof createInspectionReportSchema>;
+
+export const updateChecklistConfigSchema = z.object({
+  checklistConfig: z.array(
+    z.object({
+      category: z.string().min(1),
+      items: z.array(z.string().min(1)).min(1),
+    })
+  ),
+});
+
+export type UpdateChecklistConfigInput = z.infer<typeof updateChecklistConfigSchema>;
+
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
 export type LocationInfo = z.infer<typeof locationSchema>;

@@ -15,6 +15,7 @@ import {
   ScrollText,
   PiggyBank,
   FileText,
+  Shield,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ const links = [
   { href: "/admin/providers", label: "Providers", icon: Wrench },
   { href: "/admin/payouts", label: "Payouts", icon: Banknote },
   { href: "/admin/customers", label: "Customers", icon: Users },
+  { href: "/admin/trust-tier", label: "Trust Tier", icon: Shield },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];
 

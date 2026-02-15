@@ -76,7 +76,7 @@ app.get("/:id", async (c) => {
 
   // Verify the customer owns the booking
   const booking = await db.query.bookings.findFirst({
-    where: and(eq(bookings.id, invoice.bookingId), eq(bookings.userId, user.id)),
+    where: and(eq(bookings.id, invoice.bookingId!), eq(bookings.userId, user.id)),
   });
 
   if (!booking) {
@@ -106,7 +106,7 @@ app.get("/:id/html", async (c) => {
 
   // Verify the customer owns the booking
   const booking = await db.query.bookings.findFirst({
-    where: and(eq(bookings.id, invoice.bookingId), eq(bookings.userId, user.id)),
+    where: and(eq(bookings.id, invoice.bookingId!), eq(bookings.userId, user.id)),
   });
 
   if (!booking) {

@@ -9,3 +9,7 @@ export * from "./auth";
 export * from "./reviews";
 export * from "./push-subscriptions";
 export * from "./invoices";
+export * from "./platform-settings";
+export * from "./observations";
+export * from "./referrals";
+export * from "./inspection-reports";

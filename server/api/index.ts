@@ -18,6 +18,10 @@ import adminFinancesRoutes from "./routes/admin-finances";
 import adminInvoicesRoutes from "./routes/admin-invoices";
 import providerInvoicesRoutes from "./routes/provider-invoices";
 import customerInvoicesRoutes from "./routes/customer-invoices";
+import trustTierRoutes from "./routes/trust-tier";
+import observationsRoutes from "./routes/observations";
+import referralsRoutes from "./routes/referrals";
+import inspectionReportsRoutes from "./routes/inspection-reports";
 
 const app = new Hono().basePath("/api");
 
@@ -40,5 +44,9 @@ app.route("/admin/finances", adminFinancesRoutes);
 app.route("/admin/invoices", adminInvoicesRoutes);
 app.route("/provider/invoices", providerInvoicesRoutes);
 app.route("/customer/invoices", customerInvoicesRoutes);
+app.route("/admin/trust-tier", trustTierRoutes);
+app.route("/provider/observations", observationsRoutes);
+app.route("/referrals", referralsRoutes);
+app.route("/inspection-reports", inspectionReportsRoutes);
 
 export default app;

@@ -114,3 +114,50 @@ export async function sendStatusUpdate(booking: BookingInfo, newStatus: string) 
     `,
   });
 }
+
+export async function sendObservationFollowUpEmail(email: string, customerName: string, findings: string) {
+  const resend = getResend();
+  if (!resend) return;
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: "Vehicle Observation - RoadSide ATL",
+    html: `
+      <h2>Vehicle Observation Report</h2>
+      <p>Hi ${customerName},</p>
+      <p>During your recent service, our provider noticed some items that may need attention:</p>
+      <p>${findings}</p>
+      <p>We recommend booking a diagnostic inspection for a thorough assessment.</p>
+      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/book">Book an Inspection</a></p>
+      <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+    `,
+  });
+}
+
+export async function sendInspectionReportEmail(
+  email: string,
+  customerName: string,
+  bookingId: string,
+  vehicleDescription: string,
+  reportUrl: string
+) {
+  const resend = getResend();
+  if (!resend) return;
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `Vehicle Inspection Report - RoadSide ATL #${bookingId.slice(0, 8)}`,
+    html: `
+      <h2>Your Vehicle Inspection Report</h2>
+      <p>Hi ${customerName},</p>
+      <p>Your inspection report for the <strong>${vehicleDescription}</strong> is ready.</p>
+      <p><a href="${reportUrl}" style="display: inline-block; padding: 12px 24px; background-color: #1a1a2e; color: white; text-decoration: none; border-radius: 6px;">View Report</a></p>
+      <p>You can also download the PDF version from the link above.</p>
+      <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+    `,
+  });
+}

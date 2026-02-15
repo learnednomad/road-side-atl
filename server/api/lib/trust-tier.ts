@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, platformSettings } from "@/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { logAudit } from "@/server/api/lib/audit-logger";
 import { TRUST_TIER_PROMOTION_THRESHOLD } from "@/lib/constants";
@@ -9,6 +9,17 @@ export const TIER_2_ALLOWED_METHODS = ["cash", "cashapp", "zelle", "stripe"] as 
 
 export function getAllowedPaymentMethods(trustTier: number): readonly string[] {
   return trustTier >= 2 ? TIER_2_ALLOWED_METHODS : TIER_1_ALLOWED_METHODS;
+}
+
+/**
+ * Read promotion threshold from platform_settings table.
+ * Falls back to TRUST_TIER_PROMOTION_THRESHOLD constant if no DB row exists.
+ */
+export async function getPromotionThreshold(): Promise<number> {
+  const setting = await db.query.platformSettings.findFirst({
+    where: eq(platformSettings.key, "trust_tier_promotion_threshold"),
+  });
+  return setting ? parseInt(setting.value, 10) : TRUST_TIER_PROMOTION_THRESHOLD;
 }
 
 /**
@@ -39,9 +50,10 @@ export async function incrementCleanTransaction(userId: string): Promise<{
   }
 
   // Promote atomically: only if still Tier 1 and threshold met
+  const threshold = await getPromotionThreshold();
   if (
     updated.trustTier === 1 &&
-    updated.cleanTransactionCount >= TRUST_TIER_PROMOTION_THRESHOLD
+    updated.cleanTransactionCount >= threshold
   ) {
     const [promoted] = await db
       .update(users)
@@ -91,12 +103,17 @@ export async function checkAndPromote(userId: string): Promise<boolean> {
     return false;
   }
 
-  if (user.cleanTransactionCount >= TRUST_TIER_PROMOTION_THRESHOLD) {
+  const threshold = await getPromotionThreshold();
+  if (user.cleanTransactionCount >= threshold) {
     const [updated] = await db
       .update(users)
       .set({ trustTier: 2, updatedAt: new Date() })
-      .where(eq(users.id, userId))
+      .where(and(eq(users.id, userId), eq(users.trustTier, 1)))
       .returning({ trustTier: users.trustTier });
+
+    if (!updated || updated.trustTier !== 2) {
+      return false;
+    }
 
     logAudit({
       action: "trust_tier.promote",

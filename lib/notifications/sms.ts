@@ -101,3 +101,24 @@ export async function sendStatusUpdateSMS(phone: string, booking: BookingInfo, s
     `RoadSide ATL: Booking #${booking.id.slice(0, 8)} is now ${msg}.`
   );
 }
+
+export async function sendObservationFollowUpSMS(phone: string, findings: string) {
+  await sendSMS(
+    phone,
+    `RoadSide ATL: Our provider noticed some issues with your vehicle: ${findings}. Book a diagnostic inspection to learn more! Reply STOP to opt out.`
+  );
+}
+
+export async function sendReferralSMS(phone: string, referralLink: string) {
+  await sendSMS(
+    phone,
+    `RoadSide ATL: Thanks for using our service! Share your referral link and earn $10 credit: ${referralLink} Reply STOP to opt out.`
+  );
+}
+
+export async function sendReferralCreditSMS(phone: string, amount: number) {
+  await sendSMS(
+    phone,
+    `RoadSide ATL: You earned a ${formatPrice(amount)} referral credit! It will be applied to your next booking. Reply STOP to opt out.`
+  );
+}

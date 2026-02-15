@@ -44,7 +44,7 @@ development_status:
   epic-1: in-progress
   1-1-trust-tier-data-model-and-promotion-engine: review
   1-2-payment-method-enforcement-middleware: done
-  1-3-admin-trust-tier-configuration-and-management: backlog
+  1-3-admin-trust-tier-configuration-and-management: done
   1-4-customer-trust-tier-visibility-notifications-and-account-integration: backlog
   epic-1-retrospective: optional
 
@@ -80,8 +80,8 @@ development_status:
   epic-5-retrospective: optional
 
   # Epic 6: Vehicle Observation & Follow-Up Pipeline
-  epic-6: backlog
-  6-1-observation-schema-checklist-configuration-and-provider-submission: backlog
+  epic-6: in-progress
+  6-1-observation-schema-checklist-configuration-and-provider-submission: ready-for-dev
   6-2-customer-follow-up-notifications-and-provider-operations-integration: backlog
   epic-6-retrospective: optional
 
