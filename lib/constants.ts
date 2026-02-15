@@ -44,5 +44,12 @@ export type CommissionType = (typeof COMMISSION_TYPES)[number];
 export const PAYOUT_STATUSES = ["pending", "paid"] as const;
 export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
 
+export const INVOICE_STATUSES = ["draft", "issued", "paid", "void"] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+
 export const TOWING_BASE_MILES = 10;
 export const TOWING_PRICE_PER_MILE_CENTS = 600; // $6/mile
+
+export const TRUST_TIER_LEVELS = [1, 2] as const;
+export type TrustTier = (typeof TRUST_TIER_LEVELS)[number];
+export const TRUST_TIER_PROMOTION_THRESHOLD = 3; // clean transactions to reach Tier 2

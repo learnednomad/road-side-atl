@@ -29,6 +29,27 @@
       "when": 1770790245267,
       "tag": "0003_condemned_james_howlett",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1770858441557,
+      "tag": "0004_zippy_puma",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1770878834191,
+      "tag": "0005_glorious_jack_flag",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1771127447768,
+      "tag": "0006_handy_mister_fear",
+      "breakpoints": true
     }
   ]
 }

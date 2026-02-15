@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ClipboardList, Settings, LogOut, Home } from "lucide-react";
+import { LayoutDashboard, ClipboardList, Settings, LogOut, Home, DollarSign, FileText } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/provider", label: "Dashboard", icon: LayoutDashboard },
   { href: "/provider/jobs", label: "Jobs", icon: ClipboardList },
+  { href: "/provider/earnings", label: "Earnings", icon: DollarSign },
+  { href: "/provider/invoices", label: "Invoices", icon: FileText },
   { href: "/provider/settings", label: "Settings", icon: Settings },
 ];
 

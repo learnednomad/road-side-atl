@@ -107,6 +107,36 @@ export const providerSelfRegisterSchema = z.object({
   address: z.string().optional(),
 });
 
+export const generateInvoiceSchema = z.object({
+  bookingId: z.string().uuid("Invalid booking"),
+});
+
+export const updateInvoiceStatusSchema = z.object({
+  status: z.enum(["issued", "void"]),
+});
+
+export const createStandaloneInvoiceSchema = z.object({
+  customerName: z.string().min(2, "Name is required"),
+  customerEmail: z.email("Valid email is required"),
+  customerPhone: z.string().min(10, "Phone number is required"),
+  lineItems: z
+    .array(
+      z.object({
+        description: z.string().min(1, "Description is required"),
+        quantity: z.number().int().positive("Quantity must be positive"),
+        unitPrice: z.number().int().positive("Unit price must be positive"),
+      })
+    )
+    .min(1, "At least one line item is required"),
+  notes: z.string().optional(),
+});
+
+export const trustTierUpdateSchema = z.object({
+  trustTier: z.number().int().min(1).max(2),
+});
+
+export type TrustTierUpdateInput = z.infer<typeof trustTierUpdateSchema>;
+
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
 export type LocationInfo = z.infer<typeof locationSchema>;

@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { bookings, payments, providers, providerPayouts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { createInvoiceForBooking } from "./invoice-generator";
 
 /**
  * Creates a payout record if the booking is eligible:
@@ -68,6 +69,11 @@ export async function createPayoutIfEligible(bookingId: string) {
       status: "pending",
     })
     .returning();
+
+  // Generate invoice for this booking (fire-and-forget)
+  createInvoiceForBooking(bookingId).catch((err) => {
+    console.error("[Payout] Failed to generate invoice for booking:", bookingId, err);
+  });
 
   return payout;
 }

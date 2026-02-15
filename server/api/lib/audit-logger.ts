@@ -28,7 +28,15 @@ export type AuditAction =
   | "auto_dispatch.failure"
   | "provider.invite"
   | "provider.invite_accepted"
-  | "provider.self_register";
+  | "provider.self_register"
+  | "invoice.generate"
+  | "invoice.create_standalone"
+  | "invoice.issue"
+  | "invoice.void"
+  | "trust_tier.promote"
+  | "trust_tier.demote"
+  | "trust_tier.admin_override"
+  | "trust_tier.bypass_attempt";
 
 export interface AuditLogEntry {
   action: AuditAction;

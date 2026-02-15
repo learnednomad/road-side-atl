@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, providers, payments } from "@/db/schema";
+import { bookings, services, providers, payments, providerPayouts } from "@/db/schema";
 import { eq, desc, and, count, sql } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
 import { updateBookingStatusSchema } from "@/lib/validators";
@@ -399,6 +399,190 @@ app.patch("/availability", async (c) => {
     .returning();
 
   return c.json(updated);
+});
+
+// Earnings summary
+app.get("/earnings/summary", async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [earningsSummary] = await db
+    .select({
+      totalEarned: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      pendingPayout: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'pending' then ${providerPayouts.amount} else 0 end), 0)`,
+      paidOut: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'paid' then ${providerPayouts.amount} else 0 end), 0)`,
+    })
+    .from(providerPayouts)
+    .where(eq(providerPayouts.providerId, provider.id));
+
+  const [monthEarnings] = await db
+    .select({
+      thisMonth: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      completedJobs: sql<number>`count(*)`,
+    })
+    .from(providerPayouts)
+    .where(
+      and(
+        eq(providerPayouts.providerId, provider.id),
+        sql`${providerPayouts.createdAt} >= ${monthStart.toISOString()}`
+      )
+    );
+
+  return c.json({
+    totalEarned: Number(earningsSummary.totalEarned),
+    pendingPayout: Number(earningsSummary.pendingPayout),
+    paidOut: Number(earningsSummary.paidOut),
+    thisMonthEarnings: Number(monthEarnings.thisMonth),
+    completedJobsThisMonth: Number(monthEarnings.completedJobs),
+    commissionRate: provider.commissionRate,
+    commissionType: provider.commissionType,
+    flatFeeAmount: provider.flatFeeAmount,
+  });
+});
+
+// Earnings history (payout list)
+app.get("/earnings/history", async (c) => {
+  const user = c.get("user");
+  const status = c.req.query("status");
+  const page = parseInt(c.req.query("page") || "1");
+  const limit = parseInt(c.req.query("limit") || "20");
+  const offset = (page - 1) * limit;
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  const conditions = [eq(providerPayouts.providerId, provider.id)];
+  if (status && (status === "pending" || status === "paid")) {
+    conditions.push(eq(providerPayouts.status, status));
+  }
+
+  const [totalResult] = await db
+    .select({ count: count() })
+    .from(providerPayouts)
+    .where(and(...conditions));
+
+  const results = await db
+    .select({
+      payout: providerPayouts,
+      booking: bookings,
+      service: services,
+    })
+    .from(providerPayouts)
+    .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .where(and(...conditions))
+    .orderBy(desc(providerPayouts.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return c.json({
+    data: results.map((r) => ({
+      payout: {
+        ...r.payout,
+        createdAt: r.payout.createdAt.toISOString(),
+        paidAt: r.payout.paidAt?.toISOString() || null,
+      },
+      booking: {
+        id: r.booking.id,
+        contactName: r.booking.contactName,
+        createdAt: r.booking.createdAt.toISOString(),
+      },
+      service: { name: r.service.name },
+    })),
+    total: totalResult.count,
+    page,
+    limit,
+    totalPages: Math.ceil(totalResult.count / limit),
+  });
+});
+
+// Monthly earnings trends
+app.get("/earnings/trends", async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 12);
+  startDate.setDate(1);
+
+  const trends = await db
+    .select({
+      month: sql<string>`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`,
+      earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      jobCount: sql<number>`count(*)`,
+    })
+    .from(providerPayouts)
+    .where(
+      and(
+        eq(providerPayouts.providerId, provider.id),
+        sql`${providerPayouts.createdAt} >= ${startDate.toISOString()}`
+      )
+    )
+    .groupBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`)
+    .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`);
+
+  return c.json({
+    trends: trends.map((t) => ({
+      month: t.month,
+      earnings: Number(t.earnings),
+      jobCount: Number(t.jobCount),
+    })),
+  });
+});
+
+// Earnings breakdown by service
+app.get("/earnings/by-service", async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  const breakdown = await db
+    .select({
+      serviceName: services.name,
+      earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      jobCount: sql<number>`count(*)`,
+    })
+    .from(providerPayouts)
+    .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .where(eq(providerPayouts.providerId, provider.id))
+    .groupBy(services.name);
+
+  return c.json({
+    breakdown: breakdown.map((b) => ({
+      serviceName: b.serviceName,
+      earnings: Number(b.earnings),
+      jobCount: Number(b.jobCount),
+    })),
+  });
 });
 
 export default app;

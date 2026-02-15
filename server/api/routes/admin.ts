@@ -9,6 +9,7 @@ import {
   assignProviderSchema,
 } from "@/lib/validators";
 import { createPayoutIfEligible } from "../lib/payout-calculator";
+import { incrementCleanTransaction } from "../lib/trust-tier";
 import { generateCSV } from "@/lib/csv";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { notifyStatusChange, notifyProviderAssigned } from "@/lib/notifications";
@@ -359,6 +360,17 @@ app.patch("/payments/:id/confirm", async (c) => {
       userAgent,
     });
 
+    // Increment clean transaction count for trust tier promotion
+    if (existingPayment.bookingId) {
+      const booking = await db.query.bookings.findFirst({
+        where: eq(bookings.id, existingPayment.bookingId),
+        columns: { userId: true },
+      });
+      if (booking?.userId) {
+        await incrementCleanTransaction(booking.userId);
+      }
+    }
+
     return c.json(updated);
   }
 
@@ -417,6 +429,11 @@ app.post("/bookings/:id/confirm-payment", async (c) => {
     ipAddress,
     userAgent,
   });
+
+  // Increment clean transaction count for trust tier promotion
+  if (booking.userId) {
+    await incrementCleanTransaction(booking.userId);
+  }
 
   // Try to create payout if booking is already completed
   await createPayoutIfEligible(bookingId);
