@@ -229,6 +229,17 @@ export const updateTimeBlockConfigSchema = createTimeBlockConfigSchema.partial()
 
 export type UpdateTimeBlockConfigInput = z.infer<typeof updateTimeBlockConfigSchema>;
 
+export const activateStormModeSchema = z.object({
+  templateId: z.string().uuid("Invalid template ID"),
+});
+export type ActivateStormModeInput = z.infer<typeof activateStormModeSchema>;
+
+export const overrideBookingPriceSchema = z.object({
+  priceOverrideCents: z.number().int().positive("Override price must be positive"),
+  reason: z.string().min(1, "Override reason is required"),
+});
+export type OverrideBookingPriceInput = z.infer<typeof overrideBookingPriceSchema>;
+
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
 export type LocationInfo = z.infer<typeof locationSchema>;

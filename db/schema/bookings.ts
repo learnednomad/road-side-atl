@@ -57,6 +57,8 @@ export const bookings = pgTable("bookings", {
   finalPrice: integer("finalPrice"), // cents
   towingMiles: integer("towingMiles"),
   referralCreditApplied: integer("referralCreditApplied"), // cents, nullable
+  priceOverrideCents: integer("priceOverrideCents"), // cents, nullable — admin override
+  priceOverrideReason: text("priceOverrideReason"), // nullable — required when override is set
   notes: text("notes"),
   preferredPaymentMethod: text("preferredPaymentMethod"),
   providerId: text("providerId"), // FK to providers, managed at app level to avoid circular imports

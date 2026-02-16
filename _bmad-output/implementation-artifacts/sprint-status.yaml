@@ -51,8 +51,8 @@ development_status:
   # Epic 2: Dynamic Pricing & Storm Mode
   epic-2: in-progress
   2-1-time-block-pricing-schema-and-engine: done
-  2-2-storm-mode-activation-and-templates: backlog
-  2-3-admin-pricing-configuration-and-booking-override: backlog
+  2-2-storm-mode-activation-and-templates: done
+  2-3-admin-pricing-configuration-and-booking-override: done
   epic-2-retrospective: optional
 
   # Epic 3: Payment Operations & Tiered Commission

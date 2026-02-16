@@ -45,7 +45,8 @@ export type AuditAction =
   | "inspection.generate"
   | "inspection.email_sent"
   | "pricing.update_block"
-  | "pricing.toggle_storm_mode";
+  | "pricing.toggle_storm_mode"
+  | "booking.price_override";
 
 export interface AuditLogEntry {
   action: AuditAction;

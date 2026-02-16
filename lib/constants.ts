@@ -68,3 +68,5 @@ export const INSPECTION_CONDITIONS = ["good", "fair", "poor", "critical"] as con
 export type InspectionCondition = (typeof INSPECTION_CONDITIONS)[number];
 
 export const DEFAULT_MULTIPLIER_BP = 10000; // 1.0x in basis points
+
+export const STORM_MODE_PRIORITY = 100; // Storm templates have priority >= this value

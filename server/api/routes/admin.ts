@@ -7,6 +7,7 @@ import {
   updateBookingStatusSchema,
   confirmPaymentSchema,
   assignProviderSchema,
+  overrideBookingPriceSchema,
 } from "@/lib/validators";
 import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { incrementCleanTransaction } from "../lib/trust-tier";
@@ -32,6 +33,7 @@ app.use("/*", rateLimitStandard);
 app.use("/bookings/:id/status", rateLimitStrict);
 app.use("/bookings/:id/assign-provider", rateLimitStrict);
 app.use("/payments/:id/confirm", rateLimitStrict);
+app.use("/bookings/:id/override-price", rateLimitStrict);
 
 // Dashboard stats
 app.get("/stats", async (c) => {
@@ -868,6 +870,95 @@ app.get("/audit-logs", async (c) => {
   } catch {
     return c.json({ data: [], page, limit, error: "Failed to query audit logs" });
   }
+});
+
+// PATCH /bookings/:id/override-price - Admin override booking price
+app.patch("/bookings/:id/override-price", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+
+  const existing = await db.query.bookings.findFirst({
+    where: eq(bookings.id, id),
+  });
+  if (!existing) {
+    return c.json({ error: "Booking not found" }, 404);
+  }
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+
+  // Handle clear override
+  if (body.clear === true) {
+    const [updated] = await db
+      .update(bookings)
+      .set({
+        priceOverrideCents: null,
+        priceOverrideReason: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+
+    logAudit({
+      action: "booking.price_override",
+      userId: user.id,
+      resourceType: "booking",
+      resourceId: id,
+      details: {
+        previousOverrideCents: existing.priceOverrideCents,
+        cleared: true,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    broadcastToAdmins({
+      type: "booking:price_override",
+      data: { bookingId: id },
+    });
+
+    return c.json(updated, 200);
+  }
+
+  // Set/update override
+  const parsed = overrideBookingPriceSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const { priceOverrideCents, reason } = parsed.data;
+
+  const [updated] = await db
+    .update(bookings)
+    .set({
+      priceOverrideCents,
+      priceOverrideReason: reason,
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, id))
+    .returning();
+
+  logAudit({
+    action: "booking.price_override",
+    userId: user.id,
+    resourceType: "booking",
+    resourceId: id,
+    details: {
+      originalEstimatedPrice: existing.estimatedPrice,
+      previousOverrideCents: existing.priceOverrideCents,
+      priceOverrideCents,
+      reason,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  broadcastToAdmins({
+    type: "booking:price_override",
+    data: { bookingId: id },
+  });
+
+  return c.json(updated, 200);
 });
 
 export default app;

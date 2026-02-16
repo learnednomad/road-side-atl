@@ -22,6 +22,7 @@ import {
   Truck,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { BookingPriceOverride } from "@/components/admin/booking-price-override";
 
 export const dynamic = "force-dynamic";
 
@@ -251,6 +252,14 @@ export default async function AdminBookingDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Price Override */}
+      <BookingPriceOverride
+        bookingId={booking.id}
+        estimatedPrice={booking.estimatedPrice}
+        currentOverride={booking.priceOverrideCents}
+        currentReason={booking.priceOverrideReason}
+      />
 
       {/* Payments */}
       <Card>
