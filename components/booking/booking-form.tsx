@@ -18,6 +18,7 @@ import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS } from "@/lib/constants"
 import { AddressAutocomplete } from "@/components/maps/address-autocomplete";
 import { Check, ArrowRight, ArrowLeft, Loader2 } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
+import { PaymentMethodSelector } from "@/components/booking/payment-method-selector";
 
 interface Service {
   id: string;
@@ -57,6 +58,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
   const [notes, setNotes] = useState("");
   const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
   const [destCoords, setDestCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [stepErrors, setStepErrors] = useState<string[]>([]);
@@ -170,6 +172,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
           contactEmail,
           scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
           notes: notes || undefined,
+          paymentMethod: paymentMethod || undefined,
         }),
       });
 
@@ -556,6 +559,15 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                 <p className="text-sm">{notes}</p>
               </div>
             )}
+
+            {/* Payment Method */}
+            <div className="rounded-lg border p-4">
+              <PaymentMethodSelector
+                value={paymentMethod}
+                onChange={setPaymentMethod}
+                isAuthenticated={!!userInfo}
+              />
+            </div>
 
             {/* Price */}
             <div className="rounded-lg bg-muted p-4">

@@ -1,12 +1,14 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, providers, payments, providerPayouts } from "@/db/schema";
+import { bookings, services, providers, payments, providerPayouts, users } from "@/db/schema";
 import { eq, desc, and, count, sql } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
 import { updateBookingStatusSchema } from "@/lib/validators";
-import { notifyStatusChange } from "@/lib/notifications";
+import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
+import { geocodeAddress } from "@/lib/geocoding";
+import { generateReferralCode } from "../lib/referral-credits";
 
 type AuthEnv = {
   Variables: {
@@ -216,6 +218,27 @@ app.patch("/jobs/:id/status", async (c) => {
     broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
   }
 
+  // Post-service referral SMS on completion (fire-and-forget)
+  if (parsed.data.status === "completed" && booking.contactPhone && booking.userId) {
+    (async () => {
+      const bookingUser = await db.query.users.findFirst({
+        where: eq(users.id, booking.userId!),
+      });
+      if (bookingUser) {
+        let referralCode = bookingUser.referralCode;
+        if (!referralCode) {
+          referralCode = generateReferralCode();
+          await db
+            .update(users)
+            .set({ referralCode, updatedAt: new Date() })
+            .where(eq(users.id, bookingUser.id));
+        }
+        const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
+        notifyReferralLink(booking.contactPhone, referralLink).catch(() => {});
+      }
+    })().catch(() => {});
+  }
+
   return c.json(updated);
 });
 
@@ -364,6 +387,15 @@ app.patch("/profile", async (c) => {
   if (body.address && typeof body.address === "string") updates.address = body.address;
   if (typeof body.latitude === "number") updates.latitude = body.latitude;
   if (typeof body.longitude === "number") updates.longitude = body.longitude;
+
+  // Geocode if address provided without coordinates
+  if (updates.address && !updates.latitude && !updates.longitude) {
+    const geocoded = await geocodeAddress(updates.address).catch(() => null);
+    if (geocoded) {
+      updates.latitude = geocoded.latitude;
+      updates.longitude = geocoded.longitude;
+    }
+  }
 
   const [updated] = await db
     .update(providers)

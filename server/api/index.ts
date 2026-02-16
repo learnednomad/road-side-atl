@@ -22,6 +22,8 @@ import trustTierRoutes from "./routes/trust-tier";
 import observationsRoutes from "./routes/observations";
 import referralsRoutes from "./routes/referrals";
 import inspectionReportsRoutes from "./routes/inspection-reports";
+import usersRoutes from "./routes/users";
+import pricingConfigRoutes from "./routes/pricing-config";
 
 const app = new Hono().basePath("/api");
 
@@ -48,5 +50,7 @@ app.route("/admin/trust-tier", trustTierRoutes);
 app.route("/provider/observations", observationsRoutes);
 app.route("/referrals", referralsRoutes);
 app.route("/inspection-reports", inspectionReportsRoutes);
+app.route("/users", usersRoutes);
+app.route("/admin/pricing", pricingConfigRoutes);
 
 export default app;

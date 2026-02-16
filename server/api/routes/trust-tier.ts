@@ -7,6 +7,7 @@ import { rateLimitStandard } from "@/server/api/middleware/rate-limit";
 import { trustTierUpdateSchema, updatePromotionThresholdSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import { TRUST_TIER_PROMOTION_THRESHOLD } from "@/lib/constants";
+import { notifyTierPromotion } from "@/lib/notifications";
 
 type AuthEnv = {
   Variables: {
@@ -146,6 +147,7 @@ app.patch("/:userId", async (c) => {
       id: true,
       name: true,
       email: true,
+      phone: true,
       role: true,
       trustTier: true,
       cleanTransactionCount: true,
@@ -203,6 +205,14 @@ app.patch("/:userId", async (c) => {
     ipAddress,
     userAgent,
   });
+
+  if (parsed.data.trustTier >= 2 && existing.trustTier < 2 && existing.email && existing.phone) {
+    notifyTierPromotion({
+      name: existing.name || "Customer",
+      email: existing.email,
+      phone: existing.phone,
+    }).catch(() => {});
+  }
 
   return c.json(updated);
 });

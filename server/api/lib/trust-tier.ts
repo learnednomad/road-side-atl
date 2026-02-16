@@ -2,10 +2,9 @@ import { db } from "@/db";
 import { users, platformSettings } from "@/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { logAudit } from "@/server/api/lib/audit-logger";
-import { TRUST_TIER_PROMOTION_THRESHOLD } from "@/lib/constants";
+import { TRUST_TIER_PROMOTION_THRESHOLD, TIER_1_ALLOWED_METHODS, TIER_2_ALLOWED_METHODS } from "@/lib/constants";
 
-export const TIER_1_ALLOWED_METHODS = ["cash", "cashapp", "zelle"] as const;
-export const TIER_2_ALLOWED_METHODS = ["cash", "cashapp", "zelle", "stripe"] as const;
+export { TIER_1_ALLOWED_METHODS, TIER_2_ALLOWED_METHODS };
 
 export function getAllowedPaymentMethods(trustTier: number): readonly string[] {
   return trustTier >= 2 ? TIER_2_ALLOWED_METHODS : TIER_1_ALLOWED_METHODS;
@@ -75,6 +74,21 @@ export async function incrementCleanTransaction(userId: string): Promise<{
         },
       });
 
+      (async () => {
+        const user = await db.query.users.findFirst({
+          where: eq(users.id, userId),
+          columns: { name: true, email: true, phone: true },
+        });
+        if (user?.email && user?.phone) {
+          const { notifyTierPromotion } = await import("@/lib/notifications");
+          notifyTierPromotion({
+            name: user.name || "Customer",
+            email: user.email,
+            phone: user.phone,
+          }).catch(() => {});
+        }
+      })().catch(() => {});
+
       return {
         promoted: true,
         newTier: 2,
@@ -127,6 +141,21 @@ export async function checkAndPromote(userId: string): Promise<boolean> {
         cleanTransactionCount: user.cleanTransactionCount,
       },
     });
+
+    (async () => {
+      const fullUser = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: { name: true, email: true, phone: true },
+      });
+      if (fullUser?.email && fullUser?.phone) {
+        const { notifyTierPromotion } = await import("@/lib/notifications");
+        notifyTierPromotion({
+          name: fullUser.name || "Customer",
+          email: fullUser.email,
+          phone: fullUser.phone,
+        }).catch(() => {});
+      }
+    })().catch(() => {});
 
     return true;
   }

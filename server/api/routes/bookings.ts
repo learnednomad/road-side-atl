@@ -9,6 +9,7 @@ import {
   TOWING_BASE_MILES,
   TOWING_PRICE_PER_MILE_CENTS,
 } from "@/lib/constants";
+import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { geocodeAddress } from "@/lib/geocoding";
 import { notifyBookingCreated } from "@/lib/notifications";
 import { broadcastToAdmins } from "@/server/websocket/broadcast";
@@ -38,10 +39,15 @@ app.post("/", async (c) => {
     return c.json({ error: "Service not found" }, 404);
   }
 
-  // Calculate price
-  let estimatedPrice = service.basePrice;
+  // Calculate price via centralized pricing engine
+  const pricing = await calculateBookingPrice(
+    data.serviceId,
+    data.scheduledAt ? new Date(data.scheduledAt) : null,
+  );
+  let estimatedPrice = pricing.finalPrice;
   let towingMiles: number | undefined;
 
+  // Towing per-mile is ADDITIVE (not multiplied by time-block)
   if (service.slug === "towing" && data.location.estimatedMiles) {
     towingMiles = data.location.estimatedMiles;
     const extraMiles = Math.max(0, towingMiles - TOWING_BASE_MILES);
@@ -84,6 +90,7 @@ app.post("/", async (c) => {
       estimatedPrice,
       towingMiles,
       notes: data.notes,
+      preferredPaymentMethod: data.paymentMethod,
     })
     .returning();
 
@@ -110,7 +117,14 @@ app.post("/", async (c) => {
     data: { bookingId: booking.id, contactName: booking.contactName, status: booking.status, serviceName: service.name },
   });
 
-  return c.json(booking, 201);
+  return c.json({
+    ...booking,
+    pricingBreakdown: {
+      basePrice: pricing.basePrice,
+      multiplier: pricing.multiplier,
+      blockName: pricing.blockName,
+    },
+  }, 201);
 });
 
 // Get user's bookings (authenticated)

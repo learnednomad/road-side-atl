@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ClipboardList, Settings, LogOut, Home, DollarSign, FileText, Eye, Search } from "lucide-react";
+import { LayoutDashboard, ClipboardList, Settings, LogOut, Home, DollarSign, FileText, Eye, Search, Users } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ const links = [
   { href: "/provider/invoices", label: "Invoices", icon: FileText },
   { href: "/provider/observations", label: "Observations", icon: Eye },
   { href: "/provider/inspections", label: "Inspections", icon: Search },
+  { href: "/provider/referrals", label: "Referrals", icon: Users },
   { href: "/provider/settings", label: "Settings", icon: Settings },
 ];
 

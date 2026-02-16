@@ -136,6 +136,72 @@ export async function sendObservationFollowUpEmail(email: string, customerName: 
   });
 }
 
+export async function sendPreServiceConfirmationEmail(
+  email: string,
+  customerName: string,
+  inspectorName: string,
+  eta: string,
+  serviceName: string
+) {
+  const resend = getResend();
+  if (!resend) return;
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `Your Inspector ${inspectorName} Is On the Way - RoadSide ATL`,
+    html: `
+      <h2>Pre-Service Confirmation</h2>
+      <p>Hi ${customerName},</p>
+      <p>Your <strong>${serviceName}</strong> has been assigned to inspector <strong>${inspectorName}</strong>.</p>
+      <p>Estimated arrival: <strong>${eta}</strong></p>
+      <p>Please ensure the vehicle is accessible at the specified location.</p>
+      <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+    `,
+  });
+}
+
+export async function sendReferralCreditEmail(email: string, name: string, amount: number) {
+  const resend = getResend();
+  if (!resend) return;
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: "You Earned a Referral Credit! - RoadSide ATL",
+    html: `
+      <h2>Referral Credit Earned!</h2>
+      <p>Hi ${name},</p>
+      <p>You just earned a <strong>${formatPrice(amount)}</strong> referral credit on RoadSide ATL!</p>
+      <p>This credit will be automatically available to apply on your next booking.</p>
+      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/dashboard/referrals">View Your Referrals</a></p>
+      <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+    `,
+  });
+}
+
+export async function sendTierPromotionEmail(email: string, name: string) {
+  const resend = getResend();
+  if (!resend) return;
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: "Card Payments Unlocked! - RoadSide ATL",
+    html: `
+      <h2>Congratulations, ${name}!</h2>
+      <p>You've earned Trusted Customer status on RoadSide ATL.</p>
+      <p>You can now pay with <strong>credit and debit cards</strong> in addition to Cash, CashApp, and Zelle.</p>
+      <p>Thank you for being a loyal customer!</p>
+      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/book">Book Your Next Service</a></p>
+      <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+    `,
+  });
+}
+
 export async function sendInspectionReportEmail(
   email: string,
   customerName: string,

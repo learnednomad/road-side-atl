@@ -43,7 +43,9 @@ export type AuditAction =
   | "referral.credit"
   | "referral.expire"
   | "inspection.generate"
-  | "inspection.email_sent";
+  | "inspection.email_sent"
+  | "pricing.update_block"
+  | "pricing.toggle_storm_mode";
 
 export interface AuditLogEntry {
   action: AuditAction;
@@ -58,6 +60,7 @@ export interface AuditLogEntry {
 // In-memory buffer for batch writes
 const logBuffer: AuditLogEntry[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let tableEnsured = false;
 
 /**
  * Log an audit event
@@ -94,20 +97,22 @@ async function flushLogs(): Promise<void> {
   const entries = logBuffer.splice(0, logBuffer.length);
 
   try {
-    // Create audit_logs table if it doesn't exist
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS audit_logs (
-        id SERIAL PRIMARY KEY,
-        action VARCHAR(100) NOT NULL,
-        user_id VARCHAR(255),
-        resource_type VARCHAR(100),
-        resource_id VARCHAR(255),
-        details JSONB,
-        ip_address VARCHAR(45),
-        user_agent TEXT,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
+    if (!tableEnsured) {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS audit_logs (
+          id SERIAL PRIMARY KEY,
+          action VARCHAR(100) NOT NULL,
+          user_id VARCHAR(255),
+          resource_type VARCHAR(100),
+          resource_id VARCHAR(255),
+          details JSONB,
+          ip_address VARCHAR(45),
+          user_agent TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      tableEnsured = true;
+    }
 
     // Batch insert
     for (const entry of entries) {
@@ -159,38 +164,40 @@ export async function queryAuditLogs(filters: {
   limit?: number;
   offset?: number;
 }): Promise<unknown[]> {
-  const conditions: string[] = [];
-
-  if (filters.action) {
-    conditions.push(`action = '${filters.action}'`);
-  }
-  if (filters.userId) {
-    conditions.push(`user_id = '${filters.userId}'`);
-  }
-  if (filters.resourceType) {
-    conditions.push(`resource_type = '${filters.resourceType}'`);
-  }
-  if (filters.resourceId) {
-    conditions.push(`resource_id = '${filters.resourceId}'`);
-  }
-  if (filters.startDate) {
-    conditions.push(`created_at >= '${filters.startDate.toISOString()}'`);
-  }
-  if (filters.endDate) {
-    conditions.push(`created_at <= '${filters.endDate.toISOString()}'`);
-  }
-
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = filters.limit || 100;
   const offset = filters.offset || 0;
 
   try {
-    const result = await db.execute(sql.raw(`
-      SELECT * FROM audit_logs
-      ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `));
+    const conditions = [];
+
+    if (filters.action) {
+      conditions.push(sql`action = ${filters.action}`);
+    }
+    if (filters.userId) {
+      conditions.push(sql`user_id = ${filters.userId}`);
+    }
+    if (filters.resourceType) {
+      conditions.push(sql`resource_type = ${filters.resourceType}`);
+    }
+    if (filters.resourceId) {
+      conditions.push(sql`resource_id = ${filters.resourceId}`);
+    }
+    if (filters.startDate) {
+      conditions.push(sql`created_at >= ${filters.startDate.toISOString()}`);
+    }
+    if (filters.endDate) {
+      conditions.push(sql`created_at <= ${filters.endDate.toISOString()}`);
+    }
+
+    let query;
+    if (conditions.length > 0) {
+      const whereClause = sql.join(conditions, sql` AND `);
+      query = sql`SELECT * FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+    } else {
+      query = sql`SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+    }
+
+    const result = await db.execute(query);
     return Array.isArray(result) ? result : [];
   } catch {
     return [];

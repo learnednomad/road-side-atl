@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { registerSchema } from "@/lib/validators";
 import { rateLimitAuth } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
+import { generateReferralCode } from "../lib/referral-credits";
 import {
   sendVerificationEmail,
   verifyEmailToken,
@@ -47,7 +48,7 @@ app.post("/register", async (c) => {
     name,
     email,
     password: hashedPassword,
-    // emailVerified is null - user must verify
+    referralCode: generateReferralCode(),
   }).returning({ id: users.id });
 
   // Send verification email (fire and forget)

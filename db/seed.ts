@@ -15,6 +15,7 @@ import {
   payments,
   providerPayouts,
   dispatchLogs,
+  timeBlockConfigs,
 } from "./schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -45,6 +46,7 @@ async function seed() {
   await db.execute(sql`DELETE FROM accounts`).catch(() => {});
   await db.execute(sql`DELETE FROM sessions`).catch(() => {});
   await db.delete(users);
+  await db.delete(timeBlockConfigs);
   await db.delete(services);
 
   // ── SERVICES ──────────────────────────────────────────────
@@ -105,6 +107,18 @@ async function seed() {
     .returning();
 
   console.log("Services seeded.");
+
+  // ── TIME-BLOCK PRICING CONFIGS ──────────────────────────────
+  console.log("Seeding time-block pricing configs...");
+  await db.insert(timeBlockConfigs).values([
+    { name: "Standard", startHour: 6, endHour: 18, multiplier: 10000, isActive: true, priority: 1 },
+    { name: "After-Hours", startHour: 18, endHour: 6, multiplier: 12500, isActive: true, priority: 1 },
+    { name: "Emergency", startHour: 0, endHour: 24, multiplier: 15000, isActive: false, priority: 1 },
+    { name: "Ice Storm", startHour: 0, endHour: 24, multiplier: 15000, isActive: false, priority: 100 },
+    { name: "Falcons Game", startHour: 0, endHour: 24, multiplier: 13000, isActive: false, priority: 100 },
+    { name: "Holiday Weekend", startHour: 0, endHour: 24, multiplier: 12000, isActive: false, priority: 100 },
+  ]);
+  console.log("Time-block pricing configs seeded.");
 
   // ── PASSWORDS ──────────────────────────────────────────────
   const hashedAdmin = await bcrypt.hash("admin123", 12);

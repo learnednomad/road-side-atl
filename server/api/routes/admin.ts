@@ -12,10 +12,11 @@ import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { incrementCleanTransaction } from "../lib/trust-tier";
 import { generateCSV } from "@/lib/csv";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
-import { notifyStatusChange, notifyProviderAssigned } from "@/lib/notifications";
+import { notifyStatusChange, notifyProviderAssigned, notifyReferralLink, notifyPreServiceConfirmation } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser, broadcastToProvider } from "@/server/websocket/broadcast";
 import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
+import { generateReferralCode } from "../lib/referral-credits";
 
 type AuthEnv = {
   Variables: {
@@ -251,6 +252,21 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
   }
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: updated.status } });
 
+  // Pre-service confirmation for diagnostic/inspection bookings (FR66)
+  if (updated.serviceId) {
+    const service = await db.query.services.findFirst({
+      where: eq(services.id, updated.serviceId),
+    });
+    if (service && (service.category === "diagnostics" || service.slug.includes("inspection"))) {
+      notifyPreServiceConfirmation(
+        { name: updated.contactName, email: updated.contactEmail, phone: updated.contactPhone },
+        provider.name,
+        "30-45 minutes",
+        service.name,
+      ).catch(() => {});
+    }
+  }
+
   return c.json(updated);
 });
 
@@ -297,6 +313,27 @@ app.patch("/bookings/:id/status", async (c) => {
   // Auto-create payout when booking completed
   if (parsed.data.status === "completed") {
     await createPayoutIfEligible(bookingId);
+
+    // Post-service referral SMS (fire-and-forget)
+    if (updated.contactPhone && updated.userId) {
+      (async () => {
+        const bookingUser = await db.query.users.findFirst({
+          where: eq(users.id, updated.userId!),
+        });
+        if (bookingUser) {
+          let referralCode = bookingUser.referralCode;
+          if (!referralCode) {
+            referralCode = generateReferralCode();
+            await db
+              .update(users)
+              .set({ referralCode, updatedAt: new Date() })
+              .where(eq(users.id, bookingUser.id));
+          }
+          const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
+          notifyReferralLink(updated.contactPhone, referralLink).catch(() => {});
+        }
+      })().catch(() => {});
+    }
   }
 
   // Auto-dispatch when confirmed

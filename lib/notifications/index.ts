@@ -1,11 +1,13 @@
-import { sendBookingConfirmation, sendProviderAssignment, sendStatusUpdate, sendObservationFollowUpEmail, sendInspectionReportEmail } from "./email";
+import { sendBookingConfirmation, sendProviderAssignment, sendStatusUpdate, sendObservationFollowUpEmail, sendReferralCreditEmail, sendPreServiceConfirmationEmail, sendInspectionReportEmail, sendTierPromotionEmail } from "./email";
 import {
   sendBookingConfirmationSMS,
   sendProviderAssignmentSMS,
   sendStatusUpdateSMS,
   sendObservationFollowUpSMS,
+  sendPreServiceConfirmationSMS,
   sendReferralSMS,
   sendReferralCreditSMS,
+  sendTierPromotionSMS,
 } from "./sms";
 
 interface BookingInfo {
@@ -55,8 +57,33 @@ export async function notifyReferralLink(phone: string, referralLink: string) {
   await sendReferralSMS(phone, referralLink);
 }
 
-export async function notifyReferralCredit(phone: string, amount: number) {
-  await sendReferralCreditSMS(phone, amount);
+export async function notifyReferralCredit(phone: string, amount: number, email?: string, name?: string) {
+  const tasks: Promise<unknown>[] = [sendReferralCreditSMS(phone, amount)];
+  if (email && name) {
+    tasks.push(sendReferralCreditEmail(email, name, amount));
+  }
+  await Promise.allSettled(tasks);
+}
+
+export async function notifyPreServiceConfirmation(
+  customer: { name: string; email: string; phone: string },
+  inspectorName: string,
+  eta: string,
+  serviceName: string
+) {
+  await Promise.allSettled([
+    sendPreServiceConfirmationEmail(customer.email, customer.name, inspectorName, eta, serviceName),
+    sendPreServiceConfirmationSMS(customer.phone, inspectorName, eta),
+  ]);
+}
+
+export async function notifyTierPromotion(
+  customer: { name: string; email: string; phone: string },
+) {
+  await Promise.allSettled([
+    sendTierPromotionEmail(customer.email, customer.name),
+    sendTierPromotionSMS(customer.phone),
+  ]);
 }
 
 export async function notifyInspectionReport(

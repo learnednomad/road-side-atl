@@ -54,6 +54,9 @@ export const TRUST_TIER_LEVELS = [1, 2] as const;
 export type TrustTier = (typeof TRUST_TIER_LEVELS)[number];
 export const TRUST_TIER_PROMOTION_THRESHOLD = 3; // clean transactions to reach Tier 2
 
+export const TIER_1_ALLOWED_METHODS = ["cash", "cashapp", "zelle"] as const;
+export const TIER_2_ALLOWED_METHODS = ["cash", "cashapp", "zelle", "stripe"] as const;
+
 export const OBSERVATION_SEVERITIES = ["low", "medium", "high"] as const;
 export type ObservationSeverity = (typeof OBSERVATION_SEVERITIES)[number];
 
@@ -63,3 +66,5 @@ export const REFERRAL_CREDIT_AMOUNT_CENTS = 1000; // $10.00
 
 export const INSPECTION_CONDITIONS = ["good", "fair", "poor", "critical"] as const;
 export type InspectionCondition = (typeof INSPECTION_CONDITIONS)[number];
+
+export const DEFAULT_MULTIPLIER_BP = 10000; // 1.0x in basis points

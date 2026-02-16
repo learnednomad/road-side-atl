@@ -28,6 +28,7 @@ export const createBookingSchema = z.object({
   contactEmail: z.email("Valid email is required"),
   scheduledAt: z.string().datetime().optional(),
   notes: z.string().optional(),
+  paymentMethod: z.enum(["cash", "cashapp", "zelle", "stripe"]).optional(),
 });
 
 export const updateBookingStatusSchema = z.object({
@@ -170,6 +171,19 @@ export const createReferralSchema = z.object({
 
 export type CreateReferralInput = z.infer<typeof createReferralSchema>;
 
+export const redeemCreditsSchema = z.object({
+  bookingId: z.string().min(1),
+  amount: z.number().int().positive(),
+});
+export type RedeemCreditsInput = z.infer<typeof redeemCreditsSchema>;
+
+export const providerReferralSchema = z.object({
+  refereeEmail: z.email("Valid email is required"),
+  refereeName: z.string().min(1, "Name is required"),
+  refereePhone: z.string().optional(),
+});
+export type ProviderReferralInput = z.infer<typeof providerReferralSchema>;
+
 export const createInspectionReportSchema = z.object({
   bookingId: z.string().uuid("Invalid booking"),
   findings: z
@@ -199,6 +213,21 @@ export const updateChecklistConfigSchema = z.object({
 });
 
 export type UpdateChecklistConfigInput = z.infer<typeof updateChecklistConfigSchema>;
+
+export const createTimeBlockConfigSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  startHour: z.number().int().min(0).max(23),
+  endHour: z.number().int().min(0).max(24), // 24 allowed for all-day blocks (0-24)
+  multiplier: z.number().int().min(1).max(50000), // basis points: 10000 = 1.0x
+  isActive: z.boolean().optional(),
+  priority: z.number().int().min(1).max(100).optional(),
+});
+
+export type CreateTimeBlockConfigInput = z.infer<typeof createTimeBlockConfigSchema>;
+
+export const updateTimeBlockConfigSchema = createTimeBlockConfigSchema.partial();
+
+export type UpdateTimeBlockConfigInput = z.infer<typeof updateTimeBlockConfigSchema>;
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;

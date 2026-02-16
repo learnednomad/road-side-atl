@@ -3,10 +3,11 @@ import { db } from "@/db";
 import { referrals, users } from "@/db/schema";
 import { eq, and, desc, count, sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
-import { createReferralSchema } from "@/lib/validators";
+import { createReferralSchema, redeemCreditsSchema, providerReferralSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { REFERRAL_CREDIT_AMOUNT_CENTS } from "@/lib/constants";
-import { generateReferralCode } from "../lib/referral-credits";
+import { generateReferralCode, calculateCreditBalance, redeemReferralCredits } from "../lib/referral-credits";
+import { providers } from "@/db/schema";
 
 type AuthEnv = {
   Variables: {
@@ -184,6 +185,140 @@ app.post("/apply", requireAuth, async (c) => {
   });
 
   return c.json({ referral: newReferral }, 201);
+});
+
+// Get available credit balance
+app.get("/me/balance", requireAuth, async (c) => {
+  const user = c.get("user");
+  const balance = await calculateCreditBalance(user.id);
+  return c.json({ balance });
+});
+
+// Redeem credits on a booking
+app.post("/redeem", requireAuth, async (c) => {
+  const user = c.get("user");
+  const body = await c.req.json();
+  const parsed = redeemCreditsSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const { bookingId, amount } = parsed.data;
+
+  const success = await redeemReferralCredits(user.id, bookingId, amount);
+  if (!success) {
+    return c.json({ error: "Insufficient credit balance or booking not found" }, 400);
+  }
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "referral.credit",
+    userId: user.id,
+    resourceType: "booking",
+    resourceId: bookingId,
+    details: { amount, type: "redemption" },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json({ success: true, amountApplied: amount });
+});
+
+// Provider refers another provider
+app.post("/provider-refer", requireAuth, async (c) => {
+  const user = c.get("user");
+
+  if (user.role !== "provider") {
+    return c.json({ error: "Provider access required" }, 403);
+  }
+
+  const body = await c.req.json();
+  const parsed = providerReferralSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  // Check if referee email already has an account
+  const existingUser = await db.query.users.findFirst({
+    where: eq(users.email, parsed.data.refereeEmail),
+  });
+
+  if (existingUser) {
+    // Check for duplicate referral
+    const existingReferral = await db.query.referrals.findFirst({
+      where: eq(referrals.refereeId, existingUser.id),
+    });
+    if (existingReferral) {
+      return c.json({ error: "This user has already been referred" }, 400);
+    }
+  }
+
+  const [newReferral] = await db
+    .insert(referrals)
+    .values({
+      referrerId: user.id,
+      refereeId: existingUser?.id || null,
+      creditAmount: REFERRAL_CREDIT_AMOUNT_CENTS,
+      status: "pending",
+    })
+    .returning();
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "referral.create",
+    userId: user.id,
+    resourceType: "referral",
+    resourceId: newReferral.id,
+    details: { refereeEmail: parsed.data.refereeEmail, type: "provider_referral" },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json({ referral: newReferral }, 201);
+});
+
+// List provider's referrals
+app.get("/provider", requireAuth, async (c) => {
+  const user = c.get("user");
+
+  if (user.role !== "provider") {
+    return c.json({ error: "Provider access required" }, 403);
+  }
+
+  const page = parseInt(c.req.query("page") || "1");
+  const limit = parseInt(c.req.query("limit") || "10");
+  const offset = (page - 1) * limit;
+
+  const providerReferrals = await db
+    .select({
+      id: referrals.id,
+      refereeId: referrals.refereeId,
+      creditAmount: referrals.creditAmount,
+      status: referrals.status,
+      createdAt: referrals.createdAt,
+      refereeName: users.name,
+    })
+    .from(referrals)
+    .leftJoin(users, eq(referrals.refereeId, users.id))
+    .where(eq(referrals.referrerId, user.id))
+    .orderBy(desc(referrals.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const [{ count: total }] = await db
+    .select({ count: count() })
+    .from(referrals)
+    .where(eq(referrals.referrerId, user.id));
+
+  return c.json({
+    referrals: providerReferrals,
+    total,
+    page,
+    limit,
+    hasMore: offset + limit < Number(total),
+  });
 });
 
 export default app;

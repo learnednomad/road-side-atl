@@ -1,8 +1,13 @@
 import { formatPrice } from "@/lib/utils";
 
+interface TwilioMessage {
+  sid: string;
+  status: string;
+}
+
 interface TwilioClient {
   messages: {
-    create: (opts: { body: string; to: string; from: string }) => Promise<unknown>;
+    create: (opts: { body: string; to: string; from: string; statusCallback?: string }) => Promise<TwilioMessage>;
   };
 }
 
@@ -49,20 +54,25 @@ function isRateLimited(phone: string): boolean {
   return false;
 }
 
-export async function sendSMS(phone: string, message: string): Promise<boolean> {
+export async function sendSMS(
+  phone: string,
+  message: string,
+  options?: { statusCallback?: string }
+): Promise<{ success: boolean; messageSid?: string }> {
   const client = getTwilio();
-  if (!client) return false;
-  if (isRateLimited(phone)) return false;
+  if (!client) return { success: false };
+  if (isRateLimited(phone)) return { success: false };
 
   try {
-    await client.messages.create({
+    const result = await client.messages.create({
       body: message,
       to: phone,
       from: process.env.TWILIO_PHONE_NUMBER!,
+      ...(options?.statusCallback && { statusCallback: options.statusCallback }),
     });
-    return true;
+    return { success: true, messageSid: result.sid };
   } catch {
-    return false;
+    return { success: false };
   }
 }
 
@@ -103,9 +113,22 @@ export async function sendStatusUpdateSMS(phone: string, booking: BookingInfo, s
 }
 
 export async function sendObservationFollowUpSMS(phone: string, findings: string) {
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Our provider noticed some issues with your vehicle: ${findings}. Book a diagnostic inspection to learn more! Reply STOP to opt out.`
+    `RoadSide ATL: Our provider noticed some issues with your vehicle: ${findings}. Book a diagnostic inspection to learn more! Reply STOP to opt out.`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
+  );
+}
+
+export async function sendPreServiceConfirmationSMS(
+  phone: string,
+  inspectorName: string,
+  eta: string
+) {
+  await sendSMS(
+    phone,
+    `RoadSide ATL: Your vehicle inspector ${inspectorName} is on the way! Estimated arrival: ${eta}. Reply STOP to opt out.`
   );
 }
 
@@ -120,5 +143,14 @@ export async function sendReferralCreditSMS(phone: string, amount: number) {
   await sendSMS(
     phone,
     `RoadSide ATL: You earned a ${formatPrice(amount)} referral credit! It will be applied to your next booking. Reply STOP to opt out.`
+  );
+}
+
+export async function sendTierPromotionSMS(phone: string) {
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
+  await sendSMS(
+    phone,
+    `RoadSide ATL: Congratulations! You've unlocked card payments. You can now pay with credit/debit cards on your next booking. Reply STOP to opt out.`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }

@@ -56,7 +56,9 @@ export const bookings = pgTable("bookings", {
   estimatedPrice: integer("estimatedPrice").notNull(), // cents
   finalPrice: integer("finalPrice"), // cents
   towingMiles: integer("towingMiles"),
+  referralCreditApplied: integer("referralCreditApplied"), // cents, nullable
   notes: text("notes"),
+  preferredPaymentMethod: text("preferredPaymentMethod"),
   providerId: text("providerId"), // FK to providers, managed at app level to avoid circular imports
   tenantId: text("tenantId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),

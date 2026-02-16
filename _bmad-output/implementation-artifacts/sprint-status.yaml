@@ -41,16 +41,16 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1: Trust-Based Payment System
-  epic-1: in-progress
-  1-1-trust-tier-data-model-and-promotion-engine: review
+  epic-1: done
+  1-1-trust-tier-data-model-and-promotion-engine: done
   1-2-payment-method-enforcement-middleware: done
   1-3-admin-trust-tier-configuration-and-management: done
-  1-4-customer-trust-tier-visibility-notifications-and-account-integration: backlog
+  1-4-customer-trust-tier-visibility-notifications-and-account-integration: done
   epic-1-retrospective: optional
 
   # Epic 2: Dynamic Pricing & Storm Mode
-  epic-2: backlog
-  2-1-time-block-pricing-schema-and-engine: backlog
+  epic-2: in-progress
+  2-1-time-block-pricing-schema-and-engine: done
   2-2-storm-mode-activation-and-templates: backlog
   2-3-admin-pricing-configuration-and-booking-override: backlog
   epic-2-retrospective: optional
@@ -81,20 +81,20 @@ development_status:
 
   # Epic 6: Vehicle Observation & Follow-Up Pipeline
   epic-6: in-progress
-  6-1-observation-schema-checklist-configuration-and-provider-submission: ready-for-dev
-  6-2-customer-follow-up-notifications-and-provider-operations-integration: backlog
+  6-1-observation-schema-checklist-configuration-and-provider-submission: review
+  6-2-customer-follow-up-notifications-and-provider-operations-integration: review
   epic-6-retrospective: optional
 
   # Epic 7: Referral Growth Engine
-  epic-7: backlog
-  7-1-referral-schema-credit-configuration-and-post-service-sms: backlog
-  7-2-referral-tracking-credits-and-provider-referrals: backlog
+  epic-7: in-progress
+  7-1-referral-schema-credit-configuration-and-post-service-sms: review
+  7-2-referral-tracking-credits-and-provider-referrals: review
   epic-7-retrospective: optional
 
   # Epic 8: Branded Vehicle Inspection Reports
-  epic-8: backlog
-  8-1-inspection-report-schema-and-provider-submission: backlog
-  8-2-branded-pdf-generation-and-email-delivery: backlog
+  epic-8: in-progress
+  8-1-inspection-report-schema-and-provider-submission: review
+  8-2-branded-pdf-generation-and-email-delivery: review
   epic-8-retrospective: optional
 
   # Epic 9: B2B Account Management (Phase 2)

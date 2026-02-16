@@ -13,3 +13,4 @@ export * from "./platform-settings";
 export * from "./observations";
 export * from "./referrals";
 export * from "./inspection-reports";
+export * from "./time-block-configs";
