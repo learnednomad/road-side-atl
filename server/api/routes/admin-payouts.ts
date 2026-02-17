@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { providerPayouts, providers, bookings } from "@/db/schema";
+import { providerPayouts, providers, bookings, services } from "@/db/schema";
 import { eq, desc, sql, count, and, inArray } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import { markPayoutPaidSchema } from "@/lib/validators";
@@ -33,10 +33,16 @@ app.get("/", async (c) => {
       payout: providerPayouts,
       provider: providers,
       booking: bookings,
+      service: {
+        name: services.name,
+        category: services.category,
+        commissionRate: services.commissionRate,
+      },
     })
     .from(providerPayouts)
     .innerJoin(providers, eq(providerPayouts.providerId, providers.id))
     .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
+    .innerJoin(services, eq(bookings.serviceId, services.id))
     .orderBy(desc(providerPayouts.createdAt))
     .$dynamic();
 

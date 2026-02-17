@@ -61,6 +61,7 @@ async function seed() {
           "Dead battery? We'll get you running again with a professional jump start service.",
         basePrice: 10000,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
       },
       {
         name: "Towing (Local)",
@@ -70,6 +71,7 @@ async function seed() {
         basePrice: 12500,
         pricePerMile: 300,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
       },
       {
         name: "Lockout Service",
@@ -78,6 +80,7 @@ async function seed() {
           "Locked out of your car? Our technicians will safely get you back in.",
         basePrice: 13500,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
       },
       {
         name: "Flat Tire Change",
@@ -86,6 +89,7 @@ async function seed() {
           "We'll swap your flat for your spare tire and get you back on the road. $100 service fee plus cost of tire if needed.",
         basePrice: 10000,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
       },
       {
         name: "Fuel Delivery",
@@ -94,6 +98,7 @@ async function seed() {
           "Ran out of gas? We'll bring enough fuel to get you to the nearest station. $75 delivery fee plus cost of gas.",
         basePrice: 7500,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
       },
       {
         name: "Car Purchase Diagnostics",
@@ -102,6 +107,7 @@ async function seed() {
           "Comprehensive pre-purchase vehicle inspection with OBD2 scan and mechanical grade assessment. Full payment required upfront before scheduling.",
         basePrice: 25000,
         category: "diagnostics",
+        commissionRate: 2000, // 20% platform cut (lower for higher-value diagnostics)
       },
     ])
     .returning();

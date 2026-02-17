@@ -70,3 +70,6 @@ export type InspectionCondition = (typeof INSPECTION_CONDITIONS)[number];
 export const DEFAULT_MULTIPLIER_BP = 10000; // 1.0x in basis points
 
 export const STORM_MODE_PRIORITY = 100; // Storm templates have priority >= this value
+
+export const DEFAULT_COMMISSION_RATE_BP = 2500; // 25% platform commission (default for roadside)
+export const COMMISSION_RATE_DIAGNOSTICS_BP = 2000; // 20% platform commission (diagnostics)

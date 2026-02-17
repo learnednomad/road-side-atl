@@ -8,6 +8,7 @@ import {
   confirmPaymentSchema,
   assignProviderSchema,
   overrideBookingPriceSchema,
+  updateServiceCommissionSchema,
 } from "@/lib/validators";
 import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { incrementCleanTransaction } from "../lib/trust-tier";
@@ -34,6 +35,7 @@ app.use("/bookings/:id/status", rateLimitStrict);
 app.use("/bookings/:id/assign-provider", rateLimitStrict);
 app.use("/payments/:id/confirm", rateLimitStrict);
 app.use("/bookings/:id/override-price", rateLimitStrict);
+app.use("/services/:id/commission", rateLimitStrict);
 
 // Dashboard stats
 app.get("/stats", async (c) => {
@@ -956,6 +958,74 @@ app.patch("/bookings/:id/override-price", async (c) => {
   broadcastToAdmins({
     type: "booking:price_override",
     data: { bookingId: id },
+  });
+
+  return c.json(updated, 200);
+});
+
+// GET /services/commission - List all services with commission rates
+app.get("/services/commission", async (c) => {
+  const allServices = await db
+    .select({
+      id: services.id,
+      name: services.name,
+      slug: services.slug,
+      category: services.category,
+      basePrice: services.basePrice,
+      commissionRate: services.commissionRate,
+      active: services.active,
+    })
+    .from(services)
+    .orderBy(services.category, services.name);
+
+  return c.json(allServices);
+});
+
+// PATCH /services/:id/commission - Update service commission rate
+app.patch("/services/:id/commission", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = updateServiceCommissionSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const existing = await db.query.services.findFirst({
+    where: eq(services.id, id),
+  });
+  if (!existing) {
+    return c.json({ error: "Service not found" }, 404);
+  }
+
+  const [updated] = await db
+    .update(services)
+    .set({
+      commissionRate: parsed.data.commissionRate,
+      updatedAt: new Date(),
+    })
+    .where(eq(services.id, id))
+    .returning();
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "commission.update_rate",
+    userId: user.id,
+    resourceType: "service",
+    resourceId: id,
+    details: {
+      serviceName: existing.name,
+      serviceCategory: existing.category,
+      previousRate: existing.commissionRate,
+      newRate: parsed.data.commissionRate,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  broadcastToAdmins({
+    type: "service:commission_updated",
+    data: { serviceId: id, commissionRate: parsed.data.commissionRate },
   });
 
   return c.json(updated, 200);

@@ -470,15 +470,31 @@ app.get("/earnings/summary", async (c) => {
       )
     );
 
+  // Fetch per-service commission rates for provider visibility
+  const serviceRates = await db
+    .select({
+      name: services.name,
+      category: services.category,
+      commissionRate: services.commissionRate,
+    })
+    .from(services)
+    .where(eq(services.active, true))
+    .orderBy(services.category, services.name);
+
   return c.json({
     totalEarned: Number(earningsSummary.totalEarned),
     pendingPayout: Number(earningsSummary.pendingPayout),
     paidOut: Number(earningsSummary.paidOut),
     thisMonthEarnings: Number(monthEarnings.thisMonth),
     completedJobsThisMonth: Number(monthEarnings.completedJobs),
-    commissionRate: provider.commissionRate,
     commissionType: provider.commissionType,
     flatFeeAmount: provider.flatFeeAmount,
+    serviceCommissionRates: serviceRates.map((s) => ({
+      name: s.name,
+      category: s.category,
+      platformCommissionPercent: s.commissionRate / 100,
+      providerSharePercent: (10000 - s.commissionRate) / 100,
+    })),
   });
 });
 
@@ -534,7 +550,12 @@ app.get("/earnings/history", async (c) => {
         contactName: r.booking.contactName,
         createdAt: r.booking.createdAt.toISOString(),
       },
-      service: { name: r.service.name },
+      service: {
+        name: r.service.name,
+        category: r.service.category,
+        commissionRate: r.service.commissionRate,
+        providerSharePercent: (10000 - r.service.commissionRate) / 100,
+      },
     })),
     total: totalResult.count,
     page,
@@ -599,6 +620,8 @@ app.get("/earnings/by-service", async (c) => {
   const breakdown = await db
     .select({
       serviceName: services.name,
+      serviceCategory: services.category,
+      commissionRate: services.commissionRate,
       earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
       jobCount: sql<number>`count(*)`,
     })
@@ -606,11 +629,14 @@ app.get("/earnings/by-service", async (c) => {
     .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
     .innerJoin(services, eq(bookings.serviceId, services.id))
     .where(eq(providerPayouts.providerId, provider.id))
-    .groupBy(services.name);
+    .groupBy(services.name, services.category, services.commissionRate);
 
   return c.json({
     breakdown: breakdown.map((b) => ({
       serviceName: b.serviceName,
+      serviceCategory: b.serviceCategory,
+      commissionRate: b.commissionRate,
+      providerSharePercent: (10000 - b.commissionRate) / 100,
       earnings: Number(b.earnings),
       jobCount: Number(b.jobCount),
     })),

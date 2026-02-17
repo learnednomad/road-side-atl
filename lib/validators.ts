@@ -240,6 +240,11 @@ export const overrideBookingPriceSchema = z.object({
 });
 export type OverrideBookingPriceInput = z.infer<typeof overrideBookingPriceSchema>;
 
+export const updateServiceCommissionSchema = z.object({
+  commissionRate: z.number().int().min(100, "Commission rate must be at least 1%").max(5000, "Commission rate cannot exceed 50%"),
+});
+export type UpdateServiceCommissionInput = z.infer<typeof updateServiceCommissionSchema>;
+
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
 export type LocationInfo = z.infer<typeof locationSchema>;

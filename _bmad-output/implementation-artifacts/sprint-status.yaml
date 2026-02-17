@@ -49,15 +49,15 @@ development_status:
   epic-1-retrospective: optional
 
   # Epic 2: Dynamic Pricing & Storm Mode
-  epic-2: in-progress
+  epic-2: done
   2-1-time-block-pricing-schema-and-engine: done
   2-2-storm-mode-activation-and-templates: done
   2-3-admin-pricing-configuration-and-booking-override: done
   epic-2-retrospective: optional
 
   # Epic 3: Payment Operations & Tiered Commission
-  epic-3: backlog
-  3-1-tiered-commission-configuration-and-calculation: backlog
+  epic-3: in-progress
+  3-1-tiered-commission-configuration-and-calculation: done
   3-2-manual-payment-confirmation-and-receipt-generation: backlog
   3-3-batch-payouts-refund-processing-and-payment-lifecycle-integration: backlog
   epic-3-retrospective: optional

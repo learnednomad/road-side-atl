@@ -7,4 +7,5 @@ export type WSEvent =
   | { type: "pong"; data: Record<string, never> }
   | { type: "storm_mode:activated"; data: { templateName: string; multiplier: number; activatedBy: string } }
   | { type: "storm_mode:deactivated"; data: { deactivatedBy: string } }
-  | { type: "booking:price_override"; data: { bookingId: string } };
+  | { type: "booking:price_override"; data: { bookingId: string } }
+  | { type: "service:commission_updated"; data: { serviceId: string; commissionRate: number } };
