@@ -47,7 +47,8 @@ export type AuditAction =
   | "pricing.update_block"
   | "pricing.toggle_storm_mode"
   | "booking.price_override"
-  | "commission.update_rate";
+  | "commission.update_rate"
+  | "payment.receipt_sent";
 
 export interface AuditLogEntry {
   action: AuditAction;

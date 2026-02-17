@@ -227,3 +227,54 @@ export async function sendInspectionReportEmail(
     `,
   });
 }
+
+const PAYMENT_METHOD_DISPLAY: Record<string, string> = {
+  cash: "Cash",
+  cashapp: "CashApp",
+  zelle: "Zelle",
+  stripe: "Card",
+};
+
+function formatPaymentMethod(method: string): string {
+  return PAYMENT_METHOD_DISPLAY[method] || method.charAt(0).toUpperCase() + method.slice(1);
+}
+
+export async function sendPaymentReceiptEmail(
+  email: string,
+  customerName: string,
+  bookingId: string,
+  serviceName: string,
+  amountPaid: number,
+  paymentMethod: string,
+  paymentDate: string,
+  providerName?: string
+) {
+  const resend = getResend();
+  if (!resend) return;
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com";
+  const receiptUrl = `${appUrl}/api/receipts/${bookingId}`;
+  const displayMethod = formatPaymentMethod(paymentMethod);
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `Payment Receipt - RoadSide ATL #${bookingId.slice(0, 8)}`,
+    html: `
+      <h2>Payment Receipt</h2>
+      <p>Hi ${customerName},</p>
+      <p>Your payment has been confirmed. Thank you!</p>
+      <ul>
+        <li><strong>Booking ID:</strong> ${bookingId.slice(0, 8)}</li>
+        <li><strong>Service:</strong> ${serviceName}</li>
+        <li><strong>Amount Paid:</strong> ${formatPrice(amountPaid)}</li>
+        <li><strong>Payment Method:</strong> ${displayMethod}</li>
+        <li><strong>Date:</strong> ${new Date(paymentDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</li>
+        ${providerName ? `<li><strong>Provider:</strong> ${providerName}</li>` : ""}
+      </ul>
+      <p><a href="${receiptUrl}" style="display: inline-block; padding: 12px 24px; background-color: #1a1a2e; color: white; text-decoration: none; border-radius: 6px;">View Full Receipt</a></p>
+      <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${appUrl}/unsubscribe">unsubscribe here</a>.</p>
+    `,
+  });
+}

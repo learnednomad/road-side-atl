@@ -1,4 +1,4 @@
-import { sendBookingConfirmation, sendProviderAssignment, sendStatusUpdate, sendObservationFollowUpEmail, sendReferralCreditEmail, sendPreServiceConfirmationEmail, sendInspectionReportEmail, sendTierPromotionEmail } from "./email";
+import { sendBookingConfirmation, sendProviderAssignment, sendStatusUpdate, sendObservationFollowUpEmail, sendReferralCreditEmail, sendPreServiceConfirmationEmail, sendInspectionReportEmail, sendTierPromotionEmail, sendPaymentReceiptEmail } from "./email";
 import {
   sendBookingConfirmationSMS,
   sendProviderAssignmentSMS,
@@ -8,6 +8,7 @@ import {
   sendReferralSMS,
   sendReferralCreditSMS,
   sendTierPromotionSMS,
+  sendPaymentReceiptSMS,
 } from "./sms";
 
 interface BookingInfo {
@@ -93,4 +94,28 @@ export async function notifyInspectionReport(
   reportUrl: string
 ) {
   await sendInspectionReportEmail(customer.email, customer.name, bookingId, vehicleDescription, reportUrl);
+}
+
+export async function notifyPaymentConfirmed(
+  customer: { name: string; email: string; phone: string },
+  bookingId: string,
+  serviceName: string,
+  amountPaid: number,
+  paymentMethod: string,
+  paymentDate: string,
+  providerName?: string
+) {
+  await Promise.allSettled([
+    sendPaymentReceiptEmail(
+      customer.email,
+      customer.name,
+      bookingId,
+      serviceName,
+      amountPaid,
+      paymentMethod,
+      paymentDate,
+      providerName
+    ),
+    sendPaymentReceiptSMS(customer.phone, bookingId, amountPaid, paymentMethod),
+  ]);
 }

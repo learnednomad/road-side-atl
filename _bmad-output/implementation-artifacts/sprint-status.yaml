@@ -58,7 +58,7 @@ development_status:
   # Epic 3: Payment Operations & Tiered Commission
   epic-3: in-progress
   3-1-tiered-commission-configuration-and-calculation: done
-  3-2-manual-payment-confirmation-and-receipt-generation: backlog
+  3-2-manual-payment-confirmation-and-receipt-generation: done
   3-3-batch-payouts-refund-processing-and-payment-lifecycle-integration: backlog
   epic-3-retrospective: optional
 

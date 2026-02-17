@@ -14,7 +14,7 @@ import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { incrementCleanTransaction } from "../lib/trust-tier";
 import { generateCSV } from "@/lib/csv";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
-import { notifyStatusChange, notifyProviderAssigned, notifyReferralLink, notifyPreServiceConfirmation } from "@/lib/notifications";
+import { notifyStatusChange, notifyProviderAssigned, notifyReferralLink, notifyPreServiceConfirmation, notifyPaymentConfirmed } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser, broadcastToProvider } from "@/server/websocket/broadcast";
 import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
@@ -374,6 +374,8 @@ app.patch("/payments/:id/confirm", async (c) => {
   });
 
   if (existingPayment) {
+    const wasAlreadyConfirmed = existingPayment.status === "confirmed";
+
     const [updated] = await db
       .update(payments)
       .set({
@@ -401,15 +403,56 @@ app.patch("/payments/:id/confirm", async (c) => {
       userAgent,
     });
 
+    // Fetch full booking once for trust tier + receipt + payout
+    const fullBooking = await db.query.bookings.findFirst({
+      where: eq(bookings.id, existingPayment.bookingId),
+    });
+
     // Increment clean transaction count for trust tier promotion
-    if (existingPayment.bookingId) {
-      const booking = await db.query.bookings.findFirst({
-        where: eq(bookings.id, existingPayment.bookingId),
-        columns: { userId: true },
+    if (fullBooking?.userId) {
+      await incrementCleanTransaction(fullBooking.userId);
+    }
+
+    // Send receipt notification and create payout (only on first confirmation)
+    if (fullBooking && !wasAlreadyConfirmed) {
+      const service = await db.query.services.findFirst({
+        where: eq(services.id, fullBooking.serviceId),
       });
-      if (booking?.userId) {
-        await incrementCleanTransaction(booking.userId);
+      let providerName: string | undefined;
+      if (fullBooking.providerId) {
+        const provider = await db.query.providers.findFirst({
+          where: eq(providers.id, fullBooking.providerId),
+          columns: { name: true },
+        });
+        providerName = provider?.name;
       }
+
+      // Send receipt notification (fire-and-forget)
+      notifyPaymentConfirmed(
+        { name: fullBooking.contactName, email: fullBooking.contactEmail, phone: fullBooking.contactPhone },
+        fullBooking.id,
+        service?.name || "Service",
+        existingPayment.amount,
+        parsed.data.method,
+        updated.confirmedAt?.toISOString() || new Date().toISOString(),
+        providerName
+      ).catch(() => {});
+
+      // Audit receipt sent
+      logAudit({
+        action: "payment.receipt_sent",
+        userId: user.id,
+        resourceType: "payment",
+        resourceId: paymentId,
+        details: { bookingId: existingPayment.bookingId, email: fullBooking.contactEmail },
+        ipAddress,
+        userAgent,
+      });
+
+      // Create payout if eligible (was missing from this endpoint)
+      createPayoutIfEligible(fullBooking.id).catch((err) => {
+        console.error("[Payment] Failed to create payout for booking:", fullBooking.id, err);
+      });
     }
 
     return c.json(updated);
@@ -478,6 +521,41 @@ app.post("/bookings/:id/confirm-payment", async (c) => {
 
   // Try to create payout if booking is already completed
   await createPayoutIfEligible(bookingId);
+
+  // Send receipt notification
+  const service = await db.query.services.findFirst({
+    where: eq(services.id, booking.serviceId),
+  });
+  let providerName: string | undefined;
+  if (booking.providerId) {
+    const provider = await db.query.providers.findFirst({
+      where: eq(providers.id, booking.providerId),
+      columns: { name: true },
+    });
+    providerName = provider?.name;
+  }
+
+  // Fire-and-forget receipt notification
+  notifyPaymentConfirmed(
+    { name: booking.contactName, email: booking.contactEmail, phone: booking.contactPhone },
+    bookingId,
+    service?.name || "Service",
+    amount,
+    parsed.data.method,
+    payment.confirmedAt?.toISOString() || new Date().toISOString(),
+    providerName
+  ).catch(() => {});
+
+  // Audit receipt sent
+  logAudit({
+    action: "payment.receipt_sent",
+    userId: user.id,
+    resourceType: "payment",
+    resourceId: payment.id,
+    details: { bookingId, email: booking.contactEmail },
+    ipAddress,
+    userAgent,
+  });
 
   return c.json(payment, 201);
 });

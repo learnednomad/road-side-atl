@@ -154,3 +154,18 @@ export async function sendTierPromotionSMS(phone: string) {
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
+
+const PAYMENT_METHOD_DISPLAY: Record<string, string> = {
+  cash: "Cash",
+  cashapp: "CashApp",
+  zelle: "Zelle",
+  stripe: "Card",
+};
+
+export async function sendPaymentReceiptSMS(phone: string, bookingId: string, amount: number, paymentMethod: string) {
+  const displayMethod = PAYMENT_METHOD_DISPLAY[paymentMethod] || paymentMethod;
+  await sendSMS(
+    phone,
+    `RoadSide ATL: Payment confirmed for booking #${bookingId.slice(0, 8)}. ${formatPrice(amount)} via ${displayMethod}. Thank you! Reply STOP to opt out.`
+  );
+}
