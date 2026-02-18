@@ -34,6 +34,8 @@ interface ProviderData {
   id: string;
   name: string;
   phone: string;
+  rating: number | null;
+  photoUrl: string | null;
   currentLocation: { lat: number; lng: number; updatedAt: string } | null;
 }
 
@@ -55,8 +57,9 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 export function TrackingClient({ booking: initialBooking, provider: initialProvider, hasReview: initialHasReview = false }: TrackingClientProps) {
   const [booking, setBooking] = useState(initialBooking);
   const [providerLocation, setProviderLocation] = useState(initialProvider?.currentLocation || null);
+  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
   const [hasReview, setHasReview] = useState(initialHasReview);
-  const { lastEvent } = useWebSocket({ userId: booking.id, role: "tracking", enabled: true });
+  const { lastEvent, isConnected } = useWebSocket({ userId: booking.id, role: "tracking", enabled: true });
 
   // Listen for real-time updates
   useEffect(() => {
@@ -70,9 +73,12 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
     }
 
     if (lastEvent.type === "provider:location_updated") {
-      const data = lastEvent.data as { providerId: string; lat: number; lng: number };
+      const data = lastEvent.data as { providerId: string; lat: number; lng: number; etaMinutes?: number };
       if (initialProvider && data.providerId === initialProvider.id) {
         setProviderLocation({ lat: data.lat, lng: data.lng, updatedAt: new Date().toISOString() });
+        if (data.etaMinutes !== undefined) {
+          setEtaMinutes(data.etaMinutes);
+        }
       }
     }
   }, [lastEvent, booking.id, initialProvider]);
@@ -93,6 +99,13 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
         <h1 className="text-2xl font-bold">Track Your Service</h1>
         <p className="text-muted-foreground">Booking #{booking.id.slice(0, 8)}</p>
       </div>
+
+      {!isConnected && (booking.status === "dispatched" || booking.status === "in_progress") && (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2 text-sm text-yellow-800">
+          <div className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+          Reconnecting to live updates...
+        </div>
+      )}
 
       {/* Status Banner */}
       <Card className="mb-6">
@@ -194,9 +207,27 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{initialProvider.name}</p>
-                  <p className="text-sm text-muted-foreground">On the way to help you</p>
+                <div className="flex items-center gap-3">
+                  {initialProvider.photoUrl ? (
+                    <img
+                      src={initialProvider.photoUrl}
+                      alt={initialProvider.name}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Truck className="h-5 w-5 text-primary" />
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium">{initialProvider.name}</p>
+                    {initialProvider.rating && (
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        <span>{initialProvider.rating.toFixed(1)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <Button asChild size="sm" variant="outline">
                   <a href={`tel:${initialProvider.phone}`}>
@@ -205,6 +236,12 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
                   </a>
                 </Button>
               </div>
+              {etaMinutes !== null && (booking.status === "dispatched" || booking.status === "in_progress") && (
+                <div className="mt-3 p-3 bg-primary/5 rounded-lg flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  <p className="text-sm font-medium">Estimated arrival: {etaMinutes} min</p>
+                </div>
+              )}
               {providerLocation && (
                 <p className="text-xs text-muted-foreground mt-2">
                   Last updated: {new Date(providerLocation.updatedAt).toLocaleTimeString()}

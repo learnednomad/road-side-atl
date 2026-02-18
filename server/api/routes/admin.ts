@@ -18,6 +18,7 @@ import { notifyStatusChange, notifyProviderAssigned, notifyReferralLink, notifyP
 import { broadcastToAdmins, broadcastToUser, broadcastToProvider } from "@/server/websocket/broadcast";
 import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
+import { clearDelayNotification } from "../lib/delay-tracker";
 import { generateReferralCode } from "../lib/referral-credits";
 
 type AuthEnv = {
@@ -360,6 +361,16 @@ app.patch("/bookings/:id/status", async (c) => {
         }
       })().catch(() => {});
     }
+  }
+
+  if (parsed.data.status === "completed" || parsed.data.status === "cancelled") {
+    if (updated.providerId) {
+      db.update(providers)
+        .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
+        .where(eq(providers.id, updated.providerId))
+        .catch(() => {});
+    }
+    clearDelayNotification(bookingId);
   }
 
   // Auto-dispatch when confirmed

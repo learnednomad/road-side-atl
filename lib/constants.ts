@@ -76,3 +76,6 @@ export const STORM_MODE_PRIORITY = 100; // Storm templates have priority >= this
 
 export const DEFAULT_COMMISSION_RATE_BP = 2500; // 25% platform commission (default for roadside)
 export const COMMISSION_RATE_DIAGNOSTICS_BP = 2000; // 20% platform commission (diagnostics)
+
+export const AVERAGE_DRIVING_SPEED_MPH = 35;
+export const ETA_DELAY_THRESHOLD_MINUTES = 15;

@@ -101,9 +101,11 @@ export async function sendProviderAssignmentSMS(phone: string, booking: BookingI
 }
 
 export async function sendStatusUpdateSMS(phone: string, booking: BookingInfo, status: string, amountPaid?: number) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "";
+  const trackingUrl = baseUrl ? ` Track live: ${baseUrl}/track/${booking.id}` : "";
   const statusMessages: Record<string, string> = {
     confirmed: "confirmed",
-    dispatched: "dispatched - provider is on the way",
+    dispatched: `dispatched - provider is on the way.${trackingUrl}`,
     in_progress: "in progress",
     completed: amountPaid
       ? `completed. Amount paid: ${formatPrice(amountPaid)}. Thank you!`
@@ -114,6 +116,13 @@ export async function sendStatusUpdateSMS(phone: string, booking: BookingInfo, s
   await sendSMS(
     phone,
     `RoadSide ATL: Booking #${booking.id.slice(0, 8)} is now ${msg}.`
+  );
+}
+
+export async function sendDelayNotificationSMS(phone: string, providerName: string, etaMinutes: number, trackingUrl: string) {
+  await sendSMS(
+    phone,
+    `RoadSide ATL: Your provider ${providerName} is running a bit late. Updated ETA: ~${etaMinutes} min. Track live: ${trackingUrl}`
   );
 }
 

@@ -56,10 +56,10 @@ development_status:
   epic-2-retrospective: optional
 
   # Epic 3: Payment Operations & Tiered Commission
-  epic-3: in-progress
+  epic-3: done
   3-1-tiered-commission-configuration-and-calculation: done
   3-2-manual-payment-confirmation-and-receipt-generation: done
-  3-3-batch-payouts-refund-processing-and-payment-lifecycle-integration: review
+  3-3-batch-payouts-refund-processing-and-payment-lifecycle-integration: done
   epic-3-retrospective: optional
 
   # Epic 4: Enhanced Booking Experience
@@ -68,7 +68,7 @@ development_status:
   4-2-transparent-pricing-display: done
   4-3-diagnostic-product-selection: done
   4-4-location-detection-and-provider-dispatch: done
-  4-5-real-time-provider-tracking: backlog
+  4-5-real-time-provider-tracking: done
   4-6-booking-lifecycle-and-notification-verification: backlog
   epic-4-retrospective: optional
 

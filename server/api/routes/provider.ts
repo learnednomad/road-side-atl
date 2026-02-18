@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "@/db";
 import { bookings, services, providers, payments, providerPayouts, users, dispatchLogs } from "@/db/schema";
-import { eq, desc, and, count, sql } from "drizzle-orm";
+import { eq, desc, and, count, sql, inArray } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
 import { updateBookingStatusSchema } from "@/lib/validators";
 import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
@@ -9,6 +9,11 @@ import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast
 import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { geocodeAddress } from "@/lib/geocoding";
 import { generateReferralCode } from "../lib/referral-credits";
+import { calculateEtaMinutes } from "../lib/eta-calculator";
+import { logAudit } from "../lib/audit-logger";
+import { sendDelayNotificationSMS } from "@/lib/notifications/sms";
+import { ETA_DELAY_THRESHOLD_MINUTES } from "@/lib/constants";
+import { markDelayNotified, hasDelayNotification, clearDelayNotification } from "../lib/delay-tracker";
 
 type AuthEnv = {
   Variables: {
@@ -228,6 +233,16 @@ app.patch("/jobs/:id/status", async (c) => {
     broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
   }
 
+  if (parsed.data.status === "completed" || parsed.data.status === "cancelled") {
+    if (booking.providerId) {
+      db.update(providers)
+        .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
+        .where(eq(providers.id, booking.providerId))
+        .catch(() => {});
+    }
+    clearDelayNotification(bookingId);
+  }
+
   // Post-service referral SMS on completion (fire-and-forget)
   if (parsed.data.status === "completed" && booking.contactPhone && booking.userId) {
     (async () => {
@@ -283,6 +298,47 @@ app.post("/location", async (c) => {
     type: "provider:location_updated",
     data: { providerId: provider.id, lat: latitude, lng: longitude },
   });
+
+  const activeBookings = await db.query.bookings.findMany({
+    where: and(
+      eq(bookings.providerId, provider.id),
+      inArray(bookings.status, ["dispatched", "in_progress"])
+    ),
+  });
+
+  for (const activeBooking of activeBookings) {
+    const pickupLat = activeBooking.location?.latitude;
+    const pickupLng = activeBooking.location?.longitude;
+
+    let etaMinutes: number | undefined;
+    if (pickupLat && pickupLng) {
+      etaMinutes = calculateEtaMinutes(latitude, longitude, pickupLat, pickupLng);
+    }
+
+    broadcastToUser(activeBooking.id, {
+      type: "provider:location_updated",
+      data: { providerId: provider.id, lat: latitude, lng: longitude, etaMinutes },
+    });
+
+    if (
+      etaMinutes &&
+      etaMinutes > ETA_DELAY_THRESHOLD_MINUTES &&
+      !hasDelayNotification(activeBooking.id) &&
+      activeBooking.contactPhone
+    ) {
+      markDelayNotified(activeBooking.id);
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "";
+      const trackingUrl = `${baseUrl}/track/${activeBooking.id}`;
+      sendDelayNotificationSMS(activeBooking.contactPhone, provider.name, etaMinutes, trackingUrl).catch(() => {});
+      logAudit({
+        action: "booking.delay_notification",
+        userId: user.id,
+        resourceType: "booking",
+        resourceId: activeBooking.id,
+        details: { etaMinutes, providerLat: latitude, providerLng: longitude },
+      }).catch(() => {});
+    }
+  }
 
   return c.json({ success: true });
 });

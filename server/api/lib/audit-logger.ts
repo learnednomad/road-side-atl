@@ -50,7 +50,8 @@ export type AuditAction =
   | "commission.update_rate"
   | "payment.receipt_sent"
   | "payout.clawback"
-  | "payout.batch_paid";
+  | "payout.batch_paid"
+  | "booking.delay_notification";
 
 export interface AuditLogEntry {
   action: AuditAction;
