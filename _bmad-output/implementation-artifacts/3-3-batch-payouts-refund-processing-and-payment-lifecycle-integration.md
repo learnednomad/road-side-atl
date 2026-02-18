@@ -1,6 +1,6 @@
 # Story 3.3: Batch Payouts, Refund Processing & Payment Lifecycle Integration
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 <!-- Epic: 3 - Payment Operations & Tiered Commission -->
@@ -705,3 +705,22 @@ Claude Opus 4.6
 - `lib/notifications/index.ts` — updated `notifyStatusChange` to accept optional `amountPaid`, updated `notifyProviderAssigned` to accept optional price/payout
 - `lib/notifications/email.ts` — updated `sendStatusUpdate` for completion amount, updated `sendProviderAssignment` for estimated payout
 - `lib/notifications/sms.ts` — updated `sendStatusUpdateSMS` for completion amount, updated `sendProviderAssignmentSMS` for price/payout
+
+## Senior Developer Review
+
+**Reviewer:** Claude Opus 4.6
+**Date:** 2026-02-18
+**Result:** PASS (0 HIGH, 2 MEDIUM fixed, 2 LOW noted)
+
+### Issues Found & Fixed
+
+**MEDIUM #1 — Mark-paid + clawback settlement not atomic** (`admin-payouts.ts:60-131`)
+Two separate DB operations could leave clawbacks unsettled if second query failed. Fixed: wrapped both in `db.transaction()`.
+
+**MEDIUM #2 — UI stale state after clawback settlement** (`payouts-table.tsx:106-130`)
+Optimistic update only updated standard payouts; settled clawbacks remained "pending" in UI. Fixed: destructure `settledClawbacks` from response, update clawback records for affected providers in local state, show settlement count in toast.
+
+### LOW Issues (Noted, Not Fixed)
+
+- Summary `paidCount` includes settled clawback records — count slightly inflated but dollar totals correct.
+- FR39 AC mentions "distance" in provider notification — intentionally scoped out by SM in task definitions.

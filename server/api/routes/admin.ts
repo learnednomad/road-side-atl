@@ -260,7 +260,7 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
   }
 
   // Notify provider
-  notifyProviderAssigned(updated, provider, estimatedPrice, estimatedPayout).catch(() => {});
+  notifyProviderAssigned(updated, provider, estimatedPrice, estimatedPayout, service?.name).catch(() => {});
   if (provider.userId) {
     broadcastToProvider(provider.userId, {
       type: "provider:job_assigned",

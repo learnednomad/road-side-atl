@@ -190,6 +190,9 @@ app.patch("/jobs/:id/reject", async (c) => {
   autoDispatchBooking(bookingId, { excludeProviderIds }).catch(() => {});
 
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
+  if (booking.userId) {
+    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
+  }
 
   return c.json(updated);
 });
@@ -219,6 +222,16 @@ app.patch("/jobs/:id/status", async (c) => {
 
   if (!booking) {
     return c.json({ error: "Job not found" }, 404);
+  }
+
+  const VALID_PROVIDER_TRANSITIONS: Record<string, string[]> = {
+    dispatched: ["in_progress"],
+    in_progress: ["completed"],
+    confirmed: ["cancelled"],
+  };
+  const allowedNext = VALID_PROVIDER_TRANSITIONS[booking.status];
+  if (!allowedNext || !allowedNext.includes(parsed.data.status)) {
+    return c.json({ error: `Invalid status transition from ${booking.status} to ${parsed.data.status}` }, 400);
   }
 
   const [updated] = await db

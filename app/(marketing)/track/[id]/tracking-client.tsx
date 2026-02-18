@@ -332,7 +332,7 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
 
       {/* Review Section - Only for completed bookings */}
       {booking.status === "completed" && initialProvider && !hasReview && (
-        <div className="mt-6">
+        <div id="review" className="mt-6">
           <ReviewForm
             bookingId={booking.id}
             providerName={initialProvider.name}
@@ -343,7 +343,7 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
 
       {/* Already Reviewed */}
       {booking.status === "completed" && hasReview && (
-        <Card className="mt-6">
+        <Card id="review" className="mt-6">
           <CardContent className="py-6 text-center">
             <Star className="h-8 w-8 text-yellow-400 mx-auto mb-2 fill-yellow-400" />
             <p className="text-muted-foreground">Thank you for reviewing this service!</p>

@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { calculateDistance, milesToMeters } from "@/lib/distance";
 import { DEFAULT_DISPATCH_RADIUS_MILES, EXPANDED_DISPATCH_RADIUS_MILES } from "@/lib/constants";
 import { notifyProviderAssigned } from "@/lib/notifications";
-import { broadcastToProvider, broadcastToAdmins } from "@/server/websocket/broadcast";
+import { broadcastToProvider, broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 
 const MAX_DISPATCH_DISTANCE_MILES = parseInt(
   process.env.MAX_DISPATCH_DISTANCE_MILES || String(DEFAULT_DISPATCH_RADIUS_MILES)
@@ -168,7 +168,7 @@ export async function autoDispatchBooking(
     estimatedPayout = Math.round(estimatedPrice * assignedProvider.commissionRate / 10000);
   }
 
-  notifyProviderAssigned(booking, assignedProvider, estimatedPrice, estimatedPayout).catch(() => {});
+  notifyProviderAssigned(booking, assignedProvider, estimatedPrice, estimatedPayout, service?.name).catch(() => {});
   if (assignedProvider.userId) {
     broadcastToProvider(assignedProvider.userId, {
       type: "provider:job_assigned",
@@ -184,6 +184,9 @@ export async function autoDispatchBooking(
     });
   }
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
+  if (booking.userId) {
+    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
+  }
 
   return {
     success: true,

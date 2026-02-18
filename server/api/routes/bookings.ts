@@ -11,8 +11,8 @@ import {
 } from "@/lib/constants";
 import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { geocodeAddress } from "@/lib/geocoding";
-import { notifyBookingCreated } from "@/lib/notifications";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
+import { notifyBookingCreated, notifyStatusChange } from "@/lib/notifications";
+import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
@@ -210,6 +210,12 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
     ipAddress,
     userAgent,
   });
+
+  notifyStatusChange(booking, "cancelled").catch(() => {});
+  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
+  if (booking.userId) {
+    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
+  }
 
   return c.json(updated);
 });

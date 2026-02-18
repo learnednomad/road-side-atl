@@ -10,9 +10,11 @@ import {
   sendTierPromotionSMS,
   sendPaymentReceiptSMS,
 } from "./sms";
+import { notifyBookingStatusPush, notifyProviderNewJobPush } from "./push";
 
 interface BookingInfo {
   id: string;
+  userId?: string | null;
   contactName: string;
   contactEmail: string;
   contactPhone: string;
@@ -21,30 +23,41 @@ interface BookingInfo {
 }
 
 interface ProviderInfo {
+  id: string;
   name: string;
   email: string;
   phone: string;
 }
 
 export async function notifyBookingCreated(booking: BookingInfo) {
-  await Promise.allSettled([
+  const tasks: Promise<unknown>[] = [
     sendBookingConfirmation(booking),
     sendBookingConfirmationSMS(booking.contactPhone, booking),
-  ]);
+  ];
+  if (booking.userId) {
+    tasks.push(notifyBookingStatusPush(booking.userId, booking.id, "confirmed"));
+  }
+  await Promise.allSettled(tasks);
 }
 
-export async function notifyProviderAssigned(booking: BookingInfo, provider: ProviderInfo, estimatedPrice?: number, estimatedPayout?: number) {
-  await Promise.allSettled([
+export async function notifyProviderAssigned(booking: BookingInfo, provider: ProviderInfo, estimatedPrice?: number, estimatedPayout?: number, serviceName?: string) {
+  const tasks: Promise<unknown>[] = [
     sendProviderAssignment(booking, provider, estimatedPayout),
     sendProviderAssignmentSMS(provider.phone, booking, estimatedPrice, estimatedPayout),
-  ]);
+  ];
+  tasks.push(notifyProviderNewJobPush(provider.id, booking.id, booking.contactName, serviceName || "Roadside Assistance"));
+  await Promise.allSettled(tasks);
 }
 
 export async function notifyStatusChange(booking: BookingInfo, newStatus: string, amountPaid?: number) {
-  await Promise.allSettled([
+  const tasks: Promise<unknown>[] = [
     sendStatusUpdate(booking, newStatus, amountPaid),
     sendStatusUpdateSMS(booking.contactPhone, booking, newStatus, amountPaid),
-  ]);
+  ];
+  if (booking.userId) {
+    tasks.push(notifyBookingStatusPush(booking.userId, booking.id, newStatus));
+  }
+  await Promise.allSettled(tasks);
 }
 
 export async function notifyObservationFollowUp(customer: { name: string; email: string; phone: string }, findings: string) {

@@ -84,9 +84,11 @@ interface BookingInfo {
 }
 
 export async function sendBookingConfirmationSMS(phone: string, booking: BookingInfo) {
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Booking #${booking.id.slice(0, 8)} received! Location: ${booking.location.address}. Est: ${formatPrice(booking.estimatedPrice)}. We'll assign a provider shortly.`
+    `RoadSide ATL: Booking #${booking.id.slice(0, 8)} received! Location: ${booking.location.address}. Est: ${formatPrice(booking.estimatedPrice)}. We'll assign a provider shortly.`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
 
@@ -94,9 +96,11 @@ export async function sendProviderAssignmentSMS(phone: string, booking: BookingI
   const payoutInfo = estimatedPrice && estimatedPayout
     ? ` Price: ${formatPrice(estimatedPrice)}. Your payout: ${formatPrice(estimatedPayout)}.`
     : "";
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: New job assigned! Booking #${booking.id.slice(0, 8)}. Customer: ${booking.contactName}. Location: ${booking.location.address}.${payoutInfo} Log in to accept.`
+    `RoadSide ATL: New job assigned! Booking #${booking.id.slice(0, 8)}. Customer: ${booking.contactName}. Location: ${booking.location.address}.${payoutInfo} Log in to accept.`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
 
@@ -113,9 +117,11 @@ export async function sendStatusUpdateSMS(phone: string, booking: BookingInfo, s
     cancelled: "cancelled",
   };
   const msg = statusMessages[status] || status;
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Booking #${booking.id.slice(0, 8)} is now ${msg}.`
+    `RoadSide ATL: Booking #${booking.id.slice(0, 8)} is now ${msg}.`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
 

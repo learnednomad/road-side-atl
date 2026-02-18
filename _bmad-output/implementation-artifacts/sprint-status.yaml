@@ -63,13 +63,13 @@ development_status:
   epic-3-retrospective: optional
 
   # Epic 4: Enhanced Booking Experience
-  epic-4: in-progress
+  epic-4: done
   4-1-booking-mode-toggle: done
   4-2-transparent-pricing-display: done
   4-3-diagnostic-product-selection: done
   4-4-location-detection-and-provider-dispatch: done
   4-5-real-time-provider-tracking: done
-  4-6-booking-lifecycle-and-notification-verification: backlog
+  4-6-booking-lifecycle-and-notification-verification: done
   epic-4-retrospective: optional
 
   # Epic 5: Financial Reporting & Analytics

@@ -114,16 +114,26 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
     });
 
     if (res.ok) {
-      const { updated } = await res.json();
+      const { updated, settledClawbacks } = await res.json();
+      // Get provider IDs of paid payouts for clawback settlement
+      const paidProviderIds = new Set(
+        payouts.filter((p) => ids.includes(p.payout.id)).map((p) => p.provider.id)
+      );
       setPayouts((prev) =>
-        prev.map((p) =>
-          ids.includes(p.payout.id)
-            ? { ...p, payout: { ...p.payout, status: "paid" as const, paidAt: new Date().toISOString() } }
-            : p
-        )
+        prev.map((p) => {
+          if (ids.includes(p.payout.id)) {
+            return { ...p, payout: { ...p.payout, status: "paid" as const, paidAt: new Date().toISOString() } };
+          }
+          // Also settle clawback records for affected providers
+          if (p.payout.payoutType === "clawback" && p.payout.status === "pending" && paidProviderIds.has(p.provider.id)) {
+            return { ...p, payout: { ...p.payout, status: "paid" as const, paidAt: new Date().toISOString() } };
+          }
+          return p;
+        })
       );
       setSelected(new Set());
-      toast.success(`${updated} payout(s) marked as paid`);
+      const clawbackMsg = settledClawbacks > 0 ? ` (${settledClawbacks} clawback(s) settled)` : "";
+      toast.success(`${updated} payout(s) marked as paid${clawbackMsg}`);
     } else {
       toast.error("Failed to update payouts");
     }

@@ -59,6 +59,7 @@ export async function sendBookingConfirmation(booking: BookingInfo) {
       </ul>
       <p>We'll assign a provider shortly and keep you updated.</p>
       <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -84,6 +85,7 @@ export async function sendProviderAssignment(booking: BookingInfo, provider: Pro
       </ul>
       <p>Please log in to your provider portal to accept or manage this job.</p>
       <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -114,6 +116,7 @@ export async function sendStatusUpdate(booking: BookingInfo, newStatus: string, 
       <p>${message}</p>
       <p>Booking ID: ${booking.id.slice(0, 8)}</p>
       <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }

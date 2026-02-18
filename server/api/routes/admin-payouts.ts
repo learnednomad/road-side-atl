@@ -65,21 +65,44 @@ app.post("/mark-paid", async (c) => {
   }
 
   const now = new Date();
-  const updated = await db
-    .update(providerPayouts)
-    .set({ status: "paid", paidAt: now })
-    .where(
-      and(
-        inArray(providerPayouts.id, parsed.data.payoutIds),
-        eq(providerPayouts.status, "pending"),
-        eq(providerPayouts.payoutType, "standard")
-      )
-    )
-    .returning();
-
-  // Audit each payout individually (NFR14 - immutable per-record)
   const user = c.get("user");
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+
+  // Atomic: mark-paid + clawback settlement in single transaction
+  const { updated, settled } = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(providerPayouts)
+      .set({ status: "paid", paidAt: now })
+      .where(
+        and(
+          inArray(providerPayouts.id, parsed.data.payoutIds),
+          eq(providerPayouts.status, "pending"),
+          eq(providerPayouts.payoutType, "standard")
+        )
+      )
+      .returning();
+
+    // Auto-settle outstanding clawback records for providers in this batch
+    const providerIds = [...new Set(updated.map((p) => p.providerId))];
+    let settled: typeof updated = [];
+    if (providerIds.length > 0) {
+      settled = await tx
+        .update(providerPayouts)
+        .set({ status: "paid", paidAt: now })
+        .where(
+          and(
+            inArray(providerPayouts.providerId, providerIds),
+            eq(providerPayouts.payoutType, "clawback"),
+            eq(providerPayouts.status, "pending")
+          )
+        )
+        .returning();
+    }
+
+    return { updated, settled };
+  });
+
+  // Audit each payout individually (NFR14 - immutable per-record, fire-and-forget)
   for (const payout of updated) {
     logAudit({
       action: "payout.mark_paid",
@@ -91,34 +114,16 @@ app.post("/mark-paid", async (c) => {
       userAgent,
     });
   }
-
-  // Auto-settle outstanding clawback records for providers in this batch
-  const providerIds = [...new Set(updated.map((p) => p.providerId))];
-  let settledClawbacks = 0;
-  if (providerIds.length > 0) {
-    const settled = await db
-      .update(providerPayouts)
-      .set({ status: "paid", paidAt: now })
-      .where(
-        and(
-          inArray(providerPayouts.providerId, providerIds),
-          eq(providerPayouts.payoutType, "clawback"),
-          eq(providerPayouts.status, "pending")
-        )
-      )
-      .returning();
-    settledClawbacks = settled.length;
-    for (const cb of settled) {
-      logAudit({
-        action: "payout.mark_paid",
-        userId: user.id,
-        resourceType: "payout",
-        resourceId: cb.id,
-        details: { providerId: cb.providerId, bookingId: cb.bookingId, amount: cb.amount, type: "clawback_settled" },
-        ipAddress,
-        userAgent,
-      });
-    }
+  for (const cb of settled) {
+    logAudit({
+      action: "payout.mark_paid",
+      userId: user.id,
+      resourceType: "payout",
+      resourceId: cb.id,
+      details: { providerId: cb.providerId, bookingId: cb.bookingId, amount: cb.amount, type: "clawback_settled" },
+      ipAddress,
+      userAgent,
+    });
   }
 
   // Broadcast to admins
@@ -127,7 +132,7 @@ app.post("/mark-paid", async (c) => {
     data: { payoutIds: updated.map((p) => p.id), count: updated.length },
   });
 
-  return c.json({ updated: updated.length, payouts: updated, settledClawbacks });
+  return c.json({ updated: updated.length, payouts: updated, settledClawbacks: settled.length });
 });
 
 // Initiate refund (partial or full)
