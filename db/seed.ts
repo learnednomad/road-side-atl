@@ -51,7 +51,7 @@ async function seed() {
 
   // ── SERVICES ──────────────────────────────────────────────
   console.log("Seeding services...");
-  const [svcJump, svcTow, svcLockout, svcTire, svcFuel, svcDiag] = await db
+  const [svcJump, svcTow, svcLockout, svcTire, svcFuel, svcDiagBasic, svcDiagStandard, svcDiagPremium] = await db
     .insert(services)
     .values([
       {
@@ -101,13 +101,31 @@ async function seed() {
         commissionRate: 2500, // 25% platform cut
       },
       {
-        name: "Car Purchase Diagnostics",
-        slug: "car-purchase-diagnostics",
+        name: "Basic Inspection",
+        slug: "basic-inspection",
         description:
-          "Comprehensive pre-purchase vehicle inspection with OBD2 scan and mechanical grade assessment. Full payment required upfront before scheduling.",
+          "Essential pre-purchase check covering OBD2 scan, visual exterior/interior inspection, fluid levels, tire condition, and battery health.",
+        basePrice: 15000,
+        category: "diagnostics",
+        commissionRate: 2000, // 20% platform cut
+      },
+      {
+        name: "Standard Inspection",
+        slug: "standard-inspection",
+        description:
+          "Comprehensive inspection including OBD2 diagnostics, brake system check, suspension test, electrical system review, engine performance analysis, and photo documentation.",
         basePrice: 25000,
         category: "diagnostics",
-        commissionRate: 2000, // 20% platform cut (lower for higher-value diagnostics)
+        commissionRate: 2000, // 20% platform cut
+      },
+      {
+        name: "Premium Inspection",
+        slug: "premium-inspection",
+        description:
+          "Complete diagnostic report with full mechanical inspection, detailed OBD2 code analysis, test drive evaluation, undercarriage examination, emissions check, and branded PDF report with repair cost estimates.",
+        basePrice: 39900,
+        category: "diagnostics",
+        commissionRate: 1800, // 18% platform cut (lower for highest-value tier)
       },
     ])
     .returning();
@@ -366,7 +384,7 @@ async function seed() {
       },
       {
         userId: customers[3].id,
-        serviceId: svcDiag.id,
+        serviceId: svcDiagStandard.id,
         status: "completed",
         vehicleInfo: { year: "2016", make: "Chevrolet", model: "Malibu", color: "Red" },
         location: {
@@ -602,7 +620,7 @@ async function seed() {
       // ── CONFIRMED bookings (awaiting dispatch) ──
       {
         userId: customers[2].id,
-        serviceId: svcDiag.id,
+        serviceId: svcDiagStandard.id,
         status: "confirmed",
         vehicleInfo: { year: "2018", make: "Mercedes-Benz", model: "C300", color: "Navy" },
         location: {

@@ -90,19 +90,24 @@ export async function sendBookingConfirmationSMS(phone: string, booking: Booking
   );
 }
 
-export async function sendProviderAssignmentSMS(phone: string, booking: BookingInfo) {
+export async function sendProviderAssignmentSMS(phone: string, booking: BookingInfo, estimatedPrice?: number, estimatedPayout?: number) {
+  const payoutInfo = estimatedPrice && estimatedPayout
+    ? ` Price: ${formatPrice(estimatedPrice)}. Your payout: ${formatPrice(estimatedPayout)}.`
+    : "";
   await sendSMS(
     phone,
-    `RoadSide ATL: New job assigned! Booking #${booking.id.slice(0, 8)}. Customer: ${booking.contactName}. Location: ${booking.location.address}. Log in to accept.`
+    `RoadSide ATL: New job assigned! Booking #${booking.id.slice(0, 8)}. Customer: ${booking.contactName}. Location: ${booking.location.address}.${payoutInfo} Log in to accept.`
   );
 }
 
-export async function sendStatusUpdateSMS(phone: string, booking: BookingInfo, status: string) {
+export async function sendStatusUpdateSMS(phone: string, booking: BookingInfo, status: string, amountPaid?: number) {
   const statusMessages: Record<string, string> = {
     confirmed: "confirmed",
     dispatched: "dispatched - provider is on the way",
     in_progress: "in progress",
-    completed: "completed - thank you!",
+    completed: amountPaid
+      ? `completed. Amount paid: ${formatPrice(amountPaid)}. Thank you!`
+      : "completed - thank you!",
     cancelled: "cancelled",
   };
   const msg = statusMessages[status] || status;

@@ -59,15 +59,15 @@ development_status:
   epic-3: in-progress
   3-1-tiered-commission-configuration-and-calculation: done
   3-2-manual-payment-confirmation-and-receipt-generation: done
-  3-3-batch-payouts-refund-processing-and-payment-lifecycle-integration: backlog
+  3-3-batch-payouts-refund-processing-and-payment-lifecycle-integration: review
   epic-3-retrospective: optional
 
   # Epic 4: Enhanced Booking Experience
-  epic-4: backlog
-  4-1-booking-mode-toggle: backlog
-  4-2-transparent-pricing-display: backlog
-  4-3-diagnostic-product-selection: backlog
-  4-4-location-detection-and-provider-dispatch: backlog
+  epic-4: in-progress
+  4-1-booking-mode-toggle: done
+  4-2-transparent-pricing-display: done
+  4-3-diagnostic-product-selection: done
+  4-4-location-detection-and-provider-dispatch: done
   4-5-real-time-provider-tracking: backlog
   4-6-booking-lifecycle-and-notification-verification: backlog
   epic-4-retrospective: optional

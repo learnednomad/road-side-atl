@@ -29,7 +29,10 @@ export const createBookingSchema = z.object({
   scheduledAt: z.string().datetime().optional(),
   notes: z.string().optional(),
   paymentMethod: z.enum(["cash", "cashapp", "zelle", "stripe"]).optional(),
-});
+}).refine(
+  (data) => !data.scheduledAt || new Date(data.scheduledAt) > new Date(Date.now() + 2 * 60 * 60 * 1000),
+  { message: "Scheduled time must be at least 2 hours from now", path: ["scheduledAt"] }
+);
 
 export const updateBookingStatusSchema = z.object({
   status: z.enum([
@@ -244,6 +247,17 @@ export const updateServiceCommissionSchema = z.object({
   commissionRate: z.number().int().min(100, "Commission rate must be at least 1%").max(5000, "Commission rate cannot exceed 50%"),
 });
 export type UpdateServiceCommissionInput = z.infer<typeof updateServiceCommissionSchema>;
+
+export const initiateRefundSchema = z.object({
+  bookingId: z.string().uuid("Invalid booking"),
+  type: z.enum(["partial", "full"]),
+  amount: z.number().int().positive().optional(), // required for partial, cents
+  reason: z.string().min(1, "Refund reason is required"),
+}).refine(
+  (data) => data.type === "full" || (data.type === "partial" && data.amount !== undefined && data.amount > 0),
+  { message: "Amount is required for partial refunds" }
+);
+export type InitiateRefundInput = z.infer<typeof initiateRefundSchema>;
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;

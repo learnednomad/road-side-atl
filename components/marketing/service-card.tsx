@@ -18,7 +18,9 @@ const iconMap: Record<string, React.ElementType> = {
   lockout: KeyRound,
   "flat-tire": CircleDot,
   "fuel-delivery": Fuel,
-  "car-purchase-diagnostics": Wrench,
+  "basic-inspection": Wrench,
+  "standard-inspection": Wrench,
+  "premium-inspection": Wrench,
 };
 
 interface ServiceCardProps {

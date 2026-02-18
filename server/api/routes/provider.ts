@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, providers, payments, providerPayouts, users } from "@/db/schema";
+import { bookings, services, providers, payments, providerPayouts, users, dispatchLogs } from "@/db/schema";
 import { eq, desc, and, count, sql } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
 import { updateBookingStatusSchema } from "@/lib/validators";
@@ -164,6 +164,10 @@ app.patch("/jobs/:id/reject", async (c) => {
     return c.json({ error: "Job not found" }, 404);
   }
 
+  if (booking.status !== "dispatched") {
+    return c.json({ error: "Job can only be rejected when dispatched" }, 400);
+  }
+
   // Unassign provider and revert to confirmed
   const [updated] = await db
     .update(bookings)
@@ -171,8 +175,14 @@ app.patch("/jobs/:id/reject", async (c) => {
     .where(eq(bookings.id, bookingId))
     .returning();
 
-  // Try to re-dispatch
-  autoDispatchBooking(bookingId).catch(() => {});
+  // Build exclusion list from previous dispatch attempts, then re-dispatch
+  const previousDispatches = await db.query.dispatchLogs.findMany({
+    where: eq(dispatchLogs.bookingId, bookingId),
+  });
+  const excludeProviderIds = previousDispatches
+    .filter((d) => d.assignedProviderId)
+    .map((d) => d.assignedProviderId!);
+  autoDispatchBooking(bookingId, { excludeProviderIds }).catch(() => {});
 
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
 

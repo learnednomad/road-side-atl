@@ -24,10 +24,12 @@ export default async function AdminPayoutsPage() {
 
   const [summary] = await db
     .select({
-      totalPending: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'pending' then ${providerPayouts.amount} else 0 end), 0)`,
+      totalPending: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'pending' and ${providerPayouts.payoutType} = 'standard' then ${providerPayouts.amount} else 0 end), 0)`,
       totalPaid: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'paid' then ${providerPayouts.amount} else 0 end), 0)`,
-      pendingCount: sql<number>`count(case when ${providerPayouts.status} = 'pending' then 1 end)`,
+      pendingCount: sql<number>`count(case when ${providerPayouts.status} = 'pending' and ${providerPayouts.payoutType} = 'standard' then 1 end)`,
       paidCount: sql<number>`count(case when ${providerPayouts.status} = 'paid' then 1 end)`,
+      totalClawback: sql<number>`coalesce(sum(case when ${providerPayouts.payoutType} = 'clawback' and ${providerPayouts.status} = 'pending' then abs(${providerPayouts.amount}) else 0 end), 0)`,
+      clawbackCount: sql<number>`count(case when ${providerPayouts.payoutType} = 'clawback' and ${providerPayouts.status} = 'pending' then 1 end)`,
     })
     .from(providerPayouts);
 
@@ -51,6 +53,8 @@ export default async function AdminPayoutsPage() {
           totalPaid: Number(summary.totalPaid),
           pendingCount: Number(summary.pendingCount),
           paidCount: Number(summary.paidCount),
+          totalClawback: Number(summary.totalClawback),
+          clawbackCount: Number(summary.clawbackCount),
         }}
       />
     </div>

@@ -33,17 +33,17 @@ export async function notifyBookingCreated(booking: BookingInfo) {
   ]);
 }
 
-export async function notifyProviderAssigned(booking: BookingInfo, provider: ProviderInfo) {
+export async function notifyProviderAssigned(booking: BookingInfo, provider: ProviderInfo, estimatedPrice?: number, estimatedPayout?: number) {
   await Promise.allSettled([
-    sendProviderAssignment(booking, provider),
-    sendProviderAssignmentSMS(provider.phone, booking),
+    sendProviderAssignment(booking, provider, estimatedPayout),
+    sendProviderAssignmentSMS(provider.phone, booking, estimatedPrice, estimatedPayout),
   ]);
 }
 
-export async function notifyStatusChange(booking: BookingInfo, newStatus: string) {
+export async function notifyStatusChange(booking: BookingInfo, newStatus: string, amountPaid?: number) {
   await Promise.allSettled([
-    sendStatusUpdate(booking, newStatus),
-    sendStatusUpdateSMS(booking.contactPhone, booking, newStatus),
+    sendStatusUpdate(booking, newStatus, amountPaid),
+    sendStatusUpdateSMS(booking.contactPhone, booking, newStatus, amountPaid),
   ]);
 }
 

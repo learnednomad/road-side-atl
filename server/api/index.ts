@@ -24,6 +24,7 @@ import referralsRoutes from "./routes/referrals";
 import inspectionReportsRoutes from "./routes/inspection-reports";
 import usersRoutes from "./routes/users";
 import pricingConfigRoutes from "./routes/pricing-config";
+import pricingEstimateRoutes from "./routes/pricing-estimate";
 
 const app = new Hono().basePath("/api");
 
@@ -52,5 +53,6 @@ app.route("/referrals", referralsRoutes);
 app.route("/inspection-reports", inspectionReportsRoutes);
 app.route("/users", usersRoutes);
 app.route("/admin/pricing", pricingConfigRoutes);
+app.route("/pricing-estimate", pricingEstimateRoutes);
 
 export default app;

@@ -13,6 +13,7 @@ import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { geocodeAddress } from "@/lib/geocoding";
 import { notifyBookingCreated } from "@/lib/notifications";
 import { broadcastToAdmins } from "@/server/websocket/broadcast";
+import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 
@@ -117,6 +118,12 @@ app.post("/", async (c) => {
     data: { bookingId: booking.id, contactName: booking.contactName, status: booking.status, serviceName: service.name },
   });
 
+  // Auto-dispatch for immediate bookings (deferred for scheduled)
+  let dispatchResult = null;
+  if (!booking.scheduledAt && process.env.AUTO_DISPATCH_ENABLED === "true") {
+    dispatchResult = await autoDispatchBooking(booking.id).catch(() => null);
+  }
+
   return c.json({
     ...booking,
     pricingBreakdown: {
@@ -124,6 +131,7 @@ app.post("/", async (c) => {
       multiplier: pricing.multiplier,
       blockName: pricing.blockName,
     },
+    dispatchResult,
   }, 201);
 });
 

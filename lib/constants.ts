@@ -67,6 +67,9 @@ export const REFERRAL_CREDIT_AMOUNT_CENTS = 1000; // $10.00
 export const INSPECTION_CONDITIONS = ["good", "fair", "poor", "critical"] as const;
 export type InspectionCondition = (typeof INSPECTION_CONDITIONS)[number];
 
+export const DEFAULT_DISPATCH_RADIUS_MILES = 50;
+export const EXPANDED_DISPATCH_RADIUS_MILES = 100;
+
 export const DEFAULT_MULTIPLIER_BP = 10000; // 1.0x in basis points
 
 export const STORM_MODE_PRIORITY = 100; // Storm templates have priority >= this value

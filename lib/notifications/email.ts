@@ -63,7 +63,7 @@ export async function sendBookingConfirmation(booking: BookingInfo) {
   });
 }
 
-export async function sendProviderAssignment(booking: BookingInfo, provider: ProviderInfo) {
+export async function sendProviderAssignment(booking: BookingInfo, provider: ProviderInfo, estimatedPayout?: number) {
   const resend = getResend();
   if (!resend) return;
 
@@ -80,6 +80,7 @@ export async function sendProviderAssignment(booking: BookingInfo, provider: Pro
         <li><strong>Phone:</strong> ${booking.contactPhone}</li>
         <li><strong>Location:</strong> ${booking.location.address}</li>
         <li><strong>Estimated Price:</strong> ${formatPrice(booking.estimatedPrice)}</li>
+        ${estimatedPayout ? `<li><strong>Your Estimated Payout:</strong> ${formatPrice(estimatedPayout)}</li>` : ""}
       </ul>
       <p>Please log in to your provider portal to accept or manage this job.</p>
       <p>— RoadSide ATL</p>
@@ -87,7 +88,7 @@ export async function sendProviderAssignment(booking: BookingInfo, provider: Pro
   });
 }
 
-export async function sendStatusUpdate(booking: BookingInfo, newStatus: string) {
+export async function sendStatusUpdate(booking: BookingInfo, newStatus: string, amountPaid?: number) {
   const resend = getResend();
   if (!resend) return;
 
@@ -95,7 +96,9 @@ export async function sendStatusUpdate(booking: BookingInfo, newStatus: string) 
     confirmed: "Your booking has been confirmed. A provider will be assigned shortly.",
     dispatched: "A provider has been dispatched to your location.",
     in_progress: "Your service is now in progress.",
-    completed: "Your service has been completed. Thank you for choosing RoadSide ATL!",
+    completed: amountPaid
+      ? `Your service has been completed. Amount paid: ${formatPrice(amountPaid)}. Thank you for choosing RoadSide ATL!`
+      : "Your service has been completed. Thank you for choosing RoadSide ATL!",
     cancelled: "Your booking has been cancelled.",
   };
 

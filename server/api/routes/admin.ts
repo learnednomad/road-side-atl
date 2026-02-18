@@ -241,8 +241,25 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
     userAgent,
   });
 
+  // Fetch service for price + commission data (FR39) and pre-service check (FR66)
+  const service = updated.serviceId
+    ? await db.query.services.findFirst({ where: eq(services.id, updated.serviceId) })
+    : null;
+
+  // Calculate estimated payout for provider notification (FR39)
+  const estimatedPrice = updated.estimatedPrice || 0;
+  let estimatedPayout = 0;
+  if (provider.commissionType === "flat_per_job") {
+    estimatedPayout = provider.flatFeeAmount || 0;
+  } else if (service && service.commissionRate > 0) {
+    const platformCut = Math.round(estimatedPrice * service.commissionRate / 10000);
+    estimatedPayout = estimatedPrice - platformCut;
+  } else {
+    estimatedPayout = Math.round(estimatedPrice * provider.commissionRate / 10000);
+  }
+
   // Notify provider
-  notifyProviderAssigned(updated, provider).catch(() => {});
+  notifyProviderAssigned(updated, provider, estimatedPrice, estimatedPayout).catch(() => {});
   if (provider.userId) {
     broadcastToProvider(provider.userId, {
       type: "provider:job_assigned",
@@ -251,24 +268,22 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
         providerId: provider.id,
         contactName: updated.contactName,
         address: (updated.location as { address: string }).address,
+        serviceName: service?.name,
+        estimatedPrice,
+        estimatedPayout,
       },
     });
   }
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: updated.status } });
 
   // Pre-service confirmation for diagnostic/inspection bookings (FR66)
-  if (updated.serviceId) {
-    const service = await db.query.services.findFirst({
-      where: eq(services.id, updated.serviceId),
-    });
-    if (service && (service.category === "diagnostics" || service.slug.includes("inspection"))) {
-      notifyPreServiceConfirmation(
-        { name: updated.contactName, email: updated.contactEmail, phone: updated.contactPhone },
-        provider.name,
-        "30-45 minutes",
-        service.name,
-      ).catch(() => {});
-    }
+  if (service && (service.category === "diagnostics" || service.slug.includes("inspection"))) {
+    notifyPreServiceConfirmation(
+      { name: updated.contactName, email: updated.contactEmail, phone: updated.contactPhone },
+      provider.name,
+      "30-45 minutes",
+      service.name,
+    ).catch(() => {});
   }
 
   return c.json(updated);
@@ -315,8 +330,15 @@ app.patch("/bookings/:id/status", async (c) => {
   });
 
   // Auto-create payout when booking completed
+  let amountPaid: number | undefined;
   if (parsed.data.status === "completed") {
     await createPayoutIfEligible(bookingId);
+
+    // Fetch confirmed payment amount for completion notification (FR32)
+    const confirmedPayment = await db.query.payments.findFirst({
+      where: and(eq(payments.bookingId, bookingId), eq(payments.status, "confirmed")),
+    });
+    amountPaid = confirmedPayment?.amount;
 
     // Post-service referral SMS (fire-and-forget)
     if (updated.contactPhone && updated.userId) {
@@ -346,8 +368,8 @@ app.patch("/bookings/:id/status", async (c) => {
     dispatchResult = await autoDispatchBooking(bookingId).catch(() => null);
   }
 
-  // Fire-and-forget notifications
-  notifyStatusChange(updated, parsed.data.status).catch(() => {});
+  // Fire-and-forget notifications (FR32: completion includes amount paid)
+  notifyStatusChange(updated, parsed.data.status, amountPaid).catch(() => {});
 
   // WebSocket broadcasts
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
