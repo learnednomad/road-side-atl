@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { bookings, services, providers, payments, providerPayouts, users, dispatchLogs } from "@/db/schema";
 import { eq, desc, and, count, sql, inArray } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
+import { BOOKING_STATUSES } from "@/lib/constants";
+import type { BookingStatus } from "@/lib/constants";
 import { updateBookingStatusSchema } from "@/lib/validators";
 import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
@@ -43,8 +45,8 @@ app.get("/jobs", async (c) => {
   }
 
   const conditions = [eq(bookings.providerId, provider.id)];
-  if (status) {
-    conditions.push(eq(bookings.status, status as any));
+  if (status && BOOKING_STATUSES.includes(status as BookingStatus)) {
+    conditions.push(eq(bookings.status, status as BookingStatus));
   }
 
   const [totalResult] = await db
@@ -543,18 +545,51 @@ app.get("/earnings/summary", async (c) => {
     .from(providerPayouts)
     .where(eq(providerPayouts.providerId, provider.id));
 
-  const [monthEarnings] = await db
-    .select({
-      thisMonth: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
-      completedJobs: sql<number>`count(*)`,
-    })
-    .from(providerPayouts)
-    .where(
-      and(
-        eq(providerPayouts.providerId, provider.id),
-        sql`${providerPayouts.createdAt} >= ${monthStart.toISOString()}`
-      )
-    );
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekStart = new Date(todayStart);
+  weekStart.setDate(weekStart.getDate() - ((todayStart.getDay() + 6) % 7));
+
+  const [[monthEarnings], [todayEarnings], [weekEarnings]] = await Promise.all([
+    db
+      .select({
+        thisMonth: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        completedJobs: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          eq(providerPayouts.payoutType, "standard"),
+          sql`${providerPayouts.createdAt} >= ${monthStart.toISOString()}`
+        )
+      ),
+    db
+      .select({
+        total: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        jobCount: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          eq(providerPayouts.payoutType, "standard"),
+          sql`${providerPayouts.createdAt} >= ${todayStart.toISOString()}`
+        )
+      ),
+    db
+      .select({
+        total: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        jobCount: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          eq(providerPayouts.payoutType, "standard"),
+          sql`${providerPayouts.createdAt} >= ${weekStart.toISOString()}`
+        )
+      ),
+  ]);
 
   // Fetch per-service commission rates for provider visibility
   const serviceRates = await db
@@ -573,6 +608,10 @@ app.get("/earnings/summary", async (c) => {
     paidOut: Number(earningsSummary.paidOut),
     thisMonthEarnings: Number(monthEarnings.thisMonth),
     completedJobsThisMonth: Number(monthEarnings.completedJobs),
+    todayEarnings: Number(todayEarnings.total),
+    todayJobCount: Number(todayEarnings.jobCount),
+    thisWeekEarnings: Number(weekEarnings.total),
+    thisWeekJobCount: Number(weekEarnings.jobCount),
     commissionType: provider.commissionType,
     flatFeeAmount: provider.flatFeeAmount,
     serviceCommissionRates: serviceRates.map((s) => ({
@@ -615,6 +654,13 @@ app.get("/earnings/history", async (c) => {
       payout: providerPayouts,
       booking: bookings,
       service: services,
+      bookingAmount: sql<number>`(
+        SELECT coalesce(p.amount, 0)
+        FROM payments p
+        WHERE p."bookingId" = ${providerPayouts.bookingId}
+        AND p.status = 'confirmed'
+        LIMIT 1
+      )`,
     })
     .from(providerPayouts)
     .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
@@ -625,24 +671,31 @@ app.get("/earnings/history", async (c) => {
     .offset(offset);
 
   return c.json({
-    data: results.map((r) => ({
-      payout: {
-        ...r.payout,
-        createdAt: r.payout.createdAt.toISOString(),
-        paidAt: r.payout.paidAt?.toISOString() || null,
-      },
-      booking: {
-        id: r.booking.id,
-        contactName: r.booking.contactName,
-        createdAt: r.booking.createdAt.toISOString(),
-      },
-      service: {
-        name: r.service.name,
-        category: r.service.category,
-        commissionRate: r.service.commissionRate,
-        providerSharePercent: (10000 - r.service.commissionRate) / 100,
-      },
-    })),
+    data: results.map((r) => {
+      const subqueryAmount = Number(r.bookingAmount);
+      const bookingAmount = subqueryAmount > 0 ? subqueryAmount : (r.booking.priceOverrideCents ?? r.booking.finalPrice ?? r.booking.estimatedPrice ?? 0);
+      const payoutAmount = r.payout.amount;
+      return {
+        payout: {
+          ...r.payout,
+          createdAt: r.payout.createdAt.toISOString(),
+          paidAt: r.payout.paidAt?.toISOString() || null,
+        },
+        booking: {
+          id: r.booking.id,
+          contactName: r.booking.contactName,
+          createdAt: r.booking.createdAt.toISOString(),
+        },
+        service: {
+          name: r.service.name,
+          category: r.service.category,
+          commissionRate: r.service.commissionRate,
+          providerSharePercent: (10000 - r.service.commissionRate) / 100,
+        },
+        bookingAmount,
+        commissionDeducted: bookingAmount - payoutAmount,
+      };
+    }),
     total: totalResult.count,
     page,
     limit,
@@ -650,9 +703,99 @@ app.get("/earnings/history", async (c) => {
   });
 });
 
-// Monthly earnings trends
+// Daily earnings (last 30 days)
+app.get("/earnings/daily", async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider not found" }, 404);
+  }
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const daily = await db
+    .select({
+      date: sql<string>`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`,
+      earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      jobCount: sql<number>`count(*)`,
+    })
+    .from(providerPayouts)
+    .where(
+      and(
+        eq(providerPayouts.providerId, provider.id),
+        sql`${providerPayouts.createdAt} >= ${thirtyDaysAgo.toISOString()}`,
+        eq(providerPayouts.payoutType, "standard"),
+      )
+    )
+    .groupBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`)
+    .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`);
+
+  return c.json({
+    daily: daily.map((d) => ({
+      date: d.date,
+      earnings: Number(d.earnings),
+      jobCount: Number(d.jobCount),
+    })),
+  });
+});
+
+// Weekly earnings (last 12 weeks)
+app.get("/earnings/weekly", async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider not found" }, 404);
+  }
+
+  const twelveWeeksAgo = new Date();
+  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
+
+  const weekly = await db
+    .select({
+      week: sql<string>`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
+      weekStart: sql<string>`to_char(date_trunc('week', ${providerPayouts.createdAt}), 'YYYY-MM-DD')`,
+      weekEnd: sql<string>`to_char(date_trunc('week', ${providerPayouts.createdAt}) + interval '6 days', 'YYYY-MM-DD')`,
+      earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      jobCount: sql<number>`count(*)`,
+    })
+    .from(providerPayouts)
+    .where(
+      and(
+        eq(providerPayouts.providerId, provider.id),
+        sql`${providerPayouts.createdAt} >= ${twelveWeeksAgo.toISOString()}`,
+        eq(providerPayouts.payoutType, "standard"),
+      )
+    )
+    .groupBy(
+      sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
+      sql`date_trunc('week', ${providerPayouts.createdAt})`,
+    )
+    .orderBy(sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`);
+
+  return c.json({
+    weekly: weekly.map((w) => ({
+      week: w.week,
+      weekStart: w.weekStart,
+      weekEnd: w.weekEnd,
+      earnings: Number(w.earnings),
+      jobCount: Number(w.jobCount),
+    })),
+  });
+});
+
+// Earnings trends with period support (?period=daily|weekly|monthly)
 app.get("/earnings/trends", async (c) => {
   const user = c.get("user");
+  const period = c.req.query("period") || "monthly";
 
   const provider = await db.query.providers.findFirst({
     where: eq(providers.userId, user.id),
@@ -662,6 +805,74 @@ app.get("/earnings/trends", async (c) => {
     return c.json({ error: "Provider profile not found" }, 404);
   }
 
+  if (period === "daily") {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const trends = await db
+      .select({
+        date: sql<string>`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`,
+        earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        jobCount: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          sql`${providerPayouts.createdAt} >= ${thirtyDaysAgo.toISOString()}`,
+          eq(providerPayouts.payoutType, "standard"),
+        )
+      )
+      .groupBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`);
+
+    return c.json({
+      period: "daily",
+      trends: trends.map((t) => ({
+        label: t.date,
+        earnings: Number(t.earnings),
+        jobCount: Number(t.jobCount),
+      })),
+    });
+  }
+
+  if (period === "weekly") {
+    const twelveWeeksAgo = new Date();
+    twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
+
+    const trends = await db
+      .select({
+        week: sql<string>`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
+        weekStart: sql<string>`to_char(date_trunc('week', ${providerPayouts.createdAt}), 'YYYY-MM-DD')`,
+        earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        jobCount: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          sql`${providerPayouts.createdAt} >= ${twelveWeeksAgo.toISOString()}`,
+          eq(providerPayouts.payoutType, "standard"),
+        )
+      )
+      .groupBy(
+        sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
+        sql`date_trunc('week', ${providerPayouts.createdAt})`,
+      )
+      .orderBy(sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`);
+
+    return c.json({
+      period: "weekly",
+      trends: trends.map((t) => ({
+        label: t.week,
+        weekStart: t.weekStart,
+        earnings: Number(t.earnings),
+        jobCount: Number(t.jobCount),
+      })),
+    });
+  }
+
+  // Default: monthly (backward compatible)
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - 12);
   startDate.setDate(1);
@@ -676,6 +887,7 @@ app.get("/earnings/trends", async (c) => {
     .where(
       and(
         eq(providerPayouts.providerId, provider.id),
+        eq(providerPayouts.payoutType, "standard"),
         sql`${providerPayouts.createdAt} >= ${startDate.toISOString()}`
       )
     )
@@ -683,8 +895,9 @@ app.get("/earnings/trends", async (c) => {
     .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`);
 
   return c.json({
+    period: "monthly",
     trends: trends.map((t) => ({
-      month: t.month,
+      label: t.month,
       earnings: Number(t.earnings),
       jobCount: Number(t.jobCount),
     })),

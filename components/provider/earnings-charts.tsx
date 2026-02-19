@@ -22,13 +22,36 @@ const COLORS = [
   "hsl(var(--chart-5, 340 75% 55%))",
 ];
 
-interface MonthlyEarningsChartProps {
-  data: Array<{ month: string; earnings: number; jobCount: number }>;
+type EarningsPeriod = "daily" | "weekly" | "monthly";
+
+interface EarningsTrendChartProps {
+  data: Array<{ label: string; earnings: number; jobCount: number }>;
+  period: EarningsPeriod;
 }
 
-export function MonthlyEarningsChart({ data }: MonthlyEarningsChartProps) {
+function formatXAxisLabel(label: string, period: EarningsPeriod): string {
+  if (period === "daily") {
+    const date = new Date(label + "T00:00:00");
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+  if (period === "weekly") {
+    const weekNum = label.split("-")[1];
+    return `Wk ${weekNum}`;
+  }
+  // monthly: "YYYY-MM" -> "Jan", "Feb", etc.
+  const date = new Date(label + "-01T00:00:00");
+  return date.toLocaleDateString("en-US", { month: "short" });
+}
+
+const PERIOD_TITLES: Record<EarningsPeriod, string> = {
+  daily: "Daily Earnings",
+  weekly: "Weekly Earnings",
+  monthly: "Monthly Earnings",
+};
+
+export function EarningsTrendChart({ data, period }: EarningsTrendChartProps) {
   const chartData = data.map((item) => ({
-    month: item.month.slice(5), // MM format
+    label: formatXAxisLabel(item.label, period),
     earnings: item.earnings / 100,
     jobs: item.jobCount,
   }));
@@ -36,17 +59,17 @@ export function MonthlyEarningsChart({ data }: MonthlyEarningsChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Monthly Earnings</CardTitle>
+        <CardTitle className="text-sm font-medium">{PERIOD_TITLES[period]}</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={250}>
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
             <Tooltip
               formatter={(value) => [`$${Number(value).toFixed(2)}`, "Earnings"]}
-              labelFormatter={(label) => `Month: ${label}`}
+              labelFormatter={(label) => `${PERIOD_TITLES[period]}: ${label}`}
             />
             <Area
               type="monotone"
@@ -61,6 +84,12 @@ export function MonthlyEarningsChart({ data }: MonthlyEarningsChartProps) {
       </CardContent>
     </Card>
   );
+}
+
+// Keep backward-compatible export
+export function MonthlyEarningsChart({ data }: { data: Array<{ month: string; earnings: number; jobCount: number }> }) {
+  const mapped = data.map((d) => ({ label: d.month, earnings: d.earnings, jobCount: d.jobCount }));
+  return <EarningsTrendChart data={mapped} period="monthly" />;
 }
 
 interface ServiceBreakdownChartProps {
