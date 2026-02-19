@@ -44,11 +44,12 @@ app.post("/register", async (c) => {
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
+  const referralCode = await generateReferralCode();
   const [newUser] = await db.insert(users).values({
     name,
     email,
     password: hashedPassword,
-    referralCode: generateReferralCode(),
+    referralCode,
   }).returning({ id: users.id });
 
   // Send verification email (fire and forget)

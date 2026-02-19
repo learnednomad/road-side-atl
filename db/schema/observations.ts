@@ -26,4 +26,5 @@ export const observations = pgTable("observations", {
   items: jsonb("items").$type<ObservationItem[]>().notNull(),
   followUpSent: boolean("followUpSent").default(false).notNull(),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 });

@@ -8,7 +8,7 @@ import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { geocodeAddress } from "@/lib/geocoding";
-import { generateReferralCode } from "../lib/referral-credits";
+import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
 import { logAudit } from "../lib/audit-logger";
 import { sendDelayNotificationSMS } from "@/lib/notifications/sms";
@@ -256,24 +256,31 @@ app.patch("/jobs/:id/status", async (c) => {
     clearDelayNotification(bookingId);
   }
 
-  // Post-service referral SMS on completion (fire-and-forget)
+  // Post-service referral SMS on completion (fire-and-forget) — only if payment confirmed
   if (parsed.data.status === "completed" && booking.contactPhone && booking.userId) {
-    (async () => {
-      const bookingUser = await db.query.users.findFirst({
-        where: eq(users.id, booking.userId!),
-      });
-      if (bookingUser) {
-        let referralCode = bookingUser.referralCode;
-        if (!referralCode) {
-          referralCode = generateReferralCode();
-          await db
-            .update(users)
-            .set({ referralCode, updatedAt: new Date() })
-            .where(eq(users.id, bookingUser.id));
+    const confirmedPayment = await db.query.payments.findFirst({
+      where: and(eq(payments.bookingId, bookingId), eq(payments.status, "confirmed")),
+    });
+
+    if (confirmedPayment) {
+      (async () => {
+        const bookingUser = await db.query.users.findFirst({
+          where: eq(users.id, booking.userId!),
+        });
+        if (bookingUser) {
+          let referralCode = bookingUser.referralCode;
+          if (!referralCode) {
+            referralCode = await generateReferralCode(bookingUser.id);
+          }
+          const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
+          notifyReferralLink(booking.contactPhone, referralLink).catch(() => {});
         }
-        const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
-        notifyReferralLink(booking.contactPhone, referralLink).catch(() => {});
-      }
+      })().catch(() => {});
+    }
+
+    // Credit referral on first booking completion (fire-and-forget)
+    (async () => {
+      await creditReferralOnFirstBooking(booking.userId!, bookingId);
     })().catch(() => {});
   }
 

@@ -62,6 +62,7 @@ async function seed() {
         basePrice: 10000,
         category: "roadside",
         commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Jump Start", items: ["Battery Voltage", "Terminal Condition", "Alternator Output", "Cable Integrity"] }],
       },
       {
         name: "Towing (Local)",
@@ -72,6 +73,7 @@ async function seed() {
         pricePerMile: 300,
         category: "roadside",
         commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Towing", items: ["Frame Condition", "Axle Status", "Steering Lock", "Brake Status"] }],
       },
       {
         name: "Lockout Service",
@@ -81,6 +83,7 @@ async function seed() {
         basePrice: 13500,
         category: "roadside",
         commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Lockout", items: ["Lock Mechanism", "Door Condition", "Key Status", "Window Integrity"] }],
       },
       {
         name: "Flat Tire Change",
@@ -90,6 +93,7 @@ async function seed() {
         basePrice: 10000,
         category: "roadside",
         commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Tire Change", items: ["Tread Depth", "Tire Pressure", "Spare Condition", "Lug Nut Torque"] }],
       },
       {
         name: "Fuel Delivery",
@@ -99,6 +103,7 @@ async function seed() {
         basePrice: 7500,
         category: "roadside",
         commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Fuel Delivery", items: ["Fuel Level", "Fuel Line Condition", "Cap Seal", "Tank Integrity"] }],
       },
       {
         name: "Basic Inspection",
@@ -108,6 +113,7 @@ async function seed() {
         basePrice: 15000,
         category: "diagnostics",
         commissionRate: 2000, // 20% platform cut
+        checklistConfig: [{ category: "Basic Diagnostic", items: ["OBD2 Codes", "Battery Health", "Fluid Levels", "Belt Condition", "Tire Pressure"] }],
       },
       {
         name: "Standard Inspection",
@@ -126,6 +132,7 @@ async function seed() {
         basePrice: 39900,
         category: "diagnostics",
         commissionRate: 1800, // 18% platform cut (lower for highest-value tier)
+        checklistConfig: [{ category: "Premium Diagnostic", items: ["OBD2 Codes", "Battery Health", "Fluid Levels", "Belt Condition", "Tire Pressure", "Brake Pad Thickness", "Suspension Check", "Exhaust Emissions"] }],
       },
     ])
     .returning();

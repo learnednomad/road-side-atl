@@ -80,21 +80,21 @@ development_status:
   epic-5-retrospective: optional
 
   # Epic 6: Vehicle Observation & Follow-Up Pipeline
-  epic-6: in-progress
-  6-1-observation-schema-checklist-configuration-and-provider-submission: review
-  6-2-customer-follow-up-notifications-and-provider-operations-integration: review
+  epic-6: done
+  6-1-observation-schema-checklist-configuration-and-provider-submission: done
+  6-2-customer-follow-up-notifications-and-provider-operations-integration: done
   epic-6-retrospective: optional
 
   # Epic 7: Referral Growth Engine
-  epic-7: in-progress
-  7-1-referral-schema-credit-configuration-and-post-service-sms: review
-  7-2-referral-tracking-credits-and-provider-referrals: review
+  epic-7: done
+  7-1-referral-schema-credit-configuration-and-post-service-sms: done
+  7-2-referral-tracking-credits-and-provider-referrals: done
   epic-7-retrospective: optional
 
   # Epic 8: Branded Vehicle Inspection Reports
-  epic-8: in-progress
-  8-1-inspection-report-schema-and-provider-submission: review
-  8-2-branded-pdf-generation-and-email-delivery: review
+  epic-8: done
+  8-1-inspection-report-schema-and-provider-submission: done
+  8-2-branded-pdf-generation-and-email-delivery: done
   epic-8-retrospective: optional
 
   # Epic 9: B2B Account Management (Phase 2)

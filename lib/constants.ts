@@ -35,7 +35,7 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export const USER_ROLES = ["customer", "admin", "provider"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const PROVIDER_STATUSES = ["active", "inactive", "pending"] as const;
+export const PROVIDER_STATUSES = ["active", "inactive", "pending", "resubmission_requested"] as const;
 export type ProviderStatus = (typeof PROVIDER_STATUSES)[number];
 
 export const COMMISSION_TYPES = ["percentage", "flat_per_job"] as const;
@@ -63,6 +63,7 @@ export type ObservationSeverity = (typeof OBSERVATION_SEVERITIES)[number];
 export const REFERRAL_STATUSES = ["pending", "credited", "expired"] as const;
 export type ReferralStatus = (typeof REFERRAL_STATUSES)[number];
 export const REFERRAL_CREDIT_AMOUNT_CENTS = 1000; // $10.00
+export const REFERRAL_SMS_DELAY_MINUTES = 30;
 
 export const INSPECTION_CONDITIONS = ["good", "fair", "poor", "critical"] as const;
 export type InspectionCondition = (typeof INSPECTION_CONDITIONS)[number];

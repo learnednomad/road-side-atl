@@ -36,10 +36,25 @@ export async function applyReferralCredit(referralId: string): Promise<boolean> 
 }
 
 /**
- * Generate a short unique referral code.
+ * Generate a short unique referral code and persist it to the user record.
+ * Retries up to 3 times on unique constraint collision.
  */
-export function generateReferralCode(): string {
-  return crypto.randomUUID().slice(0, 8).toUpperCase();
+export async function generateReferralCode(userId?: string): Promise<string> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const code = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+    if (!userId) return code;
+    try {
+      await db
+        .update(users)
+        .set({ referralCode: code, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+      return code;
+    } catch (e) {
+      if (attempt === 2) throw e;
+    }
+  }
+  // Unreachable, but satisfies TypeScript
+  throw new Error("Failed to generate referral code");
 }
 
 /**
@@ -121,9 +136,9 @@ export async function creditReferralOnFirstBooking(
   const referee = await db.query.users.findFirst({ where: eq(users.id, userId) });
 
   if (referrer?.phone) {
-    notifyReferralCredit(referrer.phone, REFERRAL_CREDIT_AMOUNT_CENTS).catch(() => {});
+    notifyReferralCredit(referrer.phone, REFERRAL_CREDIT_AMOUNT_CENTS, referrer.email ?? undefined, referrer.name ?? undefined).catch(() => {});
   }
   if (referee?.phone) {
-    notifyReferralCredit(referee.phone, REFERRAL_CREDIT_AMOUNT_CENTS).catch(() => {});
+    notifyReferralCredit(referee.phone, REFERRAL_CREDIT_AMOUNT_CENTS, referee.email ?? undefined, referee.name ?? undefined).catch(() => {});
   }
 }

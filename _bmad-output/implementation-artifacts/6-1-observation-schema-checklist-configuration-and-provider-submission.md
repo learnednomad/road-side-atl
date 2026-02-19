@@ -1,6 +1,6 @@
 # Story 6.1: Observation Schema, Checklist Configuration & Provider Submission
 
-Status: review
+Status: done
 
 ## Story
 

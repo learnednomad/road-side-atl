@@ -31,7 +31,7 @@ const formSchema = z.object({
   commissionRate: z.number().int().min(0).max(10000),
   flatFeeAmount: z.number().int().min(0).optional(),
   specialties: z.array(z.string()).optional(),
-  status: z.enum(["active", "inactive", "pending"]),
+  status: z.enum(["active", "inactive", "pending", "resubmission_requested"]),
   address: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),

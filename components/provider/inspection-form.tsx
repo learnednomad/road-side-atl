@@ -28,6 +28,7 @@ interface InspectionFinding {
   description: string;
   measurement?: string;
   obdCode?: string;
+  photoUrl?: string;
 }
 
 interface InspectionFormProps {
@@ -199,6 +200,17 @@ export function InspectionForm({ bookingId, onSubmitted }: InspectionFormProps) 
                   updateFinding(index, "measurement", e.target.value)
                 }
                 placeholder="e.g., 3mm remaining"
+              />
+            </div>
+            <div>
+              <Label>Photo URL (optional)</Label>
+              <Input
+                type="url"
+                value={finding.photoUrl || ""}
+                onChange={(e) =>
+                  updateFinding(index, "photoUrl", e.target.value)
+                }
+                placeholder="Photo URL (optional)"
               />
             </div>
           </div>

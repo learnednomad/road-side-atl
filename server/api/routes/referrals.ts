@@ -7,7 +7,6 @@ import { createReferralSchema, redeemCreditsSchema, providerReferralSchema } fro
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { REFERRAL_CREDIT_AMOUNT_CENTS } from "@/lib/constants";
 import { generateReferralCode, calculateCreditBalance, redeemReferralCredits } from "../lib/referral-credits";
-import { providers } from "@/db/schema";
 
 type AuthEnv = {
   Variables: {
@@ -31,11 +30,7 @@ app.get("/me", requireAuth, async (c) => {
 
   let referralCode = dbUser.referralCode;
   if (!referralCode) {
-    referralCode = generateReferralCode();
-    await db
-      .update(users)
-      .set({ referralCode, updatedAt: new Date() })
-      .where(eq(users.id, user.id));
+    referralCode = await generateReferralCode(user.id);
   }
 
   const [{ count: totalReferrals }] = await db
@@ -48,7 +43,7 @@ app.get("/me", requireAuth, async (c) => {
     .from(referrals)
     .where(and(eq(referrals.referrerId, user.id), eq(referrals.status, "credited")));
 
-  const creditBalance = Number(creditedReferrals) * REFERRAL_CREDIT_AMOUNT_CENTS;
+  const creditBalance = await calculateCreditBalance(user.id);
 
   const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
 
@@ -99,11 +94,11 @@ app.get("/", requireAuth, async (c) => {
     .where(whereClause);
 
   return c.json({
-    referrals: userReferrals,
-    total,
+    data: userReferrals,
+    total: Number(total),
     page,
     limit,
-    hasMore: offset + limit < Number(total),
+    totalPages: Math.ceil(Number(total) / limit),
   });
 });
 
@@ -146,7 +141,7 @@ app.post("/apply", requireAuth, async (c) => {
   });
 
   if (!referrer) {
-    return c.json({ error: "Referral code not found" }, 404);
+    return c.json({ error: "Invalid referral code" }, 400);
   }
 
   if (referrer.id === user.id) {

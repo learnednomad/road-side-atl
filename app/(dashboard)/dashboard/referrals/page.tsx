@@ -49,8 +49,8 @@ export default function ReferralsPage() {
         const infoData = await infoRes.json();
         const listData = await listRes.json();
         setInfo(infoData);
-        setReferrals(listData.data || []);
-        setTotalPages(listData.totalPages || 1);
+        setReferrals(listData.data ?? []);
+        setTotalPages(listData.totalPages ?? 1);
       } else {
         setFetchError(true);
       }
@@ -72,7 +72,7 @@ export default function ReferralsPage() {
     }
   };
 
-  const statusColor = (status: string) => {
+  const statusColor = (status: string): "default" | "destructive" | "secondary" => {
     switch (status) {
       case "credited": return "default";
       case "expired": return "destructive";
@@ -175,7 +175,7 @@ export default function ReferralsPage() {
                       {formatPrice(referral.creditAmount)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusColor(referral.status) as any}>
+                      <Badge variant={statusColor(referral.status)}>
                         {referral.status}
                       </Badge>
                     </TableCell>

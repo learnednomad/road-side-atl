@@ -166,6 +166,15 @@ export function ObservationForm({ bookingId, serviceId, onSubmitted }: Observati
                 placeholder="Describe the observation..."
               />
             </div>
+            <div>
+              <Label>Photo URL (optional)</Label>
+              <Input
+                type="url"
+                value={item.photoUrl || ""}
+                onChange={(e) => updateItem(index, "photoUrl", e.target.value)}
+                placeholder="Photo URL (optional)"
+              />
+            </div>
           </div>
         ))}
 

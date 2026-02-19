@@ -126,9 +126,11 @@ export async function sendStatusUpdateSMS(phone: string, booking: BookingInfo, s
 }
 
 export async function sendDelayNotificationSMS(phone: string, providerName: string, etaMinutes: number, trackingUrl: string) {
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Your provider ${providerName} is running a bit late. Updated ETA: ~${etaMinutes} min. Track live: ${trackingUrl}`
+    `RoadSide ATL: Your provider ${providerName} is running a bit late. Updated ETA: ~${etaMinutes} min. Track live: ${trackingUrl}`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
 
@@ -146,23 +148,29 @@ export async function sendPreServiceConfirmationSMS(
   inspectorName: string,
   eta: string
 ) {
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Your vehicle inspector ${inspectorName} is on the way! Estimated arrival: ${eta}. Reply STOP to opt out.`
+    `RoadSide ATL: Your vehicle inspector ${inspectorName} is on the way! Estimated arrival: ${eta}. Reply STOP to opt out.`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
 
 export async function sendReferralSMS(phone: string, referralLink: string) {
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Thanks for using our service! Share your referral link and earn $10 credit: ${referralLink} Reply STOP to opt out.`
+    `RoadSide ATL: Thanks for using our service! Share your referral link and earn $10 credit: ${referralLink} Reply STOP to opt out.`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
 
 export async function sendReferralCreditSMS(phone: string, amount: number) {
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: You earned a ${formatPrice(amount)} referral credit! It will be applied to your next booking. Reply STOP to opt out.`
+    `RoadSide ATL: You earned a ${formatPrice(amount)} referral credit! It will be applied to your next booking. Reply STOP to opt out.`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
 

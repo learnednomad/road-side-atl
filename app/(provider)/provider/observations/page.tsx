@@ -6,8 +6,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2, RefreshCw, Eye } from "lucide-react";
-import Link from "next/link";
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 
 interface ObservationData {
   observation: {
@@ -55,7 +54,7 @@ export default function ProviderObservationsPage() {
     fetchObservations();
   }, [fetchObservations]);
 
-  const severityColor = (severity: string) => {
+  const severityColor = (severity: string): "default" | "destructive" | "secondary" => {
     switch (severity) {
       case "high": return "destructive";
       case "medium": return "default";
@@ -121,7 +120,7 @@ export default function ProviderObservationsPage() {
                     <TableCell className="text-sm">{service.name}</TableCell>
                     <TableCell className="text-sm">{observation.items.length} items</TableCell>
                     <TableCell>
-                      <Badge variant={severityColor(maxSeverity) as any}>
+                      <Badge variant={severityColor(maxSeverity)}>
                         {maxSeverity}
                       </Badge>
                     </TableCell>

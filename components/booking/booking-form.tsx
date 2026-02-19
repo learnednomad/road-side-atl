@@ -19,6 +19,7 @@ import { AddressAutocomplete } from "@/components/maps/address-autocomplete";
 import { Check, ArrowRight, ArrowLeft, Loader2, MapPin } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
 import { PaymentMethodSelector } from "@/components/booking/payment-method-selector";
+import { ReferralCreditSelector } from "@/components/booking/referral-credit-selector";
 import { useGoogleMaps } from "@/lib/hooks/use-google-maps";
 
 interface Service {
@@ -62,6 +63,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
   const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
   const [destCoords, setDestCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
+  const [referralCreditApplied, setReferralCreditApplied] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [stepErrors, setStepErrors] = useState<string[]>([]);
@@ -259,6 +261,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
           scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
           notes: notes || undefined,
           paymentMethod: paymentMethod || undefined,
+          referralCreditApplied: referralCreditApplied > 0 ? referralCreditApplied : undefined,
         }),
       });
 
@@ -738,6 +741,14 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                 <p className="text-sm text-muted-foreground">Notes</p>
                 <p className="text-sm">{notes}</p>
               </div>
+            )}
+
+            {/* Referral Credit */}
+            {!!userInfo && (
+              <ReferralCreditSelector
+                bookingPrice={estimatedPrice}
+                onCreditChange={setReferralCreditApplied}
+              />
             )}
 
             {/* Payment Method */}

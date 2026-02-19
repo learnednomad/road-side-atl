@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { inspectionReports, bookings, providers, services, users } from "@/db/schema";
+import { inspectionReports, bookings, providers, services } from "@/db/schema";
 import { eq, and, desc, count } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { createInspectionReportSchema } from "@/lib/validators";
@@ -70,7 +70,7 @@ app.post("/", async (c) => {
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
 
-  logAudit({
+  await logAudit({
     action: "inspection.generate",
     userId: user.id,
     resourceType: "inspection_report",
@@ -94,8 +94,8 @@ app.get("/provider/list", async (c) => {
     return c.json({ error: "Forbidden" }, 403);
   }
 
-  const page = parseInt(c.req.query("page") || "1");
-  const limit = parseInt(c.req.query("limit") || "20");
+  const page = Math.max(parseInt(c.req.query("page") || "1") || 1, 1);
+  const limit = Math.min(Math.max(parseInt(c.req.query("limit") || "20") || 20, 1), 100);
   const offset = (page - 1) * limit;
 
   const provider = await db.query.providers.findFirst({
@@ -219,7 +219,13 @@ app.get("/:id/pdf", async (c) => {
     where: eq(providers.id, report.providerId),
   });
 
-  const vehicleInfo = booking.vehicleInfo as { year: string; make: string; model: string; color: string };
+  const vehicleInfoRaw = booking.vehicleInfo as Record<string, string> || {};
+  const vehicleInfo = {
+    year: vehicleInfoRaw.year || '',
+    make: vehicleInfoRaw.make || '',
+    model: vehicleInfoRaw.model || '',
+    color: vehicleInfoRaw.color || '',
+  };
 
   try {
     const pdfBuffer = await generateInspectionPDF({
@@ -256,6 +262,11 @@ app.post("/:id/email", async (c) => {
     return c.json({ error: "Inspection report not found" }, 404);
   }
 
+  // Idempotency: reject if email was already sent
+  if (report.emailedAt) {
+    return c.json({ error: "Inspection report email already sent" }, 409);
+  }
+
   const booking = await db.query.bookings.findFirst({
     where: eq(bookings.id, report.bookingId),
   });
@@ -278,28 +289,35 @@ app.post("/:id/email", async (c) => {
     return c.json({ error: "Forbidden" }, 403);
   }
 
-  const vehicleInfo = booking.vehicleInfo as { year: string; make: string; model: string; color: string };
-  const vehicleDescription = `${vehicleInfo.year} ${vehicleInfo.make} ${vehicleInfo.model}`;
+  const vehicleInfoRaw = booking.vehicleInfo as Record<string, string> || {};
+  const vehicleDescription = `${vehicleInfoRaw.year || ''} ${vehicleInfoRaw.make || ''} ${vehicleInfoRaw.model || ''}`.trim();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com";
   const reportUrl = `${appUrl}/inspection-reports/${reportId}`;
 
-  // Fire-and-forget email notification
-  notifyInspectionReport(
-    { name: booking.contactName, email: booking.contactEmail },
-    booking.id,
-    vehicleDescription,
-    reportUrl,
-  ).catch(() => {});
+  // Await email notification and only set emailedAt on success
+  const inspectionDate = report.createdAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  try {
+    await notifyInspectionReport(
+      { name: booking.contactName, email: booking.contactEmail },
+      booking.id,
+      vehicleDescription,
+      reportUrl,
+      inspectionDate,
+    );
 
-  // Update emailedAt timestamp
-  await db
-    .update(inspectionReports)
-    .set({ emailedAt: new Date() })
-    .where(eq(inspectionReports.id, reportId));
+    // Update emailedAt timestamp only after successful notification
+    await db
+      .update(inspectionReports)
+      .set({ emailedAt: new Date() })
+      .where(eq(inspectionReports.id, reportId));
+  } catch (error) {
+    console.error("[InspectionReport] Email notification failed:", error);
+    return c.json({ error: "Failed to send email notification" }, 500);
+  }
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
 
-  logAudit({
+  await logAudit({
     action: "inspection.email_sent",
     userId: user.id,
     resourceType: "inspection_report",

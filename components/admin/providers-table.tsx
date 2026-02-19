@@ -60,6 +60,7 @@ const statusVariant: Record<ProviderStatus, "default" | "secondary" | "destructi
   active: "default",
   pending: "secondary",
   inactive: "destructive",
+  resubmission_requested: "secondary",
 };
 
 const PAGE_SIZE = 10;

@@ -104,9 +104,10 @@ export async function notifyInspectionReport(
   customer: { name: string; email: string },
   bookingId: string,
   vehicleDescription: string,
-  reportUrl: string
+  reportUrl: string,
+  inspectionDate: string
 ) {
-  await sendInspectionReportEmail(customer.email, customer.name, bookingId, vehicleDescription, reportUrl);
+  await sendInspectionReportEmail(customer.email, customer.name, bookingId, vehicleDescription, reportUrl, inspectionDate);
 }
 
 export async function notifyPaymentConfirmed(

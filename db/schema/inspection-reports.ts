@@ -29,4 +29,5 @@ export const inspectionReports = pgTable("inspection_reports", {
   reportUrl: text("reportUrl"),
   emailedAt: timestamp("emailedAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 });

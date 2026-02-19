@@ -22,6 +22,7 @@ interface ReferralRecord {
 
 export default function ProviderReferralsPage() {
   const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
+  const [totalReferrals, setTotalReferrals] = useState(0);
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -40,6 +41,7 @@ export default function ProviderReferralsPage() {
         const listData = await listRes.json();
         const balanceData = await balanceRes.json();
         setReferrals(listData.referrals || []);
+        setTotalReferrals(listData.total || 0);
         setHasMore(listData.hasMore || false);
         setBalance(balanceData.balance || 0);
       } else {
@@ -55,7 +57,7 @@ export default function ProviderReferralsPage() {
     fetchData();
   }, [fetchData]);
 
-  const statusColor = (status: string) => {
+  const statusColor = (status: string): "default" | "destructive" | "secondary" => {
     switch (status) {
       case "credited": return "default";
       case "expired": return "destructive";
@@ -94,7 +96,7 @@ export default function ProviderReferralsPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{referrals.length}</div>
+            <div className="text-2xl font-bold">{totalReferrals}</div>
           </CardContent>
         </Card>
         <Card>
@@ -136,7 +138,7 @@ export default function ProviderReferralsPage() {
                       {formatPrice(referral.creditAmount)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusColor(referral.status) as any}>
+                      <Badge variant={statusColor(referral.status)}>
                         {referral.status}
                       </Badge>
                     </TableCell>

@@ -1,6 +1,6 @@
 # Story 8.2: Branded PDF Generation & Email Delivery
 
-Status: review
+Status: done
 
 ## Story
 

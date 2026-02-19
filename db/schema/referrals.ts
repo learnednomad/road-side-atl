@@ -27,4 +27,5 @@ export const referrals = pgTable("referrals", {
   creditAmount: integer("creditAmount").notNull(), // cents
   status: referralStatusEnum("status").default("pending").notNull(),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 });

@@ -51,7 +51,8 @@ export type AuditAction =
   | "payment.receipt_sent"
   | "payout.clawback"
   | "payout.batch_paid"
-  | "booking.delay_notification";
+  | "booking.delay_notification"
+  | "service.update_checklist_config";
 
 export interface AuditLogEntry {
   action: AuditAction;

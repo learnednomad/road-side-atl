@@ -64,7 +64,7 @@ app.post("/", async (c) => {
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
 
-  logAudit({
+  await logAudit({
     action: "observation.submit",
     userId: user.id,
     resourceType: "observation",
@@ -88,42 +88,53 @@ app.post("/", async (c) => {
       .map((i) => `${i.category}: ${i.description} (${i.severity})`)
       .join("; ");
 
-    notifyObservationFollowUp(
-      {
-        name: booking.contactName,
-        email: booking.contactEmail,
-        phone: booking.contactPhone,
-      },
-      findings
-    ).catch(() => {});
+    const notificationResults = await Promise.allSettled([
+      notifyObservationFollowUp(
+        {
+          name: booking.contactName,
+          email: booking.contactEmail,
+          phone: booking.contactPhone,
+        },
+        findings
+      ),
+    ]);
 
-    await db
-      .update(observations)
-      .set({ followUpSent: true })
-      .where(eq(observations.id, observation.id));
+    const anySucceeded = notificationResults.some((r) => r.status === "fulfilled");
 
-    logAudit({
-      action: "observation.follow_up_sent",
-      userId: user.id,
-      resourceType: "observation",
-      resourceId: observation.id,
-      details: {
-        bookingId: parsed.data.bookingId,
-        customerEmail: booking.contactEmail,
-      },
-      ipAddress,
-      userAgent,
-    });
+    if (anySucceeded) {
+      await db
+        .update(observations)
+        .set({ followUpSent: true })
+        .where(eq(observations.id, observation.id));
+
+      await logAudit({
+        action: "observation.follow_up_sent",
+        userId: user.id,
+        resourceType: "observation",
+        resourceId: observation.id,
+        details: {
+          bookingId: parsed.data.bookingId,
+          customerEmail: booking.contactEmail,
+        },
+        ipAddress,
+        userAgent,
+      });
+    }
   }
 
-  return c.json(observation, 201);
+  // Re-read observation to return current state
+  const updatedObservation = await db.query.observations.findFirst({
+    where: eq(observations.id, observation.id),
+  });
+
+  return c.json(updatedObservation, 201);
 });
 
 // List observations for this provider (paginated)
 app.get("/", async (c) => {
   const user = c.get("user");
-  const page = parseInt(c.req.query("page") || "1");
-  const limit = parseInt(c.req.query("limit") || "20");
+  const page = Math.max(parseInt(c.req.query("page") || "1") || 1, 1);
+  const limit = Math.min(Math.max(parseInt(c.req.query("limit") || "20") || 20, 1), 100);
   const offset = (page - 1) * limit;
 
   const provider = await db.query.providers.findFirst({

@@ -1,6 +1,6 @@
 # Story 6.2: Customer Follow-Up Notifications & Provider Operations Integration
 
-Status: review
+Status: done
 
 ## Story
 

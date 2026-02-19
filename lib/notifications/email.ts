@@ -213,7 +213,8 @@ export async function sendInspectionReportEmail(
   customerName: string,
   bookingId: string,
   vehicleDescription: string,
-  reportUrl: string
+  reportUrl: string,
+  inspectionDate: string
 ) {
   const resend = getResend();
   if (!resend) return;
@@ -226,6 +227,7 @@ export async function sendInspectionReportEmail(
       <h2>Your Vehicle Inspection Report</h2>
       <p>Hi ${customerName},</p>
       <p>Your inspection report for the <strong>${vehicleDescription}</strong> is ready.</p>
+      <p>Inspection Date: ${inspectionDate}</p>
       <p><a href="${reportUrl}" style="display: inline-block; padding: 12px 24px; background-color: #1a1a2e; color: white; text-decoration: none; border-radius: 6px;">View Report</a></p>
       <p>You can also download the PDF version from the link above.</p>
       <p>— RoadSide ATL</p>

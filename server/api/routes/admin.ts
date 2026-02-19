@@ -9,6 +9,7 @@ import {
   assignProviderSchema,
   overrideBookingPriceSchema,
   updateServiceCommissionSchema,
+  updateChecklistConfigSchema,
 } from "@/lib/validators";
 import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { incrementCleanTransaction } from "../lib/trust-tier";
@@ -19,7 +20,8 @@ import { broadcastToAdmins, broadcastToUser, broadcastToProvider } from "@/serve
 import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { clearDelayNotification } from "../lib/delay-tracker";
-import { generateReferralCode } from "../lib/referral-credits";
+import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
+import { calculateEtaMinutes } from "../lib/eta-calculator";
 
 type AuthEnv = {
   Variables: {
@@ -37,6 +39,7 @@ app.use("/bookings/:id/assign-provider", rateLimitStrict);
 app.use("/payments/:id/confirm", rateLimitStrict);
 app.use("/bookings/:id/override-price", rateLimitStrict);
 app.use("/services/:id/commission", rateLimitStrict);
+app.use("/services/:id/checklist", rateLimitStrict);
 
 // Dashboard stats
 app.get("/stats", async (c) => {
@@ -279,10 +282,20 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
 
   // Pre-service confirmation for diagnostic/inspection bookings (FR66)
   if (service && (service.category === "diagnostics" || service.slug.includes("inspection"))) {
+    // Calculate ETA from provider location to booking location if coordinates available
+    let etaDisplay = "30-45 minutes";
+    const bookingLat = (updated.location as { latitude?: number })?.latitude;
+    const bookingLng = (updated.location as { longitude?: number })?.longitude;
+    if (provider.latitude && provider.longitude && bookingLat && bookingLng) {
+      const etaMins = calculateEtaMinutes(provider.latitude, provider.longitude, bookingLat, bookingLng);
+      etaDisplay = `approximately ${etaMins} minutes`;
+    }
+    // TODO: Replace with real-time GPS-based ETA calculation when provider begins en-route
+
     notifyPreServiceConfirmation(
       { name: updated.contactName, email: updated.contactEmail, phone: updated.contactPhone },
       provider.name,
-      "30-45 minutes",
+      etaDisplay,
       service.name,
     ).catch(() => {});
   }
@@ -341,8 +354,8 @@ app.patch("/bookings/:id/status", async (c) => {
     });
     amountPaid = confirmedPayment?.amount;
 
-    // Post-service referral SMS (fire-and-forget)
-    if (updated.contactPhone && updated.userId) {
+    // Post-service referral SMS (fire-and-forget) — only if payment confirmed
+    if (confirmedPayment && updated.contactPhone && updated.userId) {
       (async () => {
         const bookingUser = await db.query.users.findFirst({
           where: eq(users.id, updated.userId!),
@@ -350,15 +363,18 @@ app.patch("/bookings/:id/status", async (c) => {
         if (bookingUser) {
           let referralCode = bookingUser.referralCode;
           if (!referralCode) {
-            referralCode = generateReferralCode();
-            await db
-              .update(users)
-              .set({ referralCode, updatedAt: new Date() })
-              .where(eq(users.id, bookingUser.id));
+            referralCode = await generateReferralCode(bookingUser.id);
           }
           const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
           notifyReferralLink(updated.contactPhone, referralLink).catch(() => {});
         }
+      })().catch(() => {});
+    }
+
+    // Credit referral on first booking completion (fire-and-forget)
+    if (updated.userId) {
+      (async () => {
+        await creditReferralOnFirstBooking(updated.userId!, bookingId);
       })().catch(() => {});
     }
   }
@@ -1137,6 +1153,49 @@ app.patch("/services/:id/commission", async (c) => {
   broadcastToAdmins({
     type: "service:commission_updated",
     data: { serviceId: id, commissionRate: parsed.data.commissionRate },
+  });
+
+  return c.json(updated, 200);
+});
+
+// PUT /services/:id/checklist - Update service checklist config
+app.put("/services/:id/checklist", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = updateChecklistConfigSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const existing = await db.query.services.findFirst({
+    where: eq(services.id, id),
+  });
+  if (!existing) {
+    return c.json({ error: "Service not found" }, 404);
+  }
+
+  const [updated] = await db
+    .update(services)
+    .set({
+      checklistConfig: parsed.data.checklistConfig,
+      updatedAt: new Date(),
+    })
+    .where(eq(services.id, id))
+    .returning();
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  await logAudit({
+    action: "service.update_checklist_config",
+    userId: user.id,
+    resourceType: "service",
+    resourceId: id,
+    details: {
+      serviceName: existing.name,
+      categoryCount: parsed.data.checklistConfig.length,
+    },
+    ipAddress,
+    userAgent,
   });
 
   return c.json(updated, 200);

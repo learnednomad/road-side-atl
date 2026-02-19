@@ -1,6 +1,6 @@
 # Story 8.1: Inspection Report Schema & Provider Submission
 
-Status: review
+Status: done
 
 ## Story
 
