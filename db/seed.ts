@@ -1,9 +1,4 @@
-// Load dotenv only if available (not in Docker production where env vars are already set)
-try {
-  require("dotenv/config");
-} catch {
-  // dotenv not available in production build - environment variables should already be set
-}
+import "dotenv/config";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import bcrypt from "bcryptjs";
@@ -17,7 +12,7 @@ import {
   dispatchLogs,
   timeBlockConfigs,
 } from "./schema";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 function daysAgo(n: number): Date {
   const d = new Date();
@@ -51,7 +46,7 @@ async function seed() {
 
   // ── SERVICES ──────────────────────────────────────────────
   console.log("Seeding services...");
-  const [svcJump, svcTow, svcLockout, svcTire, svcFuel, svcDiagBasic, svcDiagStandard, svcDiagPremium] = await db
+  const [svcJump, svcTow, svcLockout, svcTire, svcFuel, , svcDiagStandard, ] = await db
     .insert(services)
     .values([
       {
@@ -158,7 +153,7 @@ async function seed() {
 
   // ── ADMIN USERS ──────────────────────────────────────────────
   console.log("Seeding admin users...");
-  const [adminSani, adminOps] = await db
+  const [adminSani] = await db
     .insert(users)
     .values([
       {
@@ -315,7 +310,7 @@ async function seed() {
     )
     .returning();
 
-  const [provMarcus, provTerrence, provDeAndre, provCarlos, provJamal] = providerRecords;
+  const [provMarcus, provTerrence, provDeAndre, provCarlos] = providerRecords;
 
   // ── BOOKINGS ──────────────────────────────────────────────
   // Real Atlanta-area locations, realistic vehicles, full status coverage

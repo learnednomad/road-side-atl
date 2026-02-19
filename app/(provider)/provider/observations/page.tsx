@@ -51,7 +51,7 @@ export default function ProviderObservationsPage() {
   }, [page]);
 
   useEffect(() => {
-    fetchObservations();
+    fetchObservations(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
   }, [fetchObservations]);
 
   const severityColor = (severity: string): "default" | "destructive" | "secondary" => {

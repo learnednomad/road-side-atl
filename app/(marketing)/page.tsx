@@ -71,7 +71,16 @@ const HOMEPAGE_FAQS = [
 ];
 
 export default async function HomePage() {
-  let allServices: any[] = [];
+  type Service = {
+    name: string;
+    slug: string;
+    description: string;
+    basePrice: number;
+    pricePerMile: number | null;
+    category: string;
+  };
+
+  let allServices: Service[] = [];
   try {
     allServices = await db
       .select()

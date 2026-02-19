@@ -131,7 +131,7 @@ export function CommissionConfigTable() {
           Service Commission Rates
         </CardTitle>
         <CardDescription>
-          The commission rate is the platform's cut. Providers receive the remainder.
+          The commission rate is the platform&apos;s cut. Providers receive the remainder.
         </CardDescription>
       </CardHeader>
       <CardContent>

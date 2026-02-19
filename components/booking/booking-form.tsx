@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS, DEFAULT_MULTIPLIER_BP } from "@/lib/constants";
 import { AddressAutocomplete } from "@/components/maps/address-autocomplete";
@@ -273,8 +266,9 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
 
       const booking = await res.json();
       router.push(`/book/confirmation?bookingId=${booking.id}`);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to create booking";
+      setError(message);
     } finally {
       setLoading(false);
     }

@@ -20,6 +20,7 @@ import {
   Shield,
   TrendingUp,
   Percent,
+  BarChart3,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ const links = [
   { href: "/admin/trust-tier", label: "Trust Tier", icon: Shield },
   { href: "/admin/pricing", label: "Pricing", icon: TrendingUp },
   { href: "/admin/commission", label: "Commission", icon: Percent },
+  { href: "/admin/financial-reports", label: "Financial Reports", icon: BarChart3 },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];
 

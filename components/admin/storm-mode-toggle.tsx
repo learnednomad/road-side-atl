@@ -59,7 +59,7 @@ export function StormModeToggle() {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    fetchData(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
   }, [fetchData]);
 
   async function handleActivate(templateId: string) {

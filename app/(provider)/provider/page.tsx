@@ -52,7 +52,7 @@ export default function ProviderDashboard() {
   }
 
   useEffect(() => {
-    fetchData();
+    fetchData(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
   }, []);
 
   // Listen for new job assignments

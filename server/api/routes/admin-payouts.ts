@@ -17,6 +17,12 @@ const app = new Hono<AuthEnv>();
 
 app.use("/*", requireAdmin);
 
+const payoutStatusValues = ["pending", "paid", "clawback"] as const;
+type PayoutStatus = (typeof payoutStatusValues)[number];
+function isPayoutStatus(value: string): value is PayoutStatus {
+  return payoutStatusValues.includes(value as PayoutStatus);
+}
+
 // List payouts with filters
 app.get("/", async (c) => {
   const status = c.req.query("status");
@@ -24,7 +30,9 @@ app.get("/", async (c) => {
 
   const conditions = [];
   if (status) {
-    conditions.push(eq(providerPayouts.status, status as any));
+    if (isPayoutStatus(status)) {
+      conditions.push(eq(providerPayouts.status, status));
+    }
   }
   if (providerId) {
     conditions.push(eq(providerPayouts.providerId, providerId));

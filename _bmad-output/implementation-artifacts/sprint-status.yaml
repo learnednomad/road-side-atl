@@ -73,10 +73,10 @@ development_status:
   epic-4-retrospective: optional
 
   # Epic 5: Financial Reporting & Analytics
-  epic-5: in-progress
+  epic-5: done
   5-1-admin-financial-dashboard-and-revenue-analytics: done
   5-2-provider-earnings-view: done
-  5-3-admin-1099-export-and-operations-management: ready-for-dev
+  5-3-admin-1099-export-and-operations-management: done
   epic-5-retrospective: optional
 
   # Epic 6: Vehicle Observation & Follow-Up Pipeline

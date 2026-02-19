@@ -28,7 +28,16 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function ServicesPage() {
-  let allServices: any[] = [];
+  type Service = {
+    name: string;
+    slug: string;
+    description: string;
+    basePrice: number;
+    pricePerMile: number | null;
+    category: string;
+  };
+
+  let allServices: Service[] = [];
   try {
     allServices = await db
       .select()

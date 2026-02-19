@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { PayoutsTable } from "@/components/admin/payouts-table";
 import { db } from "@/db";
 import { providerPayouts, providers, bookings } from "@/db/schema";
-import { eq, desc, sql, count } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 

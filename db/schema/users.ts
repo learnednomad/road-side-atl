@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   trustTier: integer("trustTier").default(1).notNull(),
   cleanTransactionCount: integer("cleanTransactionCount").default(0).notNull(),
   referralCode: text("referralCode").unique(),
+  taxId: text("taxId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 });

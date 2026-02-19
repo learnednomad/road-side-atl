@@ -31,14 +31,19 @@ export function PaymentMethodSelector({
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    setIsLoading(true);
-    fetch("/api/users/me/trust-tier")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
+    const loadTierInfo = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/users/me/trust-tier");
+        const data = res.ok ? await res.json() : null;
         if (data) setTierInfo(data);
-      })
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
+      } catch {
+        // ignore
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadTierInfo();
   }, [isAuthenticated]);
 
   const allowedMethods = tierInfo?.allowedPaymentMethods ?? ["cash", "cashapp", "zelle"];

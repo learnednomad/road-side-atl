@@ -79,7 +79,7 @@ export default function ProviderInspectionsPage() {
   }, [page]);
 
   useEffect(() => {
-    fetchReports();
+    fetchReports(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
   }, [fetchReports]);
 
   const handleSendEmail = async (reportId: string) => {
@@ -161,7 +161,7 @@ export default function ProviderInspectionsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              reports.map(({ report, booking, service }) => {
+              reports.map(({ report, booking }) => {
                 const vehicle = booking.vehicleInfo;
                 const worstCondition = report.findings.reduce((worst, f) => {
                   const order = { good: 0, fair: 1, poor: 2, critical: 3 };

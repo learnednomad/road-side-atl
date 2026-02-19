@@ -1,7 +1,9 @@
 import { Hono } from "hono";
+import { z } from "zod/v4";
 import { db } from "@/db";
 import { bookings, services, payments, users, providers } from "@/db/schema";
-import { eq, desc, sql, and, gte, lte, count, like, or, ilike } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, count, or, ilike } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import {
   updateBookingStatusSchema,
@@ -19,9 +21,12 @@ import { notifyStatusChange, notifyProviderAssigned, notifyReferralLink, notifyP
 import { broadcastToAdmins, broadcastToUser, broadcastToProvider } from "@/server/websocket/broadcast";
 import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
+import type { AuditAction } from "../lib/audit-logger";
 import { clearDelayNotification } from "../lib/delay-tracker";
 import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
+import { BOOKING_STATUSES, SERVICE_CATEGORIES } from "@/lib/constants";
+import type { BookingStatus, ServiceCategory } from "@/lib/constants";
 
 type AuthEnv = {
   Variables: {
@@ -34,10 +39,20 @@ const app = new Hono<AuthEnv>();
 app.use("/*", requireAdmin);
 app.use("/*", rateLimitStandard);
 // Stricter rate limiting for sensitive operations
+app.use("/bookings/:id/notes", rateLimitStrict);
 app.use("/bookings/:id/status", rateLimitStrict);
 app.use("/bookings/:id/assign-provider", rateLimitStrict);
 app.use("/payments/:id/confirm", rateLimitStrict);
 app.use("/bookings/:id/override-price", rateLimitStrict);
+
+const bookingStatusValues = new Set(BOOKING_STATUSES);
+const serviceCategoryValues = new Set(SERVICE_CATEGORIES);
+function isBookingStatus(value: string): value is BookingStatus {
+  return bookingStatusValues.has(value as BookingStatus);
+}
+function isServiceCategory(value: string): value is ServiceCategory {
+  return serviceCategoryValues.has(value as ServiceCategory);
+}
 app.use("/services/:id/commission", rateLimitStrict);
 app.use("/services/:id/checklist", rateLimitStrict);
 
@@ -132,12 +147,12 @@ app.get("/bookings", async (c) => {
   const limit = parseInt(c.req.query("limit") || "20");
   const offset = (page - 1) * limit;
 
-  const conditions = [];
-  if (status) {
-    conditions.push(eq(bookings.status, status as any));
+  const conditions: SQL[] = [];
+  if (status && isBookingStatus(status)) {
+    conditions.push(eq(bookings.status, status));
   }
-  if (serviceType) {
-    conditions.push(eq(services.category, serviceType as any));
+  if (serviceType && isServiceCategory(serviceType)) {
+    conditions.push(eq(services.category, serviceType));
   }
   if (search) {
     conditions.push(
@@ -179,9 +194,12 @@ app.get("/bookings", async (c) => {
   const results = await query;
 
   // Group payments by booking
+  type Booking = typeof bookings.$inferSelect;
+  type Service = typeof services.$inferSelect;
+  type Payment = typeof payments.$inferSelect;
   const bookingMap = new Map<
     string,
-    { booking: any; service: any; payments: any[] }
+    { booking: Booking; service: Service; payments: Payment[] }
   >();
   for (const row of results) {
     const existing = bookingMap.get(row.booking.id);
@@ -203,6 +221,36 @@ app.get("/bookings", async (c) => {
     limit,
     totalPages: Math.ceil(totalResult.count / limit),
   });
+});
+
+// Update booking internal notes (FR79)
+app.patch("/bookings/:id/notes", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = z.object({ notes: z.string().max(2000) }).safeParse(body);
+  if (!parsed.success) return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+
+  const [updated] = await db
+    .update(bookings)
+    .set({ notes: parsed.data.notes, updatedAt: new Date() })
+    .where(eq(bookings.id, id))
+    .returning();
+
+  if (!updated) return c.json({ error: "Booking not found" }, 404);
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "booking.update_notes",
+    userId: user.id,
+    resourceType: "booking",
+    resourceId: id,
+    details: { notesLength: parsed.data.notes.length },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json({ success: true });
 });
 
 // Assign provider to booking
@@ -831,9 +879,9 @@ app.get("/bookings/export", async (c) => {
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
 
-  const conditions = [];
-  if (status) {
-    conditions.push(eq(bookings.status, status as any));
+  const conditions: SQL[] = [];
+  if (status && isBookingStatus(status)) {
+    conditions.push(eq(bookings.status, status));
   }
   if (startDateStr) {
     conditions.push(gte(bookings.createdAt, new Date(startDateStr)));
@@ -982,7 +1030,7 @@ app.get("/audit-logs", async (c) => {
   try {
     const { queryAuditLogs } = await import("../lib/audit-logger");
     const logs = await queryAuditLogs({
-      action: action as any,
+      action: action as AuditAction,
       userId: userId || undefined,
       resourceType: resourceType || undefined,
       startDate: startDateStr ? new Date(startDateStr) : undefined,

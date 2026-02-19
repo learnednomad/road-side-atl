@@ -94,7 +94,7 @@ export function TrustTierTable({
   const [hasInteracted, setHasInteracted] = useState(false);
   useEffect(() => {
     if (hasInteracted) {
-      fetchCustomers();
+      fetchCustomers(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
     }
   }, [fetchCustomers, hasInteracted]);
 

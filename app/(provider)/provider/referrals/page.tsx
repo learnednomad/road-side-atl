@@ -54,7 +54,7 @@ export default function ProviderReferralsPage() {
   }, [page]);
 
   useEffect(() => {
-    fetchData();
+    fetchData(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
   }, [fetchData]);
 
   const statusColor = (status: string): "default" | "destructive" | "secondary" => {

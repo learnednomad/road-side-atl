@@ -52,7 +52,11 @@ export type AuditAction =
   | "payout.clawback"
   | "payout.batch_paid"
   | "booking.delay_notification"
-  | "service.update_checklist_config";
+  | "service.update_checklist_config"
+  | "provider.view_tax_id"
+  | "provider.update_tax_id"
+  | "provider.1099_export"
+  | "booking.update_notes";
 
 export interface AuditLogEntry {
   action: AuditAction;

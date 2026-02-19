@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "@/db";
 import { referrals, users } from "@/db/schema";
-import { eq, and, desc, count, sql } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { createReferralSchema, redeemCreditsSchema, providerReferralSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";

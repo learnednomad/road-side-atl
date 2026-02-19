@@ -80,3 +80,5 @@ export const COMMISSION_RATE_DIAGNOSTICS_BP = 2000; // 20% platform commission (
 
 export const AVERAGE_DRIVING_SPEED_MPH = 35;
 export const ETA_DELAY_THRESHOLD_MINUTES = 15;
+
+export const IRS_1099_THRESHOLD_CENTS = 60000; // $600 IRS 1099-NEC reporting threshold

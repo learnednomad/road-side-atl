@@ -226,6 +226,7 @@ export function ProviderForm({
           <FormLabel>Specialties</FormLabel>
           <div className="mt-2 flex gap-2">
             {SERVICE_CATEGORIES.map((cat) => {
+              // eslint-disable-next-line react-hooks/incompatible-library -- react-hook-form watch usage is intentional
               const selected = form.watch("specialties")?.includes(cat);
               return (
                 <Button

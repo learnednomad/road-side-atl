@@ -29,7 +29,17 @@ export default async function BookPage() {
     email: session.user.email || "",
   } : undefined;
 
-  let allServices: any[] = [];
+  type Service = {
+    id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    basePrice: number;
+    pricePerMile: number | null;
+    category: string;
+  };
+
+  let allServices: Service[] = [];
   try {
     allServices = await db
       .select()

@@ -105,6 +105,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
 
     if (lastEvent.type === "booking:status_changed") {
       const { bookingId, status } = lastEvent.data as { bookingId: string; status: string };
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- websocket-driven state update
       setBookings((prev) =>
         prev.map((b) =>
           b.booking.id === bookingId
@@ -164,7 +165,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
                 <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground">No active bookings</h3>
                 <p className="text-muted-foreground mt-2">
-                  You don't have any active service requests at the moment.
+                  You don&apos;t have any active service requests at the moment.
                 </p>
                 <Button asChild className="mt-4">
                   <Link href="/services">Book a Service</Link>

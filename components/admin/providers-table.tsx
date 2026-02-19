@@ -30,6 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProviderForm } from "./provider-form";
+import { TaxIdManager } from "./tax-id-manager";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, Mail, Loader2 } from "lucide-react";
@@ -47,6 +48,20 @@ interface Provider {
   specialties: string[] | null;
   userId: string | null;
   createdAt: string;
+}
+
+interface ProviderFormValues {
+  name: string;
+  email: string;
+  phone: string;
+  commissionType: CommissionType;
+  commissionRate: number;
+  flatFeeAmount?: number;
+  specialties?: string[];
+  status: ProviderStatus;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 function formatCommission(provider: Provider): string {
@@ -86,7 +101,7 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  async function createProvider(data: any) {
+  async function createProvider(data: ProviderFormValues) {
     const res = await fetch("/api/admin/providers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -102,7 +117,7 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
     }
   }
 
-  async function updateProvider(id: string, data: any) {
+  async function updateProvider(id: string, data: ProviderFormValues) {
     const res = await fetch(`/api/admin/providers/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -258,6 +273,11 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
                             onSubmit={(data) => updateProvider(provider.id, data)}
                             submitLabel="Update Provider"
                           />
+                          {provider.userId && (
+                            <div className="mt-4 border-t pt-4">
+                              <TaxIdManager providerId={provider.id} />
+                            </div>
+                          )}
                         </DialogContent>
                       </Dialog>
                       {provider.status !== "inactive" && (

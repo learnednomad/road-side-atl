@@ -6,10 +6,11 @@ import { LiveTrackingMap } from "@/components/maps/live-tracking-map";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, MapPin, Car, Clock, DollarSign, CheckCircle2, Truck, CircleDot, Star, ArrowLeft } from "lucide-react";
+import { Phone, MapPin, Car, Clock, CheckCircle2, Truck, CircleDot, Star, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { ReviewForm } from "@/components/reviews/review-form";
 import { BUSINESS } from "@/lib/constants";
+import Image from "next/image";
 
 interface BookingData {
   id: string;
@@ -68,6 +69,7 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
     if (lastEvent.type === "booking:status_changed") {
       const data = lastEvent.data as { bookingId: string; status: string };
       if (data.bookingId === booking.id) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- websocket-driven state update
         setBooking((prev) => ({ ...prev, status: data.status }));
       }
     }
@@ -209,10 +211,12 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {initialProvider.photoUrl ? (
-                    <img
+                    <Image
                       src={initialProvider.photoUrl}
                       alt={initialProvider.name}
-                      className="w-10 h-10 rounded-full object-cover"
+                      width={40}
+                      height={40}
+                      className="h-10 w-10 rounded-full object-cover"
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
