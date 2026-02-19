@@ -1,4 +1,4 @@
-# generated: 2026-02-14
+# generated: 2026-02-18
 # project: road-side-atl
 # project_key: NOKEY
 # tracking_system: file-system
@@ -33,7 +33,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-02-14
+generated: 2026-02-18
 project: road-side-atl
 project_key: NOKEY
 tracking_system: file-system
@@ -83,19 +83,19 @@ development_status:
   epic-6: done
   6-1-observation-schema-checklist-configuration-and-provider-submission: done
   6-2-customer-follow-up-notifications-and-provider-operations-integration: done
-  epic-6-retrospective: optional
+  epic-6-retrospective: done
 
   # Epic 7: Referral Growth Engine
   epic-7: done
   7-1-referral-schema-credit-configuration-and-post-service-sms: done
   7-2-referral-tracking-credits-and-provider-referrals: done
-  epic-7-retrospective: optional
+  epic-7-retrospective: done
 
   # Epic 8: Branded Vehicle Inspection Reports
   epic-8: done
   8-1-inspection-report-schema-and-provider-submission: done
   8-2-branded-pdf-generation-and-email-delivery: done
-  epic-8-retrospective: optional
+  epic-8-retrospective: done
 
   # Epic 9: B2B Account Management (Phase 2)
   epic-9: backlog
