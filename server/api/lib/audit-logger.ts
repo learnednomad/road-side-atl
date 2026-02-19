@@ -56,7 +56,12 @@ export type AuditAction =
   | "provider.view_tax_id"
   | "provider.update_tax_id"
   | "provider.1099_export"
-  | "booking.update_notes";
+  | "booking.update_notes"
+  | "b2b_account.create"
+  | "b2b_account.update"
+  | "b2b_account.update_contract"
+  | "b2b_account.status_change"
+  | "b2b_account.create_booking";
 
 export interface AuditLogEntry {
   action: AuditAction;

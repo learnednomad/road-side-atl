@@ -82,3 +82,9 @@ export const AVERAGE_DRIVING_SPEED_MPH = 35;
 export const ETA_DELAY_THRESHOLD_MINUTES = 15;
 
 export const IRS_1099_THRESHOLD_CENTS = 60000; // $600 IRS 1099-NEC reporting threshold
+
+export const B2B_ACCOUNT_STATUSES = ["pending", "active", "suspended"] as const;
+export type B2bAccountStatus = (typeof B2B_ACCOUNT_STATUSES)[number];
+
+export const B2B_PAYMENT_TERMS = ["prepaid", "net_30", "net_60"] as const;
+export type B2bPaymentTerms = (typeof B2B_PAYMENT_TERMS)[number];

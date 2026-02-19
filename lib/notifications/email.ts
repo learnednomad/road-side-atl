@@ -236,6 +236,31 @@ export async function sendInspectionReportEmail(
   });
 }
 
+export async function sendB2bServiceDispatchedEmail(
+  email: string,
+  customerName: string,
+  companyName: string,
+  serviceName: string,
+  locationAddress: string
+) {
+  const resend = getResend();
+  if (!resend) return;
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `Service Dispatched on Your Behalf - RoadSide ATL`,
+    html: `
+      <h2>Service Dispatched</h2>
+      <p>Hi ${customerName},</p>
+      <p><strong>${companyName}</strong> has requested <strong>${serviceName}</strong> for your vehicle at <strong>${locationAddress}</strong>.</p>
+      <p>A provider will be dispatched to your location shortly. We'll keep you updated on the status.</p>
+      <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+    `,
+  });
+}
+
 const PAYMENT_METHOD_DISPLAY: Record<string, string> = {
   cash: "Cash",
   cashapp: "CashApp",

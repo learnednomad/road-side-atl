@@ -183,6 +183,15 @@ export async function sendTierPromotionSMS(phone: string) {
   );
 }
 
+export async function sendB2bServiceDispatchedSMS(phone: string, companyName: string, serviceName: string) {
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
+  await sendSMS(
+    phone,
+    `RoadSide ATL: ${companyName} has requested ${serviceName} for your vehicle. A provider will be dispatched shortly. Reply STOP to opt out.`,
+    statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
+  );
+}
+
 const PAYMENT_METHOD_DISPLAY: Record<string, string> = {
   cash: "Cash",
   cashapp: "CashApp",

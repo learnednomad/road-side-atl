@@ -262,3 +262,61 @@ export type InitiateRefundInput = z.infer<typeof initiateRefundSchema>;
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
 export type LocationInfo = z.infer<typeof locationSchema>;
+
+// B2B Account validators
+export const billingAddressSchema = z.object({
+  street: z.string().min(1, "Street is required"),
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
+  zip: z.string().min(5, "ZIP code is required"),
+});
+
+export const b2bContractSchema = z.object({
+  retainerAmountCents: z.number().int().min(0, "Retainer must be non-negative"),
+  perJobRateCents: z.number().int().positive().nullable(),
+  includedServiceIds: z.array(z.string()),
+  startDate: z.string().min(1, "Start date is required"),
+  endDate: z.string().min(1, "End date is required"),
+});
+
+export const createB2bAccountSchema = z.object({
+  companyName: z.string().min(2, "Company name is required"),
+  contactName: z.string().min(2, "Contact name is required"),
+  contactEmail: z.email("Valid email is required"),
+  contactPhone: z.string().min(10, "Phone number is required"),
+  billingAddress: billingAddressSchema,
+  paymentTerms: z.enum(["prepaid", "net_30", "net_60"]).optional(),
+  notes: z.string().optional(),
+});
+export type CreateB2bAccountInput = z.infer<typeof createB2bAccountSchema>;
+
+export const updateB2bAccountSchema = z.object({
+  companyName: z.string().min(2).optional(),
+  contactName: z.string().min(2).optional(),
+  contactEmail: z.email().optional(),
+  contactPhone: z.string().min(10).optional(),
+  billingAddress: billingAddressSchema.optional(),
+  paymentTerms: z.enum(["prepaid", "net_30", "net_60"]).optional(),
+  notes: z.string().nullable().optional(),
+});
+export type UpdateB2bAccountInput = z.infer<typeof updateB2bAccountSchema>;
+
+export const updateB2bContractSchema = b2bContractSchema;
+export type UpdateB2bContractInput = z.infer<typeof updateB2bContractSchema>;
+
+export const updateB2bAccountStatusSchema = z.object({
+  status: z.enum(["active", "suspended", "pending"]),
+});
+export type UpdateB2bAccountStatusInput = z.infer<typeof updateB2bAccountStatusSchema>;
+
+export const createB2bBookingSchema = z.object({
+  serviceId: z.string().uuid("Invalid service"),
+  vehicleInfo: vehicleInfoSchema,
+  location: locationSchema,
+  contactName: z.string().min(2, "Contact name is required"),
+  contactPhone: z.string().min(10, "Phone number is required"),
+  contactEmail: z.email("Valid email is required"),
+  scheduledAt: z.string().datetime().optional(),
+  notes: z.string().optional(),
+});
+export type CreateB2bBookingInput = z.infer<typeof createB2bBookingSchema>;
