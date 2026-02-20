@@ -15,6 +15,7 @@ export const providerStatusEnum = pgEnum("provider_status", [
   "active",
   "inactive",
   "pending",
+  "resubmission_requested",
 ]);
 
 export const commissionTypeEnum = pgEnum("commission_type", [

@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { DollarSign, Clock, Download, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { DollarSign, Clock, Download, Users, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { exportToCSV } from "@/lib/csv";
 import { formatPrice } from "@/lib/utils";
 
@@ -31,7 +31,8 @@ interface Payout {
     providerId: string;
     bookingId: string;
     amount: number;
-    status: "pending" | "paid";
+    status: "pending" | "paid" | "clawback";
+    payoutType: string;
     paidAt: string | null;
     createdAt: string;
   };
@@ -52,6 +53,8 @@ interface PayoutsTableProps {
     totalPaid: number;
     pendingCount: number;
     paidCount: number;
+    totalClawback: number;
+    clawbackCount: number;
   };
 }
 
@@ -70,14 +73,18 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
   );
 
   const filtered = payouts.filter((p) => {
-    if (statusFilter !== "all" && p.payout.status !== statusFilter) return false;
+    if (statusFilter === "clawback") {
+      if (p.payout.payoutType !== "clawback") return false;
+    } else if (statusFilter !== "all" && p.payout.status !== statusFilter) {
+      return false;
+    }
     if (providerFilter !== "all" && p.provider.id !== providerFilter) return false;
     return true;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAYOUTS_PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAYOUTS_PAGE_SIZE, page * PAYOUTS_PAGE_SIZE);
-  const pendingPayouts = filtered.filter((p) => p.payout.status === "pending");
+  const pendingPayouts = filtered.filter((p) => p.payout.status === "pending" && p.payout.payoutType !== "clawback");
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -107,16 +114,26 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
     });
 
     if (res.ok) {
-      const { updated } = await res.json();
+      const { updated, settledClawbacks } = await res.json();
+      // Get provider IDs of paid payouts for clawback settlement
+      const paidProviderIds = new Set(
+        payouts.filter((p) => ids.includes(p.payout.id)).map((p) => p.provider.id)
+      );
       setPayouts((prev) =>
-        prev.map((p) =>
-          ids.includes(p.payout.id)
-            ? { ...p, payout: { ...p.payout, status: "paid" as const, paidAt: new Date().toISOString() } }
-            : p
-        )
+        prev.map((p) => {
+          if (ids.includes(p.payout.id)) {
+            return { ...p, payout: { ...p.payout, status: "paid" as const, paidAt: new Date().toISOString() } };
+          }
+          // Also settle clawback records for affected providers
+          if (p.payout.payoutType === "clawback" && p.payout.status === "pending" && paidProviderIds.has(p.provider.id)) {
+            return { ...p, payout: { ...p.payout, status: "paid" as const, paidAt: new Date().toISOString() } };
+          }
+          return p;
+        })
       );
       setSelected(new Set());
-      toast.success(`${updated} payout(s) marked as paid`);
+      const clawbackMsg = settledClawbacks > 0 ? ` (${settledClawbacks} clawback(s) settled)` : "";
+      toast.success(`${updated} payout(s) marked as paid${clawbackMsg}`);
     } else {
       toast.error("Failed to update payouts");
     }
@@ -128,6 +145,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
       "Provider": p.provider.name,
       "Booking Customer": p.booking.contactName,
       "Amount": formatPrice(p.payout.amount),
+      "Type": p.payout.payoutType || "standard",
       "Status": p.payout.status,
       "Created": new Date(p.payout.createdAt).toLocaleDateString(),
       "Paid At": p.payout.paidAt ? new Date(p.payout.paidAt).toLocaleDateString() : "",
@@ -142,6 +160,21 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
 
   return (
     <div className="space-y-6">
+      {/* Outstanding Clawback Warning */}
+      {summary.clawbackCount > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4 dark:border-yellow-700 dark:bg-yellow-950">
+          <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+          <div>
+            <p className="font-medium text-yellow-800 dark:text-yellow-200">
+              Outstanding Clawbacks: {formatPrice(summary.totalClawback)}
+            </p>
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {summary.clawbackCount} clawback{summary.clawbackCount !== 1 ? "s" : ""} pending settlement. These will be deducted from the next batch payout.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
@@ -180,6 +213,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
+            <SelectItem value="clawback">Clawback</SelectItem>
           </SelectContent>
         </Select>
 
@@ -248,7 +282,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
               paginated.map(({ payout, provider, booking }) => (
                 <TableRow key={payout.id}>
                   <TableCell>
-                    {payout.status === "pending" && (
+                    {payout.status === "pending" && payout.payoutType !== "clawback" && (
                       <Checkbox
                         checked={selected.has(payout.id)}
                         onCheckedChange={() => toggleSelect(payout.id)}
@@ -257,12 +291,12 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
                   </TableCell>
                   <TableCell className="font-medium">{provider.name}</TableCell>
                   <TableCell className="text-sm">{booking.contactName}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatPrice(payout.amount)}
+                  <TableCell className={`text-right font-medium ${payout.amount < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
+                    {payout.amount < 0 ? `-${formatPrice(Math.abs(payout.amount))}` : formatPrice(payout.amount)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={payout.status === "paid" ? "default" : "secondary"}>
-                      {payout.status}
+                    <Badge variant={payout.payoutType === "clawback" ? "destructive" : payout.status === "paid" ? "default" : "secondary"}>
+                      {payout.payoutType === "clawback" ? "clawback" : payout.status}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm">

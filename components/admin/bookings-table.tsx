@@ -98,39 +98,6 @@ export function BookingsTable({
   const [providers, setProviders] = useState<Provider[]>([]);
   const { lastEvent } = useWS();
 
-  // WebSocket real-time updates
-  useEffect(() => {
-    if (!lastEvent) return;
-    if (lastEvent.type === "booking:created") {
-      // Refresh bookings list
-      fetchBookings();
-    }
-    if (lastEvent.type === "booking:status_changed") {
-      const { bookingId, status } = lastEvent.data as { bookingId: string; status: string };
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.booking.id === bookingId
-            ? { ...b, booking: { ...b.booking, status: status as BookingStatus } }
-            : b
-        )
-      );
-    }
-  }, [lastEvent]);
-
-  // Fetch providers on mount
-  useEffect(() => {
-    fetch("/api/admin/providers?status=active")
-      .then((r) => r.json())
-      .then((data) => setProviders(data))
-      .catch(() => {});
-  }, []);
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => setSearchDebounced(search), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
   // Fetch bookings when page, filter, or search changes
   const fetchBookings = useCallback(async () => {
     const params = new URLSearchParams();
@@ -148,11 +115,44 @@ export function BookingsTable({
     }
   }, [page, filter, searchDebounced]);
 
+  // WebSocket real-time updates
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (lastEvent.type === "booking:created") {
+      // Refresh bookings list
+      fetchBookings(); // eslint-disable-line react-hooks/set-state-in-effect -- data refresh pattern
+    }
+    if (lastEvent.type === "booking:status_changed") {
+      const { bookingId, status } = lastEvent.data as { bookingId: string; status: string };
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.booking.id === bookingId
+            ? { ...b, booking: { ...b.booking, status: status as BookingStatus } }
+            : b
+        )
+      );
+    }
+  }, [lastEvent, fetchBookings]);
+
+  // Fetch providers on mount
+  useEffect(() => {
+    fetch("/api/admin/providers?status=active")
+      .then((r) => r.json())
+      .then((data) => setProviders(data))
+      .catch(() => {});
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchDebounced(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   // Only re-fetch on filter/search changes (not on initial render since we have SSR data)
   const [hasInteracted, setHasInteracted] = useState(false);
   useEffect(() => {
     if (hasInteracted) {
-      fetchBookings();
+      fetchBookings(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
     }
   }, [fetchBookings, hasInteracted]);
 

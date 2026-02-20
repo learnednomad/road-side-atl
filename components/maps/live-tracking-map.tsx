@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useGoogleMaps } from "@/lib/hooks/use-google-maps";
 
 interface Location {
@@ -29,7 +29,6 @@ export function LiveTrackingMap({
   const pickupMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const destMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const providerMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
-  const [mapId] = useState(() => `map-${Math.random().toString(36).slice(2)}`);
 
   // Initialize map
   useEffect(() => {
@@ -88,7 +87,7 @@ export function LiveTrackingMap({
     return () => {
       mapInstanceRef.current = null;
     };
-  }, [isLoaded, pickupLocation, destinationLocation]);
+  }, [isLoaded, pickupLocation, destinationLocation, providerLocation]);
 
   // Update provider marker position
   useEffect(() => {

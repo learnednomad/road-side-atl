@@ -3,7 +3,6 @@ import { AdminOverviewClient } from "./overview-client";
 import { db } from "@/db";
 import { bookings, services, payments } from "@/db/schema";
 import { eq, desc, gte, count, sql, and } from "drizzle-orm";
-import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 

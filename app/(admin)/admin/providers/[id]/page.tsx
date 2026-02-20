@@ -63,6 +63,7 @@ export default async function ProviderDetailPage({
     active: "default" as const,
     pending: "secondary" as const,
     inactive: "destructive" as const,
+    resubmission_requested: "secondary" as const,
   };
 
   return (

@@ -6,23 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS } from "@/lib/constants";
+import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS, DEFAULT_MULTIPLIER_BP } from "@/lib/constants";
 import { AddressAutocomplete } from "@/components/maps/address-autocomplete";
-import { Check, ArrowRight, ArrowLeft, Loader2 } from "lucide-react";
+import { Check, ArrowRight, ArrowLeft, Loader2, MapPin } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
+import { PaymentMethodSelector } from "@/components/booking/payment-method-selector";
+import { ReferralCreditSelector } from "@/components/booking/referral-credit-selector";
+import { useGoogleMaps } from "@/lib/hooks/use-google-maps";
 
 interface Service {
   id: string;
   name: string;
   slug: string;
+  description?: string;
   basePrice: number;
   pricePerMile: number | null;
   category: string;
@@ -54,12 +51,18 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState(userInfo?.email || "");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [bookingMode, setBookingMode] = useState<"immediate" | "scheduled">("immediate");
   const [notes, setNotes] = useState("");
   const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
   const [destCoords, setDestCoords] = useState<{ latitude: number; longitude: number; placeId: string } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
+  const [referralCreditApplied, setReferralCreditApplied] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [stepErrors, setStepErrors] = useState<string[]>([]);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState("");
+  const { isLoaded: mapsLoaded } = useGoogleMaps();
 
   // Pre-select service from query param
   useEffect(() => {
@@ -75,13 +78,87 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
   const selectedService = services.find((s) => s.id === selectedServiceId);
   const isTowing = selectedService?.slug === "towing";
 
-  // Calculate price estimate
-  let estimatedPrice = selectedService?.basePrice || 0;
+  // Server-fetched pricing breakdown
+  const [pricingBreakdown, setPricingBreakdown] = useState<{
+    basePrice: number;
+    multiplier: number;
+    blockName: string;
+    finalPrice: number;
+  } | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedServiceId) {
+      setPricingBreakdown(null);
+      return;
+    }
+    const controller = new AbortController();
+    setPricingLoading(true);
+    const params = new URLSearchParams({ serviceId: selectedServiceId });
+    if (bookingMode === "scheduled" && scheduledAt) {
+      params.set("scheduledAt", new Date(scheduledAt).toISOString());
+    }
+    fetch(`/api/pricing-estimate?${params}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setPricingBreakdown(data))
+      .catch((err) => {
+        if (err.name !== "AbortError") setPricingBreakdown(null);
+      })
+      .finally(() => setPricingLoading(false));
+    return () => controller.abort();
+  }, [selectedServiceId, bookingMode, scheduledAt]);
+
+  // Calculate display price from server pricing + client-side towing additive
+  let estimatedPrice = pricingBreakdown?.finalPrice ?? selectedService?.basePrice ?? 0;
   if (isTowing && estimatedMiles) {
     const miles = parseFloat(estimatedMiles);
     const extraMiles = Math.max(0, miles - TOWING_BASE_MILES);
     estimatedPrice += extraMiles * TOWING_PRICE_PER_MILE_CENTS;
   }
+
+  async function handleUseMyLocation() {
+    if (!navigator.geolocation) {
+      setGpsError("Geolocation is not supported by your browser.");
+      return;
+    }
+    setGpsLoading(true);
+    setGpsError("");
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setPickupCoords({ latitude, longitude, placeId: "" });
+        if (mapsLoaded && google?.maps?.Geocoder) {
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+            if (status === "OK" && results && results[0]) {
+              setAddress(results[0].formatted_address);
+            } else {
+              setAddress(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+            }
+            setGpsLoading(false);
+          });
+        } else {
+          setAddress(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+          setGpsLoading(false);
+        }
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setGpsError("Location access denied. Please enter your address manually.");
+        } else if (err.code === err.TIMEOUT) {
+          setGpsError("Location request timed out. Please enter your address manually.");
+        } else {
+          setGpsError("Unable to detect your location. Please enter your address manually.");
+        }
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  // Compute min schedule time in local timezone for datetime-local input
+  const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const minScheduleTime = `${twoHoursFromNow.getFullYear()}-${String(twoHoursFromNow.getMonth() + 1).padStart(2, "0")}-${String(twoHoursFromNow.getDate()).padStart(2, "0")}T${String(twoHoursFromNow.getHours()).padStart(2, "0")}:${String(twoHoursFromNow.getMinutes()).padStart(2, "0")}`;
 
   function validateStep(s: number): string[] {
     const errors: string[] = [];
@@ -116,6 +193,12 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
         errors.push("Email is required.");
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
         errors.push("Please enter a valid email address.");
+      }
+      if (bookingMode === "scheduled" && !scheduledAt) {
+        errors.push("Please select a date and time for your appointment.");
+      }
+      if (bookingMode === "scheduled" && scheduledAt && new Date(scheduledAt) <= new Date(Date.now() + 2 * 60 * 60 * 1000)) {
+        errors.push("Scheduled time must be at least 2 hours from now.");
       }
     }
     return errors;
@@ -170,18 +253,22 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
           contactEmail,
           scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
           notes: notes || undefined,
+          paymentMethod: paymentMethod || undefined,
+          referralCreditApplied: referralCreditApplied > 0 ? referralCreditApplied : undefined,
         }),
       });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to create booking");
+        const detail = data.details?.[0]?.message;
+        throw new Error(detail || data.error || "Failed to create booking");
       }
 
       const booking = await res.json();
       router.push(`/book/confirmation?bookingId=${booking.id}`);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to create booking";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -248,39 +335,103 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
 
       {/* Step 1: Service Selection */}
       {step === 1 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Select Your Service</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {services.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setSelectedServiceId(s.id)}
-                  className={cn(
-                    "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
-                    selectedServiceId === s.id
-                      ? "border-primary bg-primary/5"
-                      : "border-muted"
-                  )}
-                >
-                  <span className="font-semibold">{s.name}</span>
-                  <span className="mt-1 text-2xl font-bold">
-                    {formatPrice(s.basePrice)}
-                    {s.pricePerMile && (
-                      <span className="text-sm font-normal text-muted-foreground">+</span>
+        <>
+          {/* Booking Mode Toggle */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setBookingMode("immediate");
+                setScheduledAt("");
+              }}
+              className={cn(
+                "flex-1 rounded-lg border p-4 text-center font-medium transition-colors min-h-[44px] min-w-[44px]",
+                bookingMode === "immediate"
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "border-border hover:border-muted-foreground/30 hover:bg-muted"
+              )}
+            >
+              Get Help Now
+            </button>
+            <button
+              type="button"
+              onClick={() => setBookingMode("scheduled")}
+              className={cn(
+                "flex-1 rounded-lg border p-4 text-center font-medium transition-colors min-h-[44px] min-w-[44px]",
+                bookingMode === "scheduled"
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "border-border hover:border-muted-foreground/30 hover:bg-muted"
+              )}
+            >
+              Schedule for Later
+            </button>
+          </div>
+
+          {/* Emergency Roadside Services */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Emergency Roadside</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {services.filter((s) => s.category === "roadside").map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedServiceId(s.id)}
+                    className={cn(
+                      "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
+                      selectedServiceId === s.id
+                        ? "border-primary bg-primary/5"
+                        : "border-muted"
                     )}
-                  </span>
-                  {s.category === "diagnostics" && (
-                    <span className="mt-1 text-xs text-muted-foreground">Payment upfront</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                  >
+                    <span className="font-semibold">{s.name}</span>
+                    <span className="mt-1 text-2xl font-bold">
+                      {formatPrice(s.basePrice)}
+                      {s.pricePerMile && (
+                        <span className="text-sm font-normal text-muted-foreground">+</span>
+                      )}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pre-Purchase Inspection Services */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Pre-Purchase Inspection</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3">
+                {services.filter((s) => s.category === "diagnostics").map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedServiceId(s.id)}
+                    className={cn(
+                      "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
+                      selectedServiceId === s.id
+                        ? "border-primary bg-primary/5"
+                        : "border-muted"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">{s.name}</span>
+                      <span className="text-2xl font-bold">{formatPrice(s.basePrice)}</span>
+                    </div>
+                    {s.description && (
+                      <p className="mt-2 text-sm text-muted-foreground">{s.description}</p>
+                    )}
+                    <span className="mt-2 text-xs text-muted-foreground">Payment upfront</span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {/* Step 2: Location & Vehicle */}
@@ -291,6 +442,23 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
               <CardTitle>Your Location</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full min-h-[44px]"
+                onClick={handleUseMyLocation}
+                disabled={gpsLoading}
+              >
+                {gpsLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <MapPin className="mr-2 h-4 w-4" />
+                )}
+                {gpsLoading ? "Detecting location..." : "Use My Current Location"}
+              </Button>
+              {gpsError && (
+                <p className="text-sm text-destructive">{gpsError}</p>
+              )}
               <div>
                 <Label htmlFor="address">Address / Location <span className="text-destructive">*</span></Label>
                 <AddressAutocomplete
@@ -439,21 +607,36 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Schedule</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Leave blank for ASAP service, or pick a date and time.
-              </p>
-              <Input
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-              />
-            </CardContent>
-          </Card>
+          {bookingMode === "immediate" ? (
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-sm font-medium text-primary">
+                  Immediate Service — a provider will be dispatched right away
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Schedule Appointment</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Select your preferred date and time (minimum 2 hours from now)
+                </p>
+                <Input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  min={minScheduleTime}
+                  required
+                />
+                {scheduledAt && new Date(scheduledAt) <= new Date(Date.now() + 2 * 60 * 60 * 1000) && (
+                  <p className="text-sm text-destructive">Must be at least 2 hours from now</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -530,15 +713,12 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                   <p className="font-medium">{contactName}</p>
                   <p className="text-sm text-muted-foreground">{contactPhone}</p>
                   <p className="text-sm text-muted-foreground">{contactEmail}</p>
-                  {scheduledAt && (
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">Scheduled:</span>{" "}
-                      {new Date(scheduledAt).toLocaleString()}
-                    </p>
-                  )}
-                  {!scheduledAt && (
-                    <p className="text-sm font-medium text-primary">ASAP Service</p>
-                  )}
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Service Mode:</span>{" "}
+                    {bookingMode === "immediate"
+                      ? "Immediate — dispatching now"
+                      : `Scheduled for ${new Date(scheduledAt).toLocaleString()}`}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -557,14 +737,62 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
               </div>
             )}
 
-            {/* Price */}
-            <div className="rounded-lg bg-muted p-4">
-              <p className="text-sm text-muted-foreground">Estimated Total</p>
-              <p className="text-3xl font-bold">{formatPrice(estimatedPrice)}</p>
-              {isTowing && estimatedMiles && selectedService && (
-                <p className="text-sm text-muted-foreground">
-                  Base: {formatPrice(selectedService.basePrice)} + mileage
-                </p>
+            {/* Referral Credit */}
+            {!!userInfo && (
+              <ReferralCreditSelector
+                bookingPrice={estimatedPrice}
+                onCreditChange={setReferralCreditApplied}
+              />
+            )}
+
+            {/* Payment Method */}
+            <div className="rounded-lg border p-4">
+              <PaymentMethodSelector
+                value={paymentMethod}
+                onChange={setPaymentMethod}
+                isAuthenticated={!!userInfo}
+              />
+            </div>
+
+            {/* Pricing Breakdown */}
+            <div className="rounded-lg bg-muted p-4 space-y-2">
+              {pricingLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <p className="text-sm text-muted-foreground">Calculating price...</p>
+                </div>
+              ) : (
+                <>
+                  {pricingBreakdown && pricingBreakdown.multiplier !== DEFAULT_MULTIPLIER_BP && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">Base Price</p>
+                        <p className="text-sm font-medium">{formatPrice(pricingBreakdown.basePrice)}</p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                          {pricingBreakdown.blockName} {(pricingBreakdown.multiplier / 10000).toFixed(2)}x
+                        </span>
+                        <p className="text-sm font-medium">{formatPrice(pricingBreakdown.finalPrice)}</p>
+                      </div>
+                    </>
+                  )}
+                  {isTowing && estimatedMiles && pricingBreakdown && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground">Towing mileage</p>
+                      <p className="text-sm font-medium">
+                        +{formatPrice(estimatedPrice - pricingBreakdown.finalPrice)}
+                      </p>
+                    </div>
+                  )}
+                  {pricingBreakdown && pricingBreakdown.multiplier !== DEFAULT_MULTIPLIER_BP && (
+                    <div className="border-t pt-2 mt-2" />
+                  )}
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">Estimated Total</p>
+                    <p className="text-3xl font-bold">{formatPrice(estimatedPrice)}</p>
+                  </div>
+                </>
               )}
             </div>
 

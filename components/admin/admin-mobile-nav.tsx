@@ -15,6 +15,13 @@ import {
   Home,
   ScrollText,
   Menu,
+  PiggyBank,
+  FileText,
+  Shield,
+  TrendingUp,
+  Percent,
+  BarChart3,
+  Building2,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -32,9 +39,16 @@ const links = [
   { href: "/admin/bookings", label: "Bookings", icon: ClipboardList },
   { href: "/admin/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/admin/revenue", label: "Revenue", icon: DollarSign },
+  { href: "/admin/finances", label: "Finances", icon: PiggyBank },
+  { href: "/admin/invoices", label: "Invoices", icon: FileText },
   { href: "/admin/providers", label: "Providers", icon: Wrench },
   { href: "/admin/payouts", label: "Payouts", icon: Banknote },
   { href: "/admin/customers", label: "Customers", icon: Users },
+  { href: "/admin/trust-tier", label: "Trust Tier", icon: Shield },
+  { href: "/admin/pricing", label: "Pricing", icon: TrendingUp },
+  { href: "/admin/commission", label: "Commission", icon: Percent },
+  { href: "/admin/financial-reports", label: "Financial Reports", icon: BarChart3 },
+  { href: "/admin/b2b-accounts", label: "B2B Accounts", icon: Building2 },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];
 

@@ -103,11 +103,11 @@ export default async function ConfirmationPage({
             <span>{booking.contactName} &middot; {booking.contactPhone}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Schedule</span>
+            <span className="text-muted-foreground">Service Mode</span>
             <span>
               {booking.scheduledAt
                 ? new Date(booking.scheduledAt).toLocaleString()
-                : "ASAP"}
+                : "Immediate — dispatching now"}
             </span>
           </div>
           <div className="flex justify-between border-t pt-3 text-base font-semibold">

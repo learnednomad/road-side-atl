@@ -69,7 +69,7 @@ export default function ProviderJobsPage() {
   }, [page, filter]);
 
   useEffect(() => {
-    fetchJobs();
+    fetchJobs(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
   }, [fetchJobs]);
 
   return (
