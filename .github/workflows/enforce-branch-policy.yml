@@ -1,0 +1,19 @@
+name: Enforce Branch Policy
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+    branches: [main]
+
+jobs:
+  check-source-branch:
+    name: enforce-branch-policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source branch
+        run: |
+          if [ "${{ github.head_ref }}" != "development" ]; then
+            echo "::error::PRs to main must come from the development branch. Please target development instead."
+            exit 1
+          fi
+          echo "Source branch is development. OK."
