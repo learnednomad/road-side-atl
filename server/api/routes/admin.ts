@@ -160,7 +160,7 @@ app.get("/bookings", async (c) => {
         ilike(bookings.contactName, `%${search}%`),
         ilike(bookings.contactPhone, `%${search}%`),
         ilike(bookings.contactEmail, `%${search}%`)
-      )
+      )!
     );
   }
 

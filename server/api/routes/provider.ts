@@ -612,6 +612,7 @@ app.get("/earnings/summary", async (c) => {
     todayJobCount: Number(todayEarnings.jobCount),
     thisWeekEarnings: Number(weekEarnings.total),
     thisWeekJobCount: Number(weekEarnings.jobCount),
+    commissionRate: provider.commissionRate,
     commissionType: provider.commissionType,
     flatFeeAmount: provider.flatFeeAmount,
     serviceCommissionRates: serviceRates.map((s) => ({
