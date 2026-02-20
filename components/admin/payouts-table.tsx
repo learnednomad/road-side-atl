@@ -217,7 +217,58 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
         </span>
       </div>
 
-      <div className="rounded-md border">
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {filtered.length === 0 ? (
+          <p className="py-8 text-center text-muted-foreground">
+            No payouts found.
+          </p>
+        ) : (
+          paginated.map(({ payout, provider, booking }) => (
+            <Card key={payout.id} className="py-4">
+              <CardContent className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    {payout.status === "pending" && (
+                      <Checkbox
+                        checked={selected.has(payout.id)}
+                        onCheckedChange={() => toggleSelect(payout.id)}
+                        className="mt-1"
+                      />
+                    )}
+                    <div>
+                      <p className="font-medium">{provider.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {booking.contactName}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="font-medium">
+                    {formatPrice(payout.amount)}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={payout.status === "paid" ? "default" : "secondary"}>
+                    {payout.status}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(payout.createdAt).toLocaleDateString()}
+                  </span>
+                  {payout.paidAt && (
+                    <span className="text-xs text-muted-foreground">
+                      Paid {new Date(payout.paidAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -271,7 +322,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
                   <TableCell className="text-sm">
                     {payout.paidAt
                       ? new Date(payout.paidAt).toLocaleDateString()
-                      : "—"}
+                      : "\u2014"}
                   </TableCell>
                 </TableRow>
               ))

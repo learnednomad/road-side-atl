@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { ExportButton } from "./export-button";
 import type { BookingStatus, PaymentMethod } from "@/lib/constants";
@@ -318,7 +319,131 @@ export function BookingsTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {bookings.length === 0 ? (
+          <p className="py-8 text-center text-muted-foreground">
+            No bookings found.
+          </p>
+        ) : (
+          bookings.map(({ booking, service, payments: pays }) => {
+            const confirmedPayment = pays.find(
+              (p) => p.status === "confirmed"
+            );
+            return (
+              <Card key={booking.id}>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium">{service.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {booking.contactName}
+                      </p>
+                    </div>
+                    <p className="text-sm font-medium">
+                      {formatPrice(
+                        booking.finalPrice || booking.estimatedPrice
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={booking.status} />
+                    {confirmedPayment ? (
+                      <Badge variant="outline" className="text-green-600">
+                        {confirmedPayment.method}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Unpaid</Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(booking.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Select
+                      value={booking.status}
+                      onValueChange={(val) =>
+                        updateStatus(booking.id, val as BookingStatus)
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusFlow.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s.replace("_", " ")}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="cancelled">cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {!booking.providerId && booking.status === "pending" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => autoAssign(booking.id)}
+                        title="Auto-assign nearest provider"
+                        aria-label="Auto-assign nearest provider"
+                      >
+                        <Zap className="h-3 w-3" />
+                      </Button>
+                    )}
+
+                    {!confirmedPayment && (
+                      <Dialog
+                        open={paymentDialogOpen === booking.id}
+                        onOpenChange={(open) =>
+                          setPaymentDialogOpen(open ? booking.id : null)
+                        }
+                      >
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            Confirm Pay
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Confirm Payment</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-3">
+                            <p className="text-sm text-muted-foreground">
+                              Confirm payment of{" "}
+                              {formatPrice(booking.estimatedPrice)} for{" "}
+                              {booking.contactName}?
+                            </p>
+                            <div className="flex gap-2">
+                              {(
+                                ["cash", "cashapp", "zelle"] as const
+                              ).map((method) => (
+                                <Button
+                                  key={method}
+                                  variant="outline"
+                                  onClick={() =>
+                                    confirmPayment(booking.id, method)
+                                  }
+                                >
+                                  {method}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

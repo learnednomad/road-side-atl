@@ -88,18 +88,19 @@ export default function ForgotPasswordPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
-            <p className="text-sm text-destructive text-center">{error}</p>
+            <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">{error}</p>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Mail aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="you@example.com"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"

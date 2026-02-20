@@ -40,6 +40,11 @@ export default function ProviderRegisterPage() {
     e.preventDefault();
     setError("");
 
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -126,7 +131,7 @@ export default function ProviderRegisterPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
-            <p className="text-sm text-destructive text-center">{error}</p>
+            <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">{error}</p>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-3">
@@ -136,6 +141,7 @@ export default function ProviderRegisterPage() {
                 id="name"
                 type="text"
                 placeholder="Your full name"
+                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -147,6 +153,7 @@ export default function ProviderRegisterPage() {
                 id="email"
                 type="email"
                 placeholder="you@example.com"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -158,6 +165,7 @@ export default function ProviderRegisterPage() {
                 id="phone"
                 type="tel"
                 placeholder="(404) 555-0199"
+                autoComplete="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
@@ -190,12 +198,13 @@ export default function ProviderRegisterPage() {
 
             <div className="space-y-1.5">
               <Label>Specialties (optional)</Label>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Service specialties">
                 {SPECIALTY_OPTIONS.map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => toggleSpecialty(s)}
+                    aria-pressed={specialties.includes(s)}
                     className={`rounded-full border px-3 py-1 text-sm transition-colors ${
                       specialties.includes(s)
                         ? "border-primary bg-primary text-primary-foreground"

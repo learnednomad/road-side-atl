@@ -86,14 +86,27 @@ export function StatusUpdater({ bookingId, currentStatus, onStatusChange }: Stat
             </AlertDialogContent>
           </AlertDialog>
         ) : (
-          <Button
-            key={status}
-            onClick={() => handleStatusUpdate(status)}
-            disabled={loading}
-            size="sm"
-          >
-            {loading ? "Updating..." : statusLabels[status] || status.replace("_", " ")}
-          </Button>
+          <AlertDialog key={status}>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" disabled={loading}>
+                {loading ? "Updating..." : statusLabels[status] || status.replace("_", " ")}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Start this job?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will notify the customer that service has begun. Are you ready to start?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleStatusUpdate(status)}>
+                  Start Job
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )
       )}
     </div>

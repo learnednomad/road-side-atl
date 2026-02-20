@@ -57,7 +57,7 @@ export function ReviewForm({ bookingId, providerName, onReviewSubmitted }: Revie
     return (
       <Card>
         <CardContent className="py-8 text-center">
-          <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-3" />
+          <CheckCircle2 aria-hidden="true" className="h-12 w-12 text-green-600 mx-auto mb-3" />
           <p className="font-medium text-lg">Thank you for your review!</p>
           <p className="text-muted-foreground text-sm mt-1">
             Your feedback helps us improve our service.
@@ -78,17 +78,21 @@ export function ReviewForm({ bookingId, providerName, onReviewSubmitted }: Revie
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Star Rating */}
           <div>
-            <div className="flex gap-1">
+            <div className="flex gap-1" role="radiogroup" aria-label="Rating">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
                   type="button"
+                  role="radio"
+                  aria-checked={rating === star}
+                  aria-label={`Rate ${star} out of 5 stars`}
                   onClick={() => setRating(star)}
                   onMouseEnter={() => setHoverRating(star)}
                   onMouseLeave={() => setHoverRating(0)}
                   className="p-1 focus:outline-none focus:ring-2 focus:ring-primary rounded"
                 >
                   <Star
+                    aria-hidden="true"
                     className={`h-8 w-8 transition-colors ${
                       star <= (hoverRating || rating)
                         ? "fill-yellow-400 text-yellow-400"
@@ -98,7 +102,7 @@ export function ReviewForm({ bookingId, providerName, onReviewSubmitted }: Revie
                 </button>
               ))}
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-1" aria-live="polite">
               {rating === 0
                 ? "Click to rate"
                 : rating === 1
@@ -115,7 +119,11 @@ export function ReviewForm({ bookingId, providerName, onReviewSubmitted }: Revie
 
           {/* Comment */}
           <div>
+            <label htmlFor="review-comment" className="text-sm font-medium mb-1 block">
+              Comments (optional)
+            </label>
             <Textarea
+              id="review-comment"
               placeholder="Share your experience (optional)"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
@@ -123,7 +131,7 @@ export function ReviewForm({ bookingId, providerName, onReviewSubmitted }: Revie
             />
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={loading || rating === 0}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

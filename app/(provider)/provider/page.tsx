@@ -129,7 +129,7 @@ export default function ProviderDashboard() {
         <h2 className="mb-4 text-xl font-semibold">Pending Assignments</h2>
         {loading ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /><span className="sr-only">Loading...</span>
           </div>
         ) : fetchError ? (
           <Card>

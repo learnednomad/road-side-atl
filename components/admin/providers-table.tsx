@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { ProviderForm } from "./provider-form";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -180,7 +181,108 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
         </Dialog>
       </div>
 
-      <div className="rounded-md border">
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {paginated.length === 0 ? (
+          <p className="py-8 text-center text-muted-foreground">
+            No providers found.
+          </p>
+        ) : (
+          paginated.map((provider) => (
+            <Card key={provider.id}>
+              <CardContent className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-medium">{provider.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {provider.email}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {provider.phone}
+                    </p>
+                  </div>
+                  <Badge variant={statusVariant[provider.status]}>
+                    {provider.status}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {!provider.userId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label="Send invite"
+                      onClick={() => sendInvite(provider.id)}
+                      disabled={inviting === provider.id}
+                    >
+                      {inviting === provider.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Mail className="h-3 w-3" />
+                      )}
+                    </Button>
+                  )}
+                  <Dialog
+                    open={editOpen === provider.id}
+                    onOpenChange={(open) => setEditOpen(open ? provider.id : null)}
+                  >
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" aria-label="Edit provider">
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>Edit Provider</DialogTitle>
+                      </DialogHeader>
+                      <ProviderForm
+                        defaultValues={{
+                          name: provider.name,
+                          email: provider.email,
+                          phone: provider.phone,
+                          commissionType: provider.commissionType,
+                          commissionRate: provider.commissionRate,
+                          flatFeeAmount: provider.flatFeeAmount ?? 0,
+                          specialties: provider.specialties ?? [],
+                          status: provider.status,
+                        }}
+                        onSubmit={(data) => updateProvider(provider.id, data)}
+                        submitLabel="Update Provider"
+                      />
+                    </DialogContent>
+                  </Dialog>
+                  {provider.status !== "inactive" && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" aria-label="Deactivate provider">
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Deactivate Provider</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to deactivate {provider.name}? They will stop receiving new job assignments.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteProvider(provider.id)}>
+                            Deactivate
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
