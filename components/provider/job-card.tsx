@@ -65,9 +65,23 @@ export function JobCard({ booking, serviceName, onAccept, onReject, showActions 
           {showActions && (booking.status === "dispatched" || booking.status === "confirmed") && (
             <div className="flex gap-2 shrink-0">
               {onAccept && (
-                <Button size="sm" onClick={onAccept}>
-                  Accept
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm">Accept</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Accept Job</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Accept this job for {booking.contactName} at {booking.location.address}? You will be dispatched to the customer&apos;s location.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={onAccept}>Accept Job</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
               {onReject && (
                 <AlertDialog>

@@ -61,6 +61,11 @@ function AcceptInviteContent() {
     e.preventDefault();
     setError("");
 
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -158,7 +163,7 @@ function AcceptInviteContent() {
       </CardHeader>
       <CardContent className="space-y-4">
         {error && (
-          <p className="text-sm text-destructive text-center">{error}</p>
+          <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">{error}</p>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3">

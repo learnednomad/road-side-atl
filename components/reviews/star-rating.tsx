@@ -20,11 +20,12 @@ export function StarRating({ rating, size = "md", showValue = true, reviewCount 
   const hasHalfStar = rating % 1 >= 0.5;
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1" role="img" aria-label={`${rating.toFixed(1)} out of 5 stars${reviewCount !== undefined ? `, ${reviewCount} reviews` : ""}`}>
       <div className="flex">
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
+            aria-hidden="true"
             className={`${sizes[size]} ${
               star <= fullStars
                 ? "fill-yellow-400 text-yellow-400"

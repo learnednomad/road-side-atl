@@ -123,7 +123,7 @@ export default function ProviderSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /><span className="sr-only">Loading...</span>
       </div>
     );
   }
@@ -159,7 +159,7 @@ export default function ProviderSettingsPage() {
         <CardContent>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div
+              <div aria-hidden="true"
                 className={`w-3 h-3 rounded-full ${profile.isAvailable ? "bg-green-500" : "bg-gray-400"}`}
               />
               <span className="font-medium">

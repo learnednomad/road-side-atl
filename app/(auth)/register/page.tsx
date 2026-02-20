@@ -130,7 +130,7 @@ export default function RegisterPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
-            <p className="text-sm text-destructive text-center">{error}</p>
+            <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">{error}</p>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-3">
@@ -140,6 +140,7 @@ export default function RegisterPage() {
                 id="name"
                 type="text"
                 placeholder="Your name"
+                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -151,6 +152,7 @@ export default function RegisterPage() {
                 id="email"
                 type="email"
                 placeholder="you@example.com"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -162,6 +164,7 @@ export default function RegisterPage() {
                 id="password"
                 type="password"
                 placeholder="At least 8 characters"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -174,6 +177,7 @@ export default function RegisterPage() {
                 id="confirmPassword"
                 type="password"
                 placeholder="Confirm your password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required

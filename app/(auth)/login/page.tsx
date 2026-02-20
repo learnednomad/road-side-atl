@@ -196,7 +196,7 @@ function LoginForm() {
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
-            <p className="text-sm text-destructive text-center">{error}</p>
+            <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">{error}</p>
           )}
 
           <form onSubmit={handleCredentialsSubmit} className="space-y-3">
@@ -206,6 +206,7 @@ function LoginForm() {
                 id="email"
                 type="email"
                 placeholder="you@example.com"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -225,6 +226,7 @@ function LoginForm() {
                 id="password"
                 type="password"
                 placeholder="Your password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -279,7 +281,7 @@ function LoginForm() {
             {loading === "google" ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <GoogleIcon className="mr-2 h-5 w-5" />
+              <GoogleIcon aria-hidden="true" className="mr-2 h-5 w-5" />
             )}
             Continue with Google
           </Button>

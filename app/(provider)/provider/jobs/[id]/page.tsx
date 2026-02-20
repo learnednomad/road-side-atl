@@ -57,7 +57,7 @@ export default function ProviderJobDetailPage() {
   if (loading) {
     return (
       <div className="flex justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /><span className="sr-only">Loading...</span>
       </div>
     );
   }
