@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { b2bAccounts, bookings, services } from "@/db/schema";
+import { b2bAccounts, bookings, services, invoices } from "@/db/schema";
 import { eq, desc, and, ilike, count, inArray } from "drizzle-orm";
 import { requireAdmin } from "@/server/api/middleware/auth";
 import { rateLimitStandard } from "@/server/api/middleware/rate-limit";
@@ -10,6 +10,7 @@ import {
   updateB2bContractSchema,
   updateB2bAccountStatusSchema,
   createB2bBookingSchema,
+  generateB2bInvoiceSchema,
 } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import {
@@ -21,6 +22,7 @@ import { geocodeAddress } from "@/lib/geocoding";
 import { notifyB2bServiceDispatched } from "@/lib/notifications";
 import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
+import { createB2bMonthlyInvoice } from "../lib/invoice-generator";
 
 type AuthEnv = {
   Variables: {
@@ -431,6 +433,89 @@ app.post("/:id/bookings", async (c) => {
     },
     dispatchResult,
   }, 201);
+});
+
+// GET /:id/invoices — List invoices for a B2B account
+app.get("/:id/invoices", async (c) => {
+  const accountId = c.req.param("id");
+
+  const account = await db.query.b2bAccounts.findFirst({
+    where: eq(b2bAccounts.id, accountId),
+  });
+
+  if (!account) {
+    return c.json({ error: "B2B account not found" }, 404);
+  }
+
+  const results = await db
+    .select()
+    .from(invoices)
+    .where(eq(invoices.tenantId, accountId))
+    .orderBy(desc(invoices.createdAt));
+
+  return c.json({
+    data: results.map((inv) => ({
+      ...inv,
+      createdAt: inv.createdAt.toISOString(),
+      issuedAt: inv.issuedAt?.toISOString() || null,
+      paidAt: inv.paidAt?.toISOString() || null,
+      dueDate: inv.dueDate?.toISOString() || null,
+    })),
+  });
+});
+
+// POST /:id/invoices — Generate B2B monthly invoice for billing period
+app.post("/:id/invoices", async (c) => {
+  const accountId = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = generateB2bInvoiceSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const account = await db.query.b2bAccounts.findFirst({
+    where: eq(b2bAccounts.id, accountId),
+  });
+
+  if (!account) {
+    return c.json({ error: "B2B account not found" }, 404);
+  }
+
+  if (account.status === "suspended") {
+    return c.json({ error: "Cannot generate invoices for suspended accounts" }, 400);
+  }
+
+  const invoice = await createB2bMonthlyInvoice(
+    accountId,
+    parsed.data.billingPeriodStart,
+    parsed.data.billingPeriodEnd,
+  );
+
+  if (!invoice) {
+    return c.json({ error: "No uninvoiced completed bookings found in this billing period" }, 400);
+  }
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+
+  logAudit({
+    action: "b2b_account.generate_invoice",
+    userId: user.id,
+    resourceType: "invoice",
+    resourceId: invoice.id,
+    details: {
+      b2bAccountId: accountId,
+      companyName: account.companyName,
+      invoiceNumber: invoice.invoiceNumber,
+      billingPeriodStart: parsed.data.billingPeriodStart,
+      billingPeriodEnd: parsed.data.billingPeriodEnd,
+      total: invoice.total,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json(invoice, 201);
 });
 
 export default app;

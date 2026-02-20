@@ -9,6 +9,8 @@ import { createInvoiceForBooking } from "../lib/invoice-generator";
 import { generateInvoiceHTML } from "@/lib/invoices/generate-invoice-html";
 import { generateCSV } from "@/lib/csv";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
+import { b2bAccounts } from "@/db/schema";
+import { notifyB2bInvoiceSent } from "@/lib/notifications";
 
 type AuthEnv = {
   Variables: {
@@ -219,9 +221,23 @@ app.patch("/:id/status", async (c) => {
     return c.json({ error: "Invoice not found" }, 404);
   }
 
-  const updates: { status: "issued" | "void"; issuedAt?: Date } = { status: parsed.data.status };
+  // Validate status transitions
+  const validTransitions: Record<string, string[]> = {
+    draft: ["issued", "void"],
+    issued: ["paid", "overdue", "void"],
+    overdue: ["paid"],
+  };
+  const allowed = validTransitions[invoice.status] || [];
+  if (!allowed.includes(parsed.data.status)) {
+    return c.json({ error: `Cannot transition from "${invoice.status}" to "${parsed.data.status}"` }, 400);
+  }
+
+  const updates: Record<string, unknown> = { status: parsed.data.status };
   if (parsed.data.status === "issued" && !invoice.issuedAt) {
     updates.issuedAt = new Date();
+  }
+  if (parsed.data.status === "paid") {
+    updates.paidAt = new Date();
   }
 
   const [updated] = await db
@@ -230,13 +246,85 @@ app.patch("/:id/status", async (c) => {
     .where(eq(invoices.id, id))
     .returning();
 
+  const actionMap: Record<string, string> = {
+    issued: "invoice.issue",
+    void: "invoice.void",
+    paid: "invoice.mark_paid",
+    overdue: "invoice.mark_overdue",
+  };
+
   const user = c.get("user");
   logAudit({
-    action: parsed.data.status === "void" ? "invoice.void" : "invoice.issue",
+    action: actionMap[parsed.data.status] as "invoice.issue" | "invoice.void" | "invoice.mark_paid" | "invoice.mark_overdue",
     userId: user.id,
     resourceType: "invoice",
     resourceId: id,
     details: { invoiceNumber: invoice.invoiceNumber, newStatus: parsed.data.status },
+    ...getRequestInfo(c.req.raw),
+  });
+
+  return c.json(updated);
+});
+
+// Send invoice to B2B billing contact
+app.post("/:id/send", async (c) => {
+  const id = c.req.param("id");
+
+  const invoice = await db.query.invoices.findFirst({
+    where: eq(invoices.id, id),
+  });
+  if (!invoice) {
+    return c.json({ error: "Invoice not found" }, 404);
+  }
+
+  if (invoice.status !== "draft") {
+    return c.json({ error: "Only draft invoices can be sent" }, 400);
+  }
+
+  if (!invoice.tenantId) {
+    return c.json({ error: "Invoice is not associated with a B2B account" }, 400);
+  }
+
+  const account = await db.query.b2bAccounts.findFirst({
+    where: eq(b2bAccounts.id, invoice.tenantId),
+  });
+  if (!account) {
+    return c.json({ error: "B2B account not found" }, 404);
+  }
+
+  const [updated] = await db
+    .update(invoices)
+    .set({
+      status: "issued",
+      issuedAt: new Date(),
+    })
+    .where(eq(invoices.id, id))
+    .returning();
+
+  // Fire-and-forget email to billing contact
+  notifyB2bInvoiceSent(
+    { name: account.contactName, email: account.contactEmail },
+    account.companyName,
+    invoice.invoiceNumber,
+    invoice.lineItems,
+    invoice.total,
+    updated.dueDate,
+    invoice.billingPeriodStart,
+    invoice.billingPeriodEnd,
+  ).catch(() => {});
+
+  const user = c.get("user");
+  logAudit({
+    action: "invoice.send",
+    userId: user.id,
+    resourceType: "invoice",
+    resourceId: id,
+    details: {
+      invoiceNumber: invoice.invoiceNumber,
+      b2bAccountId: invoice.tenantId,
+      companyName: account.companyName,
+      sentTo: account.contactEmail,
+    },
     ...getRequestInfo(c.req.raw),
   });
 

@@ -44,7 +44,7 @@ export type CommissionType = (typeof COMMISSION_TYPES)[number];
 export const PAYOUT_STATUSES = ["pending", "paid"] as const;
 export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
 
-export const INVOICE_STATUSES = ["draft", "issued", "paid", "void"] as const;
+export const INVOICE_STATUSES = ["draft", "issued", "paid", "void", "overdue"] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
 export const TOWING_BASE_MILES = 10;
@@ -88,3 +88,9 @@ export type B2bAccountStatus = (typeof B2B_ACCOUNT_STATUSES)[number];
 
 export const B2B_PAYMENT_TERMS = ["prepaid", "net_30", "net_60"] as const;
 export type B2bPaymentTerms = (typeof B2B_PAYMENT_TERMS)[number];
+
+export const B2B_INVOICE_DUE_DAYS: Record<B2bPaymentTerms, number> = {
+  prepaid: 0,
+  net_30: 30,
+  net_60: 60,
+};

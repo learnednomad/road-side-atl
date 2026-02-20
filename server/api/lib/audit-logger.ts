@@ -61,7 +61,11 @@ export type AuditAction =
   | "b2b_account.update"
   | "b2b_account.update_contract"
   | "b2b_account.status_change"
-  | "b2b_account.create_booking";
+  | "b2b_account.create_booking"
+  | "b2b_account.generate_invoice"
+  | "invoice.send"
+  | "invoice.mark_paid"
+  | "invoice.mark_overdue";
 
 export interface AuditLogEntry {
   action: AuditAction;

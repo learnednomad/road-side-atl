@@ -179,6 +179,11 @@ app.patch("/:id/status", async (c) => {
     return c.json({ error: "Cannot modify platform invoice status" }, 403);
   }
 
+  // Providers can only set issued or void
+  if (parsed.data.status !== "issued" && parsed.data.status !== "void") {
+    return c.json({ error: "Providers can only issue or void invoices" }, 403);
+  }
+
   const updates: { status: "issued" | "void"; issuedAt?: Date } = { status: parsed.data.status };
   if (parsed.data.status === "issued" && !invoice.issuedAt) {
     updates.issuedAt = new Date();

@@ -8,6 +8,7 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
   "issued",
   "paid",
   "void",
+  "overdue",
 ]);
 
 export type InvoiceLineItem = {
@@ -38,5 +39,8 @@ export const invoices = pgTable("invoices", {
   paidAt: timestamp("paidAt", { mode: "date" }),
   notes: text("notes"),
   tenantId: text("tenantId"),
+  dueDate: timestamp("dueDate", { mode: "date" }),
+  billingPeriodStart: text("billingPeriodStart"),
+  billingPeriodEnd: text("billingPeriodEnd"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
 });

@@ -1,8 +1,9 @@
 import { db } from "@/db";
-import { bookings, payments, providers, services, invoices } from "@/db/schema";
+import { bookings, payments, providers, services, invoices, b2bAccounts } from "@/db/schema";
 import type { InvoiceLineItem } from "@/db/schema/invoices";
-import { eq, and, sql } from "drizzle-orm";
-import { TOWING_PRICE_PER_MILE_CENTS, TOWING_BASE_MILES } from "@/lib/constants";
+import { eq, and, sql, isNull } from "drizzle-orm";
+import { TOWING_PRICE_PER_MILE_CENTS, TOWING_BASE_MILES, B2B_INVOICE_DUE_DAYS } from "@/lib/constants";
+import type { B2bPaymentTerms } from "@/lib/constants";
 
 /**
  * Generate next invoice number using a PostgreSQL sequence for atomic generation.
@@ -108,6 +109,97 @@ export async function createInvoiceForBooking(bookingId: string) {
       providerName: provider?.name || null,
       issuedAt: new Date(),
       paidAt: payment.confirmedAt || new Date(),
+    })
+    .returning();
+
+  return invoice;
+}
+
+/**
+ * Create a B2B monthly invoice aggregating all completed bookings for a billing period.
+ * Returns the created invoice or null if no uninvoiced bookings exist in the period.
+ */
+export async function createB2bMonthlyInvoice(
+  accountId: string,
+  billingPeriodStart: string,
+  billingPeriodEnd: string,
+) {
+  const account = await db.query.b2bAccounts.findFirst({
+    where: eq(b2bAccounts.id, accountId),
+  });
+  if (!account) return null;
+
+  // Prevent duplicate invoices for the same billing period
+  const existingInvoice = await db.query.invoices.findFirst({
+    where: and(
+      eq(invoices.tenantId, accountId),
+      eq(invoices.billingPeriodStart, billingPeriodStart),
+      eq(invoices.billingPeriodEnd, billingPeriodEnd),
+    ),
+  });
+  if (existingInvoice) return null;
+
+  // Find completed bookings for this B2B account in the billing period
+  // that don't already have an invoice
+  const completedBookings = await db
+    .select({
+      booking: bookings,
+      service: services,
+    })
+    .from(bookings)
+    .innerJoin(services, eq(services.id, bookings.serviceId))
+    .leftJoin(invoices, eq(invoices.bookingId, bookings.id))
+    .where(
+      and(
+        eq(bookings.tenantId, accountId),
+        eq(bookings.status, "completed"),
+        sql`${bookings.updatedAt} >= ${billingPeriodStart}`,
+        sql`${bookings.updatedAt} <= ${billingPeriodEnd}`,
+        isNull(invoices.id),
+      ),
+    );
+
+  if (completedBookings.length === 0) return null;
+
+  // Build line items — one per booking
+  const lineItems: InvoiceLineItem[] = completedBookings.map((row) => {
+    const amount = row.booking.finalPrice || row.booking.estimatedPrice;
+    const bookingDate = row.booking.updatedAt
+      ? row.booking.updatedAt.toISOString().split("T")[0]
+      : row.booking.createdAt.toISOString().split("T")[0];
+    return {
+      description: `${row.service.name} — ${bookingDate}`,
+      quantity: 1,
+      unitPrice: amount,
+      total: amount,
+    };
+  });
+
+  const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0);
+  const total = subtotal;
+
+  // Calculate due date from payment terms
+  const dueDays = B2B_INVOICE_DUE_DAYS[account.paymentTerms as B2bPaymentTerms] ?? 30;
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + dueDays);
+
+  const invoiceNumber = await generateInvoiceNumber();
+
+  const [invoice] = await db
+    .insert(invoices)
+    .values({
+      invoiceNumber,
+      customerName: account.contactName,
+      customerEmail: account.contactEmail,
+      customerPhone: account.contactPhone,
+      lineItems,
+      subtotal,
+      total,
+      status: "draft",
+      tenantId: accountId,
+      dueDate,
+      billingPeriodStart,
+      billingPeriodEnd,
     })
     .returning();
 

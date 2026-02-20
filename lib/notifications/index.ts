@@ -1,4 +1,4 @@
-import { sendBookingConfirmation, sendProviderAssignment, sendStatusUpdate, sendObservationFollowUpEmail, sendReferralCreditEmail, sendPreServiceConfirmationEmail, sendInspectionReportEmail, sendTierPromotionEmail, sendPaymentReceiptEmail, sendB2bServiceDispatchedEmail } from "./email";
+import { sendBookingConfirmation, sendProviderAssignment, sendStatusUpdate, sendObservationFollowUpEmail, sendReferralCreditEmail, sendPreServiceConfirmationEmail, sendInspectionReportEmail, sendTierPromotionEmail, sendPaymentReceiptEmail, sendB2bServiceDispatchedEmail, sendB2bInvoiceEmail } from "./email";
 import {
   sendBookingConfirmationSMS,
   sendProviderAssignmentSMS,
@@ -120,6 +120,31 @@ export async function notifyB2bServiceDispatched(
   await Promise.allSettled([
     sendB2bServiceDispatchedEmail(customer.email, customer.name, companyName, serviceName, locationAddress),
     sendB2bServiceDispatchedSMS(customer.phone, companyName, serviceName),
+  ]);
+}
+
+export async function notifyB2bInvoiceSent(
+  contact: { name: string; email: string },
+  companyName: string,
+  invoiceNumber: string,
+  lineItems: { description: string; quantity: number; unitPrice: number; total: number }[],
+  totalCents: number,
+  dueDate: Date | null,
+  billingPeriodStart: string | null,
+  billingPeriodEnd: string | null,
+) {
+  await Promise.allSettled([
+    sendB2bInvoiceEmail(
+      contact.email,
+      contact.name,
+      companyName,
+      invoiceNumber,
+      lineItems,
+      totalCents,
+      dueDate,
+      billingPeriodStart,
+      billingPeriodEnd,
+    ),
   ]);
 }
 

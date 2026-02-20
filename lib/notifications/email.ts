@@ -9,6 +9,10 @@ function getResend(): Resend | null {
 
 const FROM = process.env.RESEND_FROM || "noreply@roadsideatl.com";
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 // Generic email sender for verification/password reset emails
 export async function sendEmail(opts: { to: string; subject: string; html: string }) {
   const resend = getResend();
@@ -257,6 +261,70 @@ export async function sendB2bServiceDispatchedEmail(
       <p>A provider will be dispatched to your location shortly. We'll keep you updated on the status.</p>
       <p>— RoadSide ATL</p>
       <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+    `,
+  });
+}
+
+export async function sendB2bInvoiceEmail(
+  email: string,
+  contactName: string,
+  companyName: string,
+  invoiceNumber: string,
+  lineItems: { description: string; quantity: number; unitPrice: number; total: number }[],
+  totalCents: number,
+  dueDate: Date | null,
+  billingPeriodStart: string | null,
+  billingPeriodEnd: string | null,
+) {
+  const resend = getResend();
+  if (!resend) return;
+
+  const lineItemsHtml = lineItems
+    .map(
+      (item) =>
+        `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(item.description)}</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(item.total)}</td></tr>`
+    )
+    .join("");
+
+  const periodText =
+    billingPeriodStart && billingPeriodEnd
+      ? `${billingPeriodStart} to ${billingPeriodEnd}`
+      : "See details below";
+
+  const dueDateText = dueDate
+    ? dueDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+    : "Upon receipt";
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `Invoice ${invoiceNumber} from RoadSide ATL`,
+    html: `
+      <h2>Invoice ${escapeHtml(invoiceNumber)}</h2>
+      <p>Hi ${escapeHtml(contactName)},</p>
+      <p>Please find below the invoice for <strong>${escapeHtml(companyName)}</strong>.</p>
+      <p><strong>Billing Period:</strong> ${periodText}</p>
+      <p><strong>Due Date:</strong> ${dueDateText}</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <thead>
+          <tr style="background: #f5f5f5;">
+            <th style="padding: 8px; text-align: left;">Description</th>
+            <th style="padding: 8px; text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lineItemsHtml}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td style="padding: 8px; font-weight: bold;">Total</td>
+            <td style="padding: 8px; font-weight: bold; text-align: right;">${formatPrice(totalCents)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <p>For payment inquiries, please contact us at support@roadsideatl.com.</p>
+      <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">RoadSide ATL, Atlanta, GA | <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">Unsubscribe</a></p>
     `,
   });
 }

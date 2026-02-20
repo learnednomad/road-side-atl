@@ -42,6 +42,10 @@ import {
   Pencil,
   FileText,
   BookOpen,
+  Receipt,
+  Send,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -76,7 +80,20 @@ interface B2bAccount {
   updatedAt: string;
 }
 
-type DialogMode = "create" | "edit" | "detail" | "contract" | "booking" | null;
+interface B2bInvoice {
+  id: string;
+  invoiceNumber: string;
+  status: string;
+  total: number;
+  dueDate: string | null;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
+  issuedAt: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+type DialogMode = "create" | "edit" | "detail" | "contract" | "booking" | "invoices" | null;
 
 export function B2bAccountsTable() {
   const [accounts, setAccounts] = useState<B2bAccount[]>([]);
@@ -130,6 +147,11 @@ export function B2bAccountsTable() {
   });
 
   const [services, setServices] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Invoice state
+  const [accountInvoices, setAccountInvoices] = useState<B2bInvoice[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoicePeriod, setInvoicePeriod] = useState({ start: "", end: "" });
 
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
@@ -406,6 +428,112 @@ export function B2bAccountsTable() {
     }
   };
 
+  const [invoiceActionLoading, setInvoiceActionLoading] = useState<string | null>(null);
+
+  const fetchAccountInvoices = async (accountId: string) => {
+    setInvoicesLoading(true);
+    try {
+      const res = await fetch(`/api/admin/b2b-accounts/${accountId}/invoices`);
+      if (!res.ok) throw new Error("Failed to fetch invoices");
+      const data = await res.json();
+      setAccountInvoices(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error("Failed to load invoices");
+    } finally {
+      setInvoicesLoading(false);
+    }
+  };
+
+  const openInvoices = (account: B2bAccount) => {
+    setSelectedAccount(account);
+    setAccountInvoices([]);
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setInvoicePeriod({
+      start: firstOfMonth.toISOString().split("T")[0],
+      end: lastOfMonth.toISOString().split("T")[0],
+    });
+    fetchAccountInvoices(account.id);
+    setDialogMode("invoices");
+  };
+
+  const handleGenerateInvoice = async () => {
+    if (!selectedAccount) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/b2b-accounts/${selectedAccount.id}/invoices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          billingPeriodStart: invoicePeriod.start,
+          billingPeriodEnd: invoicePeriod.end,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to generate invoice");
+      }
+      toast.success("Invoice generated");
+      fetchAccountInvoices(selectedAccount.id);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to generate invoice");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSendInvoice = async (invoiceId: string) => {
+    setInvoiceActionLoading(invoiceId);
+    try {
+      const res = await fetch(`/api/admin/invoices/${invoiceId}/send`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to send invoice");
+      }
+      toast.success("Invoice sent to billing contact");
+      if (selectedAccount) fetchAccountInvoices(selectedAccount.id);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send invoice");
+    } finally {
+      setInvoiceActionLoading(null);
+    }
+  };
+
+  const handleInvoiceStatusChange = async (invoiceId: string, newStatus: string) => {
+    setInvoiceActionLoading(invoiceId);
+    try {
+      const res = await fetch(`/api/admin/invoices/${invoiceId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update invoice");
+      }
+      toast.success(`Invoice marked as ${newStatus}`);
+      if (selectedAccount) fetchAccountInvoices(selectedAccount.id);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update invoice");
+    } finally {
+      setInvoiceActionLoading(null);
+    }
+  };
+
+  const invoiceStatusBadge = (status: string) => {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      draft: "secondary",
+      issued: "outline",
+      paid: "default",
+      overdue: "destructive",
+      void: "destructive",
+    };
+    return <Badge variant={variants[status] || "secondary"}>{status}</Badge>;
+  };
+
   const statusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive"> = {
       active: "default",
@@ -531,6 +659,9 @@ export function B2bAccountsTable() {
                           </Button>
                           <Button variant="ghost" size="icon" onClick={() => openBooking(account)} title="New Booking">
                             <BookOpen className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => openInvoices(account)} title="Invoices">
+                            <Receipt className="h-4 w-4" />
                           </Button>
                           {account.status === "active" ? (
                             <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleStatusChange(account, "suspended")}>
@@ -768,6 +899,101 @@ export function B2bAccountsTable() {
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Contract
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoices Dialog */}
+      <Dialog open={dialogMode === "invoices"} onOpenChange={() => setDialogMode(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Invoices — {selectedAccount?.companyName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-end gap-4 rounded-md border p-3">
+              <div className="grid gap-1 flex-1">
+                <Label className="text-xs">Billing Period Start</Label>
+                <Input
+                  type="date"
+                  value={invoicePeriod.start}
+                  onChange={(e) => setInvoicePeriod({ ...invoicePeriod, start: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-1 flex-1">
+                <Label className="text-xs">Billing Period End</Label>
+                <Input
+                  type="date"
+                  value={invoicePeriod.end}
+                  onChange={(e) => setInvoicePeriod({ ...invoicePeriod, end: e.target.value })}
+                />
+              </div>
+              <Button onClick={handleGenerateInvoice} disabled={saving || !invoicePeriod.start || !invoicePeriod.end}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                Generate
+              </Button>
+            </div>
+
+            {invoicesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : accountInvoices.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">No invoices found</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice #</TableHead>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Due</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {accountInvoices.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell className="font-mono text-xs">{inv.invoiceNumber}</TableCell>
+                      <TableCell className="text-xs">
+                        {inv.billingPeriodStart && inv.billingPeriodEnd
+                          ? `${inv.billingPeriodStart} — ${inv.billingPeriodEnd}`
+                          : "—"}
+                      </TableCell>
+                      <TableCell>{formatPrice(inv.total)}</TableCell>
+                      <TableCell className="text-xs">
+                        {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}
+                      </TableCell>
+                      <TableCell>{invoiceStatusBadge(inv.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {inv.status === "draft" && (
+                            <Button variant="ghost" size="icon" onClick={() => handleSendInvoice(inv.id)} disabled={invoiceActionLoading === inv.id} title="Send to billing contact">
+                              {invoiceActionLoading === inv.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                            </Button>
+                          )}
+                          {inv.status === "issued" && (
+                            <>
+                              <Button variant="ghost" size="icon" onClick={() => handleInvoiceStatusChange(inv.id, "paid")} disabled={invoiceActionLoading === inv.id} title="Mark paid">
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleInvoiceStatusChange(inv.id, "overdue")} disabled={invoiceActionLoading === inv.id} title="Mark overdue">
+                                <Clock className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          <Button variant="ghost" size="icon" asChild title="View invoice">
+                            <a href={`/api/admin/invoices/${inv.id}/html`} target="_blank" rel="noopener noreferrer">
+                              <Eye className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -98,7 +98,7 @@ development_status:
   epic-8-retrospective: done
 
   # Epic 9: B2B Account Management (Phase 2)
-  epic-9: in-progress
+  epic-9: done
   9-1-b2b-account-and-contract-management: done
-  9-2-b2b-invoicing-and-billing: backlog
-  epic-9-retrospective: optional
+  9-2-b2b-invoicing-and-billing: done
+  epic-9-retrospective: done

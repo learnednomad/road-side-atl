@@ -116,7 +116,7 @@ export const generateInvoiceSchema = z.object({
 });
 
 export const updateInvoiceStatusSchema = z.object({
-  status: z.enum(["issued", "void"]),
+  status: z.enum(["issued", "void", "paid", "overdue"]),
 });
 
 export const createStandaloneInvoiceSchema = z.object({
@@ -320,3 +320,14 @@ export const createB2bBookingSchema = z.object({
   notes: z.string().optional(),
 });
 export type CreateB2bBookingInput = z.infer<typeof createB2bBookingSchema>;
+
+export const generateB2bInvoiceSchema = z
+  .object({
+    billingPeriodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be a valid date (YYYY-MM-DD)"),
+    billingPeriodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be a valid date (YYYY-MM-DD)"),
+  })
+  .refine((data) => data.billingPeriodEnd >= data.billingPeriodStart, {
+    message: "End date must be on or after start date",
+    path: ["billingPeriodEnd"],
+  });
+export type GenerateB2bInvoiceInput = z.infer<typeof generateB2bInvoiceSchema>;
