@@ -53,7 +53,7 @@ development_status:
   2-1-time-block-pricing-schema-and-engine: done
   2-2-storm-mode-activation-and-templates: done
   2-3-admin-pricing-configuration-and-booking-override: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   # Epic 3: Payment Operations & Tiered Commission
   epic-3: done
