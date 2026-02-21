@@ -435,11 +435,12 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                 <Label htmlFor="phone">Phone Number <span className="text-destructive">*</span></Label>
                 <Input
                   id="phone"
-                  type="tel"
+                  type="text"
+                  inputMode="tel"
                   placeholder="(404) 555-0100"
                   value={contactPhone}
                   onChange={(e) => setContactPhone(e.target.value)}
-                  required
+                  autoComplete="tel"
                 />
               </div>
               <div>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ClipboardList, Settings, LogOut, Home, Menu } from "lucide-react";
+import { LayoutDashboard, ClipboardList, FileText, Settings, LogOut, Home, Menu } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 const links = [
   { href: "/provider", label: "Dashboard", icon: LayoutDashboard },
   { href: "/provider/jobs", label: "Jobs", icon: ClipboardList },
+  { href: "/provider/invoices", label: "Invoices", icon: FileText },
   { href: "/provider/settings", label: "Settings", icon: Settings },
 ];
 
