@@ -48,11 +48,46 @@ export default async function ConfirmationPage({
 
   if (!booking || !service) {
     return (
-      <div className="container mx-auto max-w-2xl px-4 py-16 text-center">
-        <h1 className="mb-4 text-2xl font-bold">Booking Submitted</h1>
-        <p className="text-muted-foreground">
-          Your booking has been received. We&apos;ll be in touch shortly.
-        </p>
+      <div className="container mx-auto max-w-2xl px-4 py-16">
+        <div className="mb-8 text-center">
+          <CheckCircle className="mx-auto mb-4 h-16 w-16 text-green-500" />
+          <h1 className="mb-2 text-3xl font-bold">Booking Submitted</h1>
+          {bookingId && (
+            <p className="text-muted-foreground">
+              Booking #{bookingId.slice(0, 8).toUpperCase()}
+            </p>
+          )}
+        </div>
+        <Card>
+          <CardContent className="pt-6 space-y-4 text-center">
+            <p className="text-muted-foreground">
+              Your booking has been received and is being processed. A team member will contact you shortly to confirm.
+            </p>
+            <div className="rounded-lg bg-muted p-4">
+              <p className="text-sm font-medium">Need immediate help? Call us:</p>
+              <a
+                href={`tel:${BUSINESS.phone}`}
+                className="inline-flex items-center gap-2 text-lg font-semibold mt-1"
+              >
+                <Phone className="h-5 w-5" />
+                {BUSINESS.phone}
+              </a>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {bookingId && (
+                <Button asChild className="flex-1">
+                  <Link href={`/track/${bookingId}`}>
+                    <MapPin className="mr-2 h-4 w-4" />
+                    Track Booking
+                  </Link>
+                </Button>
+              )}
+              <Button asChild variant="outline" className="flex-1">
+                <Link href="/">Back to Home</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

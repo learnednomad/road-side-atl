@@ -1,12 +1,14 @@
 "use client";
 
-import { Smartphone, CreditCard } from "lucide-react";
+import { useState } from "react";
+import { DollarSign, Smartphone, CreditCard, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { BUSINESS } from "@/lib/constants";
 import { formatPrice } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface PaymentInstructionsProps {
   isDiagnostics: boolean;
@@ -34,7 +36,10 @@ export function PaymentInstructions({
     );
   }
 
+  const [stripeLoading, setStripeLoading] = useState(false);
+
   async function handleStripeCheckout() {
+    setStripeLoading(true);
     try {
       const res = await fetch("/api/payments/stripe/checkout", {
         method: "POST",
@@ -44,9 +49,13 @@ export function PaymentInstructions({
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else {
+        toast.error("Card payment is not available at this time. Please use CashApp or Zelle.");
+        setStripeLoading(false);
       }
     } catch {
-      // Stripe might not be configured
+      toast.error("Card payment is not available at this time. Please use CashApp or Zelle.");
+      setStripeLoading(false);
     }
   }
 
@@ -112,8 +121,12 @@ export function PaymentInstructions({
                 Credit/debit card via secure checkout
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleStripeCheckout}>
-              <CreditCard className="mr-2 h-4 w-4" />
+            <Button variant="outline" size="sm" onClick={handleStripeCheckout} disabled={stripeLoading}>
+              {stripeLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CreditCard className="mr-2 h-4 w-4" />
+              )}
               Pay with Card
             </Button>
           </div>

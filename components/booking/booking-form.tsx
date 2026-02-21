@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS, DEFAULT_MULTIPLIER_BP } from "@/lib/constants";
 import { AddressAutocomplete } from "@/components/maps/address-autocomplete";
-import { Check, ArrowRight, ArrowLeft, Loader2, MapPin } from "lucide-react";
+import { Check, ArrowRight, ArrowLeft, Loader2, AlertTriangle, MapPin } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
 import { PaymentMethodSelector } from "@/components/booking/payment-method-selector";
 import { ReferralCreditSelector } from "@/components/booking/referral-credit-selector";
@@ -60,6 +60,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [stepErrors, setStepErrors] = useState<string[]>([]);
+  const errorsRef = useRef<HTMLDivElement>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState("");
   const { isLoaded: mapsLoaded } = useGoogleMaps();
@@ -208,8 +209,10 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
     const errors = validateStep(step);
     if (errors.length > 0) {
       setStepErrors(errors);
-      // Scroll to validation errors
-      document.querySelector("[data-validation-errors]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      requestAnimationFrame(() => {
+        errorsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        errorsRef.current?.focus();
+      });
       return;
     }
     setStepErrors([]);
@@ -276,6 +279,18 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
 
   return (
     <div className="space-y-8">
+      {/* Safety Notice */}
+      <div className="flex items-start gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm" role="alert">
+        <AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-yellow-600 mt-0.5" />
+        <div>
+          <p className="font-medium text-yellow-800">If you are in immediate danger, call 911</p>
+          <p className="text-yellow-700 mt-0.5">
+            This service is for non-emergency roadside assistance.{" "}
+            <a href="tel:911" className="font-medium underline">Call 911</a> for emergencies.
+          </p>
+        </div>
+      </div>
+
       {/* Step Progress Indicator */}
       <nav aria-label="Booking progress" className="mb-8">
         <ol className="flex items-center justify-between">
@@ -284,7 +299,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
             const isCompleted = step > stepNum;
             const isCurrent = step === stepNum;
             return (
-              <li key={s.label} className="flex flex-1 items-center">
+              <li key={s.label} className="flex flex-1 items-center" aria-current={isCurrent ? "step" : undefined}>
                 <div className="flex flex-col items-center gap-1.5">
                   <div
                     className={cn(
@@ -324,7 +339,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
 
       {/* Validation Errors */}
       {stepErrors.length > 0 && (
-        <div data-validation-errors className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+        <div ref={errorsRef} tabIndex={-1} role="alert" aria-live="assertive" className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 outline-none">
           <ul className="space-y-1 text-sm text-destructive">
             {stepErrors.map((err) => (
               <li key={err}>{err}</li>
@@ -378,6 +393,8 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                   <button
                     key={s.id}
                     type="button"
+                    role="radio"
+                    aria-checked={selectedServiceId === s.id}
                     onClick={() => setSelectedServiceId(s.id)}
                     className={cn(
                       "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
@@ -410,6 +427,8 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                   <button
                     key={s.id}
                     type="button"
+                    role="radio"
+                    aria-checked={selectedServiceId === s.id}
                     onClick={() => setSelectedServiceId(s.id)}
                     className={cn(
                       "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
@@ -586,11 +605,12 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                 <Label htmlFor="phone">Phone Number <span className="text-destructive">*</span></Label>
                 <Input
                   id="phone"
-                  type="tel"
+                  type="text"
+                  inputMode="tel"
                   placeholder="(404) 555-0100"
                   value={contactPhone}
                   onChange={(e) => setContactPhone(e.target.value)}
-                  required
+                  autoComplete="tel"
                 />
               </div>
               <div>
@@ -643,7 +663,9 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
               <CardTitle>Additional Notes</CardTitle>
             </CardHeader>
             <CardContent>
+              <Label htmlFor="booking-notes" className="sr-only">Additional Notes</Label>
               <Textarea
+                id="booking-notes"
                 placeholder="Anything else we should know..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -797,7 +819,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
             </div>
 
             {error && (
-              <p className="text-sm text-destructive">{error}</p>
+              <p role="alert" aria-live="assertive" className="text-sm text-destructive">{error}</p>
             )}
           </CardContent>
         </Card>

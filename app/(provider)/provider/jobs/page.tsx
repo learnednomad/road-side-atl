@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { StatusUpdater } from "@/components/provider/status-updater";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
@@ -91,7 +92,68 @@ export default function ProviderJobsPage() {
         </Select>
       </div>
 
-      <div className="rounded-md border">
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="py-8 text-center">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center gap-2 py-8">
+            <AlertCircle className="h-6 w-6 text-destructive" />
+            <p className="text-sm text-muted-foreground">Failed to load jobs.</p>
+            <Button variant="outline" size="sm" onClick={fetchJobs}>
+              <RefreshCw className="mr-2 h-3 w-3" />
+              Retry
+            </Button>
+          </div>
+        ) : jobs.length === 0 ? (
+          <p className="py-8 text-center text-muted-foreground">
+            No jobs found.
+          </p>
+        ) : (
+          jobs.map(({ booking, service }) => (
+            <Card key={booking.id}>
+              <CardContent className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <Link
+                      href={`/provider/jobs/${booking.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {booking.contactName}
+                    </Link>
+                    <p className="text-sm text-muted-foreground">
+                      {service.name}
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium">
+                    {formatPrice(booking.estimatedPrice)}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">
+                    {booking.status.replace("_", " ")}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(booking.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <StatusUpdater
+                  bookingId={booking.id}
+                  currentStatus={booking.status}
+                  onStatusChange={() => fetchJobs()}
+                />
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

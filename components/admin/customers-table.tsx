@@ -112,7 +112,48 @@ export function CustomersTable({
           </p>
         ) : (
           <>
-            <div className="rounded-md border">
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3">
+              {customers.map(({ user, bookingCount, totalSpent }) => (
+                <Card key={user.id} className="py-4">
+                  <CardContent className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={user.image || ""} />
+                        <AvatarFallback>
+                          {(user.name || user.email || "?")
+                            .charAt(0)
+                            .toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/admin/bookings?search=${encodeURIComponent(user.name || user.email || "")}`}
+                          className="text-sm font-medium hover:underline"
+                        >
+                          {user.name || "\u2014"}
+                        </Link>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {user.email}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {bookingCount} booking{bookingCount !== 1 ? "s" : ""}
+                      </span>
+                      <span className="font-medium">
+                        {formatPrice(Number(totalSpent))}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Desktop table view */}
+            <div className="hidden md:block rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -139,7 +180,7 @@ export function CustomersTable({
                             href={`/admin/bookings?search=${encodeURIComponent(user.name || user.email || "")}`}
                             className="text-sm font-medium hover:underline"
                           >
-                            {user.name || "—"}
+                            {user.name || "\u2014"}
                           </Link>
                         </div>
                       </TableCell>

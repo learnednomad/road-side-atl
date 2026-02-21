@@ -10,11 +10,12 @@ import {
   Users,
   Wrench,
   Banknote,
+  FileText,
+  Settings,
   LogOut,
   Home,
   ScrollText,
   PiggyBank,
-  FileText,
   Shield,
   TrendingUp,
   Percent,
@@ -39,6 +40,7 @@ const links = [
   { href: "/admin/commission", label: "Commission", icon: Percent },
   { href: "/admin/financial-reports", label: "Financial Reports", icon: BarChart3 },
   { href: "/admin/b2b-accounts", label: "B2B Accounts", icon: Building2 },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];
 

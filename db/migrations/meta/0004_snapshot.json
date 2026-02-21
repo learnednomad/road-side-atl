@@ -1,5 +1,5 @@
 {
-  "id": "12522860-099e-40cd-9895-3f7ee992035d",
+  "id": "83d61336-2f5f-4720-a5f2-4e79aa1e5d65",
   "prevId": "5f5a327f-831d-4607-b139-d5518fd8defb",
   "version": "7",
   "dialect": "postgresql",
@@ -1285,6 +1285,143 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.business_settings": {
+      "name": "business_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "companyName": {
+          "name": "companyName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "companyAddress": {
+          "name": "companyAddress",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "companyPhone": {
+          "name": "companyPhone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "companyEmail": {
+          "name": "companyEmail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "logoUrl": {
+          "name": "logoUrl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bankName": {
+          "name": "bankName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bankAccountName": {
+          "name": "bankAccountName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bankAccountNumber": {
+          "name": "bankAccountNumber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bankRoutingNumber": {
+          "name": "bankRoutingNumber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bankSwiftCode": {
+          "name": "bankSwiftCode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "defaultPaymentTerms": {
+          "name": "defaultPaymentTerms",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "defaultPaymentMethod": {
+          "name": "defaultPaymentMethod",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "defaultPaymentInstructions": {
+          "name": "defaultPaymentInstructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoicePrefix": {
+          "name": "invoicePrefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'INV'"
+        },
+        "defaultTaxRate": {
+          "name": "defaultTaxRate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "invoiceFooterNote": {
+          "name": "invoiceFooterNote",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.invoices": {
       "name": "invoices",
       "schema": "",
@@ -1301,14 +1438,22 @@
           "primaryKey": false,
           "notNull": true
         },
-        "bookingId": {
-          "name": "bookingId",
+        "status": {
+          "name": "status",
+          "type": "invoice_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "createdById": {
+          "name": "createdById",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "paymentId": {
-          "name": "paymentId",
+        "customerId": {
+          "name": "customerId",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1323,61 +1468,82 @@
           "name": "customerEmail",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "customerPhone": {
           "name": "customerPhone",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "lineItems": {
-          "name": "lineItems",
-          "type": "jsonb",
+        "customerCompany": {
+          "name": "customerCompany",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "customerAddress": {
+          "name": "customerAddress",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issueDate": {
+          "name": "issueDate",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "dueDate": {
+          "name": "dueDate",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "subtotal": {
           "name": "subtotal",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": 0
+        },
+        "taxRate": {
+          "name": "taxRate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "taxAmount": {
+          "name": "taxAmount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "total": {
           "name": "total",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "invoice_status",
-          "typeSchema": "public",
-          "primaryKey": false,
           "notNull": true,
-          "default": "'draft'"
+          "default": 0
         },
-        "providerId": {
-          "name": "providerId",
+        "paymentTerms": {
+          "name": "paymentTerms",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "providerName": {
-          "name": "providerName",
+        "paymentMethod": {
+          "name": "paymentMethod",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "issuedAt": {
-          "name": "issuedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "paidAt": {
-          "name": "paidAt",
-          "type": "timestamp",
+        "paymentInstructions": {
+          "name": "paymentInstructions",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -1399,34 +1565,41 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "invoices_bookingId_bookings_id_fk": {
-          "name": "invoices_bookingId_bookings_id_fk",
+        "invoices_createdById_users_id_fk": {
+          "name": "invoices_createdById_users_id_fk",
           "tableFrom": "invoices",
-          "tableTo": "bookings",
+          "tableTo": "users",
           "columnsFrom": [
-            "bookingId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "invoices_paymentId_payments_id_fk": {
-          "name": "invoices_paymentId_payments_id_fk",
-          "tableFrom": "invoices",
-          "tableTo": "payments",
-          "columnsFrom": [
-            "paymentId"
+            "createdById"
           ],
           "columnsTo": [
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invoices_customerId_users_id_fk": {
+          "name": "invoices_customerId_users_id_fk",
+          "tableFrom": "invoices",
+          "tableTo": "users",
+          "columnsFrom": [
+            "customerId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1440,6 +1613,92 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.invoice_line_items": {
+      "name": "invoice_line_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "invoiceId": {
+          "name": "invoiceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "details": {
+          "name": "details",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "unitPrice": {
+          "name": "unitPrice",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "total": {
+          "name": "total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "sortOrder": {
+          "name": "sortOrder",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "invoice_line_items_invoiceId_invoices_id_fk": {
+          "name": "invoice_line_items_invoiceId_invoices_id_fk",
+          "tableFrom": "invoice_line_items",
+          "tableTo": "invoices",
+          "columnsFrom": [
+            "invoiceId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1542,9 +1801,10 @@
       "schema": "public",
       "values": [
         "draft",
-        "issued",
+        "sent",
         "paid",
-        "void"
+        "overdue",
+        "cancelled"
       ]
     }
   },

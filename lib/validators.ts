@@ -111,6 +111,54 @@ export const providerSelfRegisterSchema = z.object({
   address: z.string().optional(),
 });
 
+// Invoice schemas (from development)
+export const invoiceLineItemSchema = z.object({
+  description: z.string().min(1, "Description is required"),
+  details: z.string().optional(),
+  quantity: z.number().int().min(1, "Quantity must be at least 1"),
+  unitPrice: z.number().int().min(0, "Unit price must be >= 0"), // cents
+});
+
+export const createInvoiceSchema = z.object({
+  customerId: z.string().uuid().optional(),
+  customerName: z.string().min(1, "Customer name is required"),
+  customerEmail: z.string().email().optional().or(z.literal("")),
+  customerPhone: z.string().optional(),
+  customerCompany: z.string().optional(),
+  customerAddress: z.string().optional(),
+  issueDate: z.string().datetime().optional(),
+  dueDate: z.string().datetime().optional(),
+  lineItems: z.array(invoiceLineItemSchema).min(1, "At least one line item is required"),
+  taxRate: z.number().int().min(0).max(10000).optional(), // basis points
+  paymentTerms: z.string().optional(),
+  paymentMethod: z.string().optional(),
+  paymentInstructions: z.string().optional(),
+  notes: z.string().optional(),
+  saveCustomer: z.boolean().optional(),
+});
+
+export const updateInvoiceSchema = createInvoiceSchema.partial();
+
+export const businessSettingsSchema = z.object({
+  companyName: z.string().min(1, "Company name is required"),
+  companyAddress: z.string().optional(),
+  companyPhone: z.string().optional(),
+  companyEmail: z.string().email().optional().or(z.literal("")),
+  logoUrl: z.string().optional(),
+  bankName: z.string().optional(),
+  bankAccountName: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  bankRoutingNumber: z.string().optional(),
+  bankSwiftCode: z.string().optional(),
+  defaultPaymentTerms: z.string().optional(),
+  defaultPaymentMethod: z.string().optional(),
+  defaultPaymentInstructions: z.string().optional(),
+  invoicePrefix: z.string().optional(),
+  defaultTaxRate: z.number().int().min(0).max(10000).optional(),
+  invoiceFooterNote: z.string().optional(),
+});
+
+// Invoice schemas (from main)
 export const generateInvoiceSchema = z.object({
   bookingId: z.string().uuid("Invalid booking"),
 });
@@ -262,6 +310,8 @@ export type InitiateRefundInput = z.infer<typeof initiateRefundSchema>;
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
 export type LocationInfo = z.infer<typeof locationSchema>;
+export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
+export type BusinessSettingsInput = z.infer<typeof businessSettingsSchema>;
 
 // B2B Account validators
 export const billingAddressSchema = z.object({
