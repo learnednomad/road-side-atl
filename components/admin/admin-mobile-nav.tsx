@@ -11,6 +11,8 @@ import {
   Users,
   Wrench,
   Banknote,
+  FileText,
+  Settings,
   LogOut,
   Home,
   ScrollText,
@@ -35,6 +37,8 @@ const links = [
   { href: "/admin/providers", label: "Providers", icon: Wrench },
   { href: "/admin/payouts", label: "Payouts", icon: Banknote },
   { href: "/admin/customers", label: "Customers", icon: Users },
+  { href: "/admin/invoices", label: "Invoices", icon: FileText },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];
 
