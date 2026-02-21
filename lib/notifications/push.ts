@@ -64,13 +64,14 @@ export async function sendPushNotification(
         })
       );
       sent++;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { statusCode?: number; message?: string };
       // If subscription is invalid, remove it
-      if (err.statusCode === 410 || err.statusCode === 404) {
+      if (error.statusCode === 410 || error.statusCode === 404) {
         await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
       }
       failed++;
-      console.error("Failed to send push notification:", err.message);
+      console.error("Failed to send push notification:", error.message || err);
     }
   }
 

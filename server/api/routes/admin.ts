@@ -1,20 +1,32 @@
 import { Hono } from "hono";
+import { z } from "zod/v4";
 import { db } from "@/db";
 import { bookings, services, payments, users, providers } from "@/db/schema";
-import { eq, desc, sql, and, gte, lte, count, like, or, ilike } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, count, or, ilike } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import {
   updateBookingStatusSchema,
   confirmPaymentSchema,
   assignProviderSchema,
+  overrideBookingPriceSchema,
+  updateServiceCommissionSchema,
+  updateChecklistConfigSchema,
 } from "@/lib/validators";
 import { createPayoutIfEligible } from "../lib/payout-calculator";
+import { incrementCleanTransaction } from "../lib/trust-tier";
 import { generateCSV } from "@/lib/csv";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
-import { notifyStatusChange, notifyProviderAssigned } from "@/lib/notifications";
+import { notifyStatusChange, notifyProviderAssigned, notifyReferralLink, notifyPreServiceConfirmation, notifyPaymentConfirmed } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser, broadcastToProvider } from "@/server/websocket/broadcast";
 import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
+import type { AuditAction } from "../lib/audit-logger";
+import { clearDelayNotification } from "../lib/delay-tracker";
+import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
+import { calculateEtaMinutes } from "../lib/eta-calculator";
+import { BOOKING_STATUSES, SERVICE_CATEGORIES } from "@/lib/constants";
+import type { BookingStatus, ServiceCategory } from "@/lib/constants";
 
 type AuthEnv = {
   Variables: {
@@ -27,9 +39,22 @@ const app = new Hono<AuthEnv>();
 app.use("/*", requireAdmin);
 app.use("/*", rateLimitStandard);
 // Stricter rate limiting for sensitive operations
+app.use("/bookings/:id/notes", rateLimitStrict);
 app.use("/bookings/:id/status", rateLimitStrict);
 app.use("/bookings/:id/assign-provider", rateLimitStrict);
 app.use("/payments/:id/confirm", rateLimitStrict);
+app.use("/bookings/:id/override-price", rateLimitStrict);
+
+const bookingStatusValues = new Set(BOOKING_STATUSES);
+const serviceCategoryValues = new Set(SERVICE_CATEGORIES);
+function isBookingStatus(value: string): value is BookingStatus {
+  return bookingStatusValues.has(value as BookingStatus);
+}
+function isServiceCategory(value: string): value is ServiceCategory {
+  return serviceCategoryValues.has(value as ServiceCategory);
+}
+app.use("/services/:id/commission", rateLimitStrict);
+app.use("/services/:id/checklist", rateLimitStrict);
 
 // Dashboard stats
 app.get("/stats", async (c) => {
@@ -122,12 +147,12 @@ app.get("/bookings", async (c) => {
   const limit = parseInt(c.req.query("limit") || "20");
   const offset = (page - 1) * limit;
 
-  const conditions = [];
-  if (status) {
-    conditions.push(eq(bookings.status, status as any));
+  const conditions: SQL[] = [];
+  if (status && isBookingStatus(status)) {
+    conditions.push(eq(bookings.status, status));
   }
-  if (serviceType) {
-    conditions.push(eq(services.category, serviceType as any));
+  if (serviceType && isServiceCategory(serviceType)) {
+    conditions.push(eq(services.category, serviceType));
   }
   if (search) {
     conditions.push(
@@ -135,7 +160,7 @@ app.get("/bookings", async (c) => {
         ilike(bookings.contactName, `%${search}%`),
         ilike(bookings.contactPhone, `%${search}%`),
         ilike(bookings.contactEmail, `%${search}%`)
-      )
+      )!
     );
   }
 
@@ -169,9 +194,12 @@ app.get("/bookings", async (c) => {
   const results = await query;
 
   // Group payments by booking
+  type Booking = typeof bookings.$inferSelect;
+  type Service = typeof services.$inferSelect;
+  type Payment = typeof payments.$inferSelect;
   const bookingMap = new Map<
     string,
-    { booking: any; service: any; payments: any[] }
+    { booking: Booking; service: Service; payments: Payment[] }
   >();
   for (const row of results) {
     const existing = bookingMap.get(row.booking.id);
@@ -193,6 +221,36 @@ app.get("/bookings", async (c) => {
     limit,
     totalPages: Math.ceil(totalResult.count / limit),
   });
+});
+
+// Update booking internal notes (FR79)
+app.patch("/bookings/:id/notes", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = z.object({ notes: z.string().max(2000) }).safeParse(body);
+  if (!parsed.success) return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+
+  const [updated] = await db
+    .update(bookings)
+    .set({ notes: parsed.data.notes, updatedAt: new Date() })
+    .where(eq(bookings.id, id))
+    .returning();
+
+  if (!updated) return c.json({ error: "Booking not found" }, 404);
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "booking.update_notes",
+    userId: user.id,
+    resourceType: "booking",
+    resourceId: id,
+    details: { notesLength: parsed.data.notes.length },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json({ success: true });
 });
 
 // Assign provider to booking
@@ -235,8 +293,25 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
     userAgent,
   });
 
+  // Fetch service for price + commission data (FR39) and pre-service check (FR66)
+  const service = updated.serviceId
+    ? await db.query.services.findFirst({ where: eq(services.id, updated.serviceId) })
+    : null;
+
+  // Calculate estimated payout for provider notification (FR39)
+  const estimatedPrice = updated.estimatedPrice || 0;
+  let estimatedPayout = 0;
+  if (provider.commissionType === "flat_per_job") {
+    estimatedPayout = provider.flatFeeAmount || 0;
+  } else if (service && service.commissionRate > 0) {
+    const platformCut = Math.round(estimatedPrice * service.commissionRate / 10000);
+    estimatedPayout = estimatedPrice - platformCut;
+  } else {
+    estimatedPayout = Math.round(estimatedPrice * provider.commissionRate / 10000);
+  }
+
   // Notify provider
-  notifyProviderAssigned(updated, provider).catch(() => {});
+  notifyProviderAssigned(updated, provider, estimatedPrice, estimatedPayout, service?.name).catch(() => {});
   if (provider.userId) {
     broadcastToProvider(provider.userId, {
       type: "provider:job_assigned",
@@ -245,10 +320,33 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
         providerId: provider.id,
         contactName: updated.contactName,
         address: (updated.location as { address: string }).address,
+        serviceName: service?.name,
+        estimatedPrice,
+        estimatedPayout,
       },
     });
   }
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: updated.status } });
+
+  // Pre-service confirmation for diagnostic/inspection bookings (FR66)
+  if (service && (service.category === "diagnostics" || service.slug.includes("inspection"))) {
+    // Calculate ETA from provider location to booking location if coordinates available
+    let etaDisplay = "30-45 minutes";
+    const bookingLat = (updated.location as { latitude?: number })?.latitude;
+    const bookingLng = (updated.location as { longitude?: number })?.longitude;
+    if (provider.latitude && provider.longitude && bookingLat && bookingLng) {
+      const etaMins = calculateEtaMinutes(provider.latitude, provider.longitude, bookingLat, bookingLng);
+      etaDisplay = `approximately ${etaMins} minutes`;
+    }
+    // TODO: Replace with real-time GPS-based ETA calculation when provider begins en-route
+
+    notifyPreServiceConfirmation(
+      { name: updated.contactName, email: updated.contactEmail, phone: updated.contactPhone },
+      provider.name,
+      etaDisplay,
+      service.name,
+    ).catch(() => {});
+  }
 
   return c.json(updated);
 });
@@ -294,8 +392,49 @@ app.patch("/bookings/:id/status", async (c) => {
   });
 
   // Auto-create payout when booking completed
+  let amountPaid: number | undefined;
   if (parsed.data.status === "completed") {
     await createPayoutIfEligible(bookingId);
+
+    // Fetch confirmed payment amount for completion notification (FR32)
+    const confirmedPayment = await db.query.payments.findFirst({
+      where: and(eq(payments.bookingId, bookingId), eq(payments.status, "confirmed")),
+    });
+    amountPaid = confirmedPayment?.amount;
+
+    // Post-service referral SMS (fire-and-forget) — only if payment confirmed
+    if (confirmedPayment && updated.contactPhone && updated.userId) {
+      (async () => {
+        const bookingUser = await db.query.users.findFirst({
+          where: eq(users.id, updated.userId!),
+        });
+        if (bookingUser) {
+          let referralCode = bookingUser.referralCode;
+          if (!referralCode) {
+            referralCode = await generateReferralCode(bookingUser.id);
+          }
+          const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
+          notifyReferralLink(updated.contactPhone, referralLink).catch(() => {});
+        }
+      })().catch(() => {});
+    }
+
+    // Credit referral on first booking completion (fire-and-forget)
+    if (updated.userId) {
+      (async () => {
+        await creditReferralOnFirstBooking(updated.userId!, bookingId);
+      })().catch(() => {});
+    }
+  }
+
+  if (parsed.data.status === "completed" || parsed.data.status === "cancelled") {
+    if (updated.providerId) {
+      db.update(providers)
+        .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
+        .where(eq(providers.id, updated.providerId))
+        .catch(() => {});
+    }
+    clearDelayNotification(bookingId);
   }
 
   // Auto-dispatch when confirmed
@@ -304,8 +443,8 @@ app.patch("/bookings/:id/status", async (c) => {
     dispatchResult = await autoDispatchBooking(bookingId).catch(() => null);
   }
 
-  // Fire-and-forget notifications
-  notifyStatusChange(updated, parsed.data.status).catch(() => {});
+  // Fire-and-forget notifications (FR32: completion includes amount paid)
+  notifyStatusChange(updated, parsed.data.status, amountPaid).catch(() => {});
 
   // WebSocket broadcasts
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
@@ -332,6 +471,8 @@ app.patch("/payments/:id/confirm", async (c) => {
   });
 
   if (existingPayment) {
+    const wasAlreadyConfirmed = existingPayment.status === "confirmed";
+
     const [updated] = await db
       .update(payments)
       .set({
@@ -358,6 +499,58 @@ app.patch("/payments/:id/confirm", async (c) => {
       ipAddress,
       userAgent,
     });
+
+    // Fetch full booking once for trust tier + receipt + payout
+    const fullBooking = await db.query.bookings.findFirst({
+      where: eq(bookings.id, existingPayment.bookingId),
+    });
+
+    // Increment clean transaction count for trust tier promotion
+    if (fullBooking?.userId) {
+      await incrementCleanTransaction(fullBooking.userId);
+    }
+
+    // Send receipt notification and create payout (only on first confirmation)
+    if (fullBooking && !wasAlreadyConfirmed) {
+      const service = await db.query.services.findFirst({
+        where: eq(services.id, fullBooking.serviceId),
+      });
+      let providerName: string | undefined;
+      if (fullBooking.providerId) {
+        const provider = await db.query.providers.findFirst({
+          where: eq(providers.id, fullBooking.providerId),
+          columns: { name: true },
+        });
+        providerName = provider?.name;
+      }
+
+      // Send receipt notification (fire-and-forget)
+      notifyPaymentConfirmed(
+        { name: fullBooking.contactName, email: fullBooking.contactEmail, phone: fullBooking.contactPhone },
+        fullBooking.id,
+        service?.name || "Service",
+        existingPayment.amount,
+        parsed.data.method,
+        updated.confirmedAt?.toISOString() || new Date().toISOString(),
+        providerName
+      ).catch(() => {});
+
+      // Audit receipt sent
+      logAudit({
+        action: "payment.receipt_sent",
+        userId: user.id,
+        resourceType: "payment",
+        resourceId: paymentId,
+        details: { bookingId: existingPayment.bookingId, email: fullBooking.contactEmail },
+        ipAddress,
+        userAgent,
+      });
+
+      // Create payout if eligible (was missing from this endpoint)
+      createPayoutIfEligible(fullBooking.id).catch((err) => {
+        console.error("[Payment] Failed to create payout for booking:", fullBooking.id, err);
+      });
+    }
 
     return c.json(updated);
   }
@@ -418,8 +611,48 @@ app.post("/bookings/:id/confirm-payment", async (c) => {
     userAgent,
   });
 
+  // Increment clean transaction count for trust tier promotion
+  if (booking.userId) {
+    await incrementCleanTransaction(booking.userId);
+  }
+
   // Try to create payout if booking is already completed
   await createPayoutIfEligible(bookingId);
+
+  // Send receipt notification
+  const service = await db.query.services.findFirst({
+    where: eq(services.id, booking.serviceId),
+  });
+  let providerName: string | undefined;
+  if (booking.providerId) {
+    const provider = await db.query.providers.findFirst({
+      where: eq(providers.id, booking.providerId),
+      columns: { name: true },
+    });
+    providerName = provider?.name;
+  }
+
+  // Fire-and-forget receipt notification
+  notifyPaymentConfirmed(
+    { name: booking.contactName, email: booking.contactEmail, phone: booking.contactPhone },
+    bookingId,
+    service?.name || "Service",
+    amount,
+    parsed.data.method,
+    payment.confirmedAt?.toISOString() || new Date().toISOString(),
+    providerName
+  ).catch(() => {});
+
+  // Audit receipt sent
+  logAudit({
+    action: "payment.receipt_sent",
+    userId: user.id,
+    resourceType: "payment",
+    resourceId: payment.id,
+    details: { bookingId, email: booking.contactEmail },
+    ipAddress,
+    userAgent,
+  });
 
   return c.json(payment, 201);
 });
@@ -646,9 +879,9 @@ app.get("/bookings/export", async (c) => {
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
 
-  const conditions = [];
-  if (status) {
-    conditions.push(eq(bookings.status, status as any));
+  const conditions: SQL[] = [];
+  if (status && isBookingStatus(status)) {
+    conditions.push(eq(bookings.status, status));
   }
   if (startDateStr) {
     conditions.push(gte(bookings.createdAt, new Date(startDateStr)));
@@ -797,7 +1030,7 @@ app.get("/audit-logs", async (c) => {
   try {
     const { queryAuditLogs } = await import("../lib/audit-logger");
     const logs = await queryAuditLogs({
-      action: action as any,
+      action: action as AuditAction,
       userId: userId || undefined,
       resourceType: resourceType || undefined,
       startDate: startDateStr ? new Date(startDateStr) : undefined,
@@ -814,6 +1047,206 @@ app.get("/audit-logs", async (c) => {
   } catch {
     return c.json({ data: [], page, limit, error: "Failed to query audit logs" });
   }
+});
+
+// PATCH /bookings/:id/override-price - Admin override booking price
+app.patch("/bookings/:id/override-price", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+
+  const existing = await db.query.bookings.findFirst({
+    where: eq(bookings.id, id),
+  });
+  if (!existing) {
+    return c.json({ error: "Booking not found" }, 404);
+  }
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+
+  // Handle clear override
+  if (body.clear === true) {
+    const [updated] = await db
+      .update(bookings)
+      .set({
+        priceOverrideCents: null,
+        priceOverrideReason: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+
+    logAudit({
+      action: "booking.price_override",
+      userId: user.id,
+      resourceType: "booking",
+      resourceId: id,
+      details: {
+        previousOverrideCents: existing.priceOverrideCents,
+        cleared: true,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    broadcastToAdmins({
+      type: "booking:price_override",
+      data: { bookingId: id },
+    });
+
+    return c.json(updated, 200);
+  }
+
+  // Set/update override
+  const parsed = overrideBookingPriceSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const { priceOverrideCents, reason } = parsed.data;
+
+  const [updated] = await db
+    .update(bookings)
+    .set({
+      priceOverrideCents,
+      priceOverrideReason: reason,
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, id))
+    .returning();
+
+  logAudit({
+    action: "booking.price_override",
+    userId: user.id,
+    resourceType: "booking",
+    resourceId: id,
+    details: {
+      originalEstimatedPrice: existing.estimatedPrice,
+      previousOverrideCents: existing.priceOverrideCents,
+      priceOverrideCents,
+      reason,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  broadcastToAdmins({
+    type: "booking:price_override",
+    data: { bookingId: id },
+  });
+
+  return c.json(updated, 200);
+});
+
+// GET /services/commission - List all services with commission rates
+app.get("/services/commission", async (c) => {
+  const allServices = await db
+    .select({
+      id: services.id,
+      name: services.name,
+      slug: services.slug,
+      category: services.category,
+      basePrice: services.basePrice,
+      commissionRate: services.commissionRate,
+      active: services.active,
+    })
+    .from(services)
+    .orderBy(services.category, services.name);
+
+  return c.json(allServices);
+});
+
+// PATCH /services/:id/commission - Update service commission rate
+app.patch("/services/:id/commission", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = updateServiceCommissionSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const existing = await db.query.services.findFirst({
+    where: eq(services.id, id),
+  });
+  if (!existing) {
+    return c.json({ error: "Service not found" }, 404);
+  }
+
+  const [updated] = await db
+    .update(services)
+    .set({
+      commissionRate: parsed.data.commissionRate,
+      updatedAt: new Date(),
+    })
+    .where(eq(services.id, id))
+    .returning();
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "commission.update_rate",
+    userId: user.id,
+    resourceType: "service",
+    resourceId: id,
+    details: {
+      serviceName: existing.name,
+      serviceCategory: existing.category,
+      previousRate: existing.commissionRate,
+      newRate: parsed.data.commissionRate,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  broadcastToAdmins({
+    type: "service:commission_updated",
+    data: { serviceId: id, commissionRate: parsed.data.commissionRate },
+  });
+
+  return c.json(updated, 200);
+});
+
+// PUT /services/:id/checklist - Update service checklist config
+app.put("/services/:id/checklist", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = updateChecklistConfigSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const existing = await db.query.services.findFirst({
+    where: eq(services.id, id),
+  });
+  if (!existing) {
+    return c.json({ error: "Service not found" }, 404);
+  }
+
+  const [updated] = await db
+    .update(services)
+    .set({
+      checklistConfig: parsed.data.checklistConfig,
+      updatedAt: new Date(),
+    })
+    .where(eq(services.id, id))
+    .returning();
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  await logAudit({
+    action: "service.update_checklist_config",
+    userId: user.id,
+    resourceType: "service",
+    resourceId: id,
+    details: {
+      serviceName: existing.name,
+      categoryCount: parsed.data.checklistConfig.length,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json(updated, 200);
 });
 
 export default app;

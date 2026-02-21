@@ -31,7 +31,7 @@ const formSchema = z.object({
   commissionRate: z.number().int().min(0).max(10000),
   flatFeeAmount: z.number().int().min(0).optional(),
   specialties: z.array(z.string()).optional(),
-  status: z.enum(["active", "inactive", "pending"]),
+  status: z.enum(["active", "inactive", "pending", "resubmission_requested"]),
   address: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
@@ -226,6 +226,7 @@ export function ProviderForm({
           <FormLabel>Specialties</FormLabel>
           <div className="mt-2 flex gap-2">
             {SERVICE_CATEGORIES.map((cat) => {
+              // eslint-disable-next-line react-hooks/incompatible-library -- react-hook-form watch usage is intentional
               const selected = form.watch("specialties")?.includes(cat);
               return (
                 <Button

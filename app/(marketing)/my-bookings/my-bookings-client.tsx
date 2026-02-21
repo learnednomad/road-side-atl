@@ -16,6 +16,7 @@ import {
   FileText,
   Car,
   AlertCircle,
+  Star,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -64,6 +65,7 @@ interface Booking {
     status: string;
     confirmedAt: string | null;
   }[];
+  hasReview: boolean;
 }
 
 interface MyBookingsClientProps {
@@ -103,6 +105,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
 
     if (lastEvent.type === "booking:status_changed") {
       const { bookingId, status } = lastEvent.data as { bookingId: string; status: string };
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- websocket-driven state update
       setBookings((prev) =>
         prev.map((b) =>
           b.booking.id === bookingId
@@ -162,7 +165,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
                 <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground">No active bookings</h3>
                 <p className="text-muted-foreground mt-2">
-                  You don't have any active service requests at the moment.
+                  You don&apos;t have any active service requests at the moment.
                 </p>
                 <Button asChild className="mt-4">
                   <Link href="/services">Book a Service</Link>
@@ -215,7 +218,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
 }
 
 function BookingCard({ data }: { data: Booking }) {
-  const { booking, service, provider, payments } = data;
+  const { booking, service, provider, payments, hasReview } = data;
   const status = statusConfig[booking.status] || statusConfig.pending;
   const StatusIcon = status.icon;
   const isPaid = payments.some((p) => p.status === "confirmed");
@@ -318,6 +321,14 @@ function BookingCard({ data }: { data: Booking }) {
                 <Link href={`/api/receipts/${booking.id}`} target="_blank">
                   <FileText className="h-4 w-4 mr-1" />
                   Receipt
+                </Link>
+              </Button>
+            )}
+            {booking.status === "completed" && provider && !hasReview && (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/track/${booking.id}#review`}>
+                  <Star className="h-4 w-4 mr-1" />
+                  Review
                 </Link>
               </Button>
             )}

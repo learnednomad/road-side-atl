@@ -9,9 +9,11 @@ import {
   TOWING_BASE_MILES,
   TOWING_PRICE_PER_MILE_CENTS,
 } from "@/lib/constants";
+import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { geocodeAddress } from "@/lib/geocoding";
-import { notifyBookingCreated } from "@/lib/notifications";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
+import { notifyBookingCreated, notifyStatusChange } from "@/lib/notifications";
+import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
+import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 
@@ -38,10 +40,15 @@ app.post("/", async (c) => {
     return c.json({ error: "Service not found" }, 404);
   }
 
-  // Calculate price
-  let estimatedPrice = service.basePrice;
+  // Calculate price via centralized pricing engine
+  const pricing = await calculateBookingPrice(
+    data.serviceId,
+    data.scheduledAt ? new Date(data.scheduledAt) : null,
+  );
+  let estimatedPrice = pricing.finalPrice;
   let towingMiles: number | undefined;
 
+  // Towing per-mile is ADDITIVE (not multiplied by time-block)
   if (service.slug === "towing" && data.location.estimatedMiles) {
     towingMiles = data.location.estimatedMiles;
     const extraMiles = Math.max(0, towingMiles - TOWING_BASE_MILES);
@@ -84,6 +91,7 @@ app.post("/", async (c) => {
       estimatedPrice,
       towingMiles,
       notes: data.notes,
+      preferredPaymentMethod: data.paymentMethod,
     })
     .returning();
 
@@ -110,7 +118,21 @@ app.post("/", async (c) => {
     data: { bookingId: booking.id, contactName: booking.contactName, status: booking.status, serviceName: service.name },
   });
 
-  return c.json(booking, 201);
+  // Auto-dispatch for immediate bookings (deferred for scheduled)
+  let dispatchResult = null;
+  if (!booking.scheduledAt && process.env.AUTO_DISPATCH_ENABLED === "true") {
+    dispatchResult = await autoDispatchBooking(booking.id).catch(() => null);
+  }
+
+  return c.json({
+    ...booking,
+    pricingBreakdown: {
+      basePrice: pricing.basePrice,
+      multiplier: pricing.multiplier,
+      blockName: pricing.blockName,
+    },
+    dispatchResult,
+  }, 201);
 });
 
 // Get user's bookings (authenticated)
@@ -188,6 +210,12 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
     ipAddress,
     userAgent,
   });
+
+  notifyStatusChange(booking, "cancelled").catch(() => {});
+  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
+  if (booking.userId) {
+    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
+  }
 
   return c.json(updated);
 });

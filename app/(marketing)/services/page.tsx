@@ -28,7 +28,16 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function ServicesPage() {
-  let allServices: any[] = [];
+  type Service = {
+    name: string;
+    slug: string;
+    description: string;
+    basePrice: number;
+    pricePerMile: number | null;
+    category: string;
+  };
+
+  let allServices: Service[] = [];
   try {
     allServices = await db
       .select()
@@ -42,7 +51,9 @@ export default async function ServicesPage() {
       { name: "Lockout Service", slug: "lockout", description: "Locked out of your car? Our technicians will safely get you back in.", basePrice: 7500, pricePerMile: null, category: "roadside" },
       { name: "Flat Tire Change", slug: "flat-tire", description: "We'll swap your flat for your spare tire and get you back on the road.", basePrice: 10000, pricePerMile: null, category: "roadside" },
       { name: "Fuel Delivery", slug: "fuel-delivery", description: "Ran out of gas? We'll bring enough fuel to get you to the nearest station.", basePrice: 7500, pricePerMile: null, category: "roadside" },
-      { name: "Car Purchase Diagnostics", slug: "car-purchase-diagnostics", description: "Comprehensive pre-purchase vehicle inspection with OBD2 scan and mechanical grade assessment. Full payment required upfront.", basePrice: 25000, pricePerMile: null, category: "diagnostics" },
+      { name: "Basic Inspection", slug: "basic-inspection", description: "Essential pre-purchase check covering OBD2 scan, visual exterior/interior inspection, fluid levels, tire condition, and battery health.", basePrice: 15000, pricePerMile: null, category: "diagnostics" },
+      { name: "Standard Inspection", slug: "standard-inspection", description: "Comprehensive inspection including OBD2 diagnostics, brake system check, suspension test, electrical system review, engine performance analysis, and photo documentation.", basePrice: 25000, pricePerMile: null, category: "diagnostics" },
+      { name: "Premium Inspection", slug: "premium-inspection", description: "Complete diagnostic report with full mechanical inspection, detailed OBD2 code analysis, test drive evaluation, undercarriage examination, emissions check, and branded PDF report with repair cost estimates.", basePrice: 39900, pricePerMile: null, category: "diagnostics" },
     ];
   }
 
