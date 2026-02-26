@@ -3,14 +3,14 @@ import { BUSINESS } from "@/lib/constants";
 interface InvoiceData {
   invoiceNumber: string;
   customerName: string;
-  customerEmail: string;
-  customerPhone: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
   lineItems: Array<{
     description: string;
     quantity: number;
     unitPrice: number;
     total: number;
-  }>;
+  }> | null;
   subtotal: number;
   total: number;
   status: string;
@@ -117,7 +117,7 @@ export function generateInvoiceHTML(data: InvoiceData): string {
       </tr>
     </thead>
     <tbody>
-      ${data.lineItems
+      ${(data.lineItems ?? [])
         .map(
           (item) => `
         <tr>
