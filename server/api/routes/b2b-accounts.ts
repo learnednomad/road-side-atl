@@ -406,7 +406,7 @@ app.post("/:id/bookings", async (c) => {
     account.companyName,
     service.name,
     data.location.address,
-  ).catch(() => {});
+  ).catch((err) => { console.error("[Notifications] Failed:", err); });
   broadcastToAdmins({
     type: "booking:created",
     data: {

@@ -12,15 +12,27 @@ import {
 
 /**
  * Get client identifier from request
- * Uses X-Forwarded-For for proxied requests, falls back to a default
+ * Uses the connecting IP from the socket when available.
+ * Only trusts X-Forwarded-For when running behind a known reverse proxy
+ * (configured via TRUST_PROXY env var).
  */
 function getClientId(c: Context): string {
-  const forwarded = c.req.header("x-forwarded-for");
-  if (forwarded) {
-    return forwarded.split(",")[0].trim();
+  // Only trust X-Forwarded-For if explicitly configured (e.g., behind nginx/cloudflare)
+  if (process.env.TRUST_PROXY === "true") {
+    const forwarded = c.req.header("x-forwarded-for");
+    if (forwarded) {
+      return forwarded.split(",")[0].trim();
+    }
   }
-  // For local development
-  return "local-client";
+
+  // Use CF-Connecting-IP if behind Cloudflare (harder to spoof)
+  const cfIp = c.req.header("cf-connecting-ip");
+  if (cfIp) {
+    return cfIp;
+  }
+
+  // Fallback — less reliable but can't be spoofed via headers
+  return c.req.header("x-real-ip") || "unknown-client";
 }
 
 /**

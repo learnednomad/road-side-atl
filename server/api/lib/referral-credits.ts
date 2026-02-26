@@ -136,9 +136,9 @@ export async function creditReferralOnFirstBooking(
   const referee = await db.query.users.findFirst({ where: eq(users.id, userId) });
 
   if (referrer?.phone) {
-    notifyReferralCredit(referrer.phone, REFERRAL_CREDIT_AMOUNT_CENTS, referrer.email ?? undefined, referrer.name ?? undefined).catch(() => {});
+    notifyReferralCredit(referrer.phone, REFERRAL_CREDIT_AMOUNT_CENTS, referrer.email ?? undefined, referrer.name ?? undefined).catch((err) => { console.error("[Notifications] Failed:", err); });
   }
   if (referee?.phone) {
-    notifyReferralCredit(referee.phone, REFERRAL_CREDIT_AMOUNT_CENTS, referee.email ?? undefined, referee.name ?? undefined).catch(() => {});
+    notifyReferralCredit(referee.phone, REFERRAL_CREDIT_AMOUNT_CENTS, referee.email ?? undefined, referee.name ?? undefined).catch((err) => { console.error("[Notifications] Failed:", err); });
   }
 }

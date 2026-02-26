@@ -168,7 +168,7 @@ export async function autoDispatchBooking(
     estimatedPayout = Math.round(estimatedPrice * assignedProvider.commissionRate / 10000);
   }
 
-  notifyProviderAssigned(booking, assignedProvider, estimatedPrice, estimatedPayout, service?.name).catch(() => {});
+  notifyProviderAssigned(booking, assignedProvider, estimatedPrice, estimatedPayout, service?.name).catch((err) => { console.error("[Notifications] Failed:", err); });
   if (assignedProvider.userId) {
     broadcastToProvider(assignedProvider.userId, {
       type: "provider:job_assigned",
