@@ -21,6 +21,12 @@
 - **Notifications:** Email (Resend) + SMS (Twilio) + Web Push (VAPID)
 - **Maps:** Google Maps (Places autocomplete, Geocoding, AdvancedMarker)
 
+## Feature Documentation
+
+- [Technical Feature Catalog](./feature-catalog-technical.md) — Complete inventory of all platform features with schemas, APIs, business logic, and file paths (developer audience)
+- [User Feature Guide](./feature-guide-users.md) — Task-oriented guide to all features for customers, providers, and administrators (end-user audience)
+- [Architecture Diagrams](./architecture-diagram.md) — Full system architecture, feature connection map, and booking lifecycle sequence diagram (Mermaid)
+
 ## Generated Documentation
 
 - [Project Overview](./project-overview.md) — Purpose, services, roles, integrations
