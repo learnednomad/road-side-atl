@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { requireAdmin } from "../middleware/auth";
-import { uploadFile, ALLOWED_IMAGE_TYPES, MAX_FILE_SIZE } from "@/lib/s3";
+import { uploadFile, validateFileContent, ALLOWED_IMAGE_TYPES, MAX_FILE_SIZE } from "@/lib/s3";
 
 type AuthEnv = {
   Variables: {
@@ -36,6 +36,15 @@ app.post("/logo", requireAdmin, async (c) => {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  // Server-side content validation (magic bytes check)
+  if (!validateFileContent(buffer, file.type)) {
+    return c.json(
+      { error: "File content does not match declared type" },
+      400
+    );
+  }
+
   const ext = file.name.split(".").pop() || "png";
   const key = `logos/company-logo-${Date.now()}.${ext}`;
 

@@ -307,6 +307,16 @@ export const initiateRefundSchema = z.object({
 );
 export type InitiateRefundInput = z.infer<typeof initiateRefundSchema>;
 
+export const rescheduleBookingSchema = z.object({
+  scheduledAt: z.string().datetime("Must be a valid ISO datetime"),
+  location: locationSchema.optional(),
+  notes: z.string().optional(),
+}).refine(
+  (data) => new Date(data.scheduledAt) > new Date(Date.now() + 2 * 60 * 60 * 1000),
+  { message: "Rescheduled time must be at least 2 hours from now", path: ["scheduledAt"] }
+);
+export type RescheduleBookingInput = z.infer<typeof rescheduleBookingSchema>;
+
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
 export type LocationInfo = z.infer<typeof locationSchema>;
