@@ -6,6 +6,7 @@ import { requireAdmin } from "../middleware/auth";
 import { markPayoutPaidSchema, initiateRefundSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { broadcastToAdmins } from "@/server/websocket/broadcast";
+import { getStripe } from "@/lib/stripe";
 
 type AuthEnv = {
   Variables: {
@@ -174,6 +175,21 @@ app.post("/refund", async (c) => {
     const refundAmount = refundType === "full" ? payment.amount : requestedAmount!;
     if (refundAmount > payment.amount) {
       return { error: "Refund amount exceeds payment amount", status: 400 } as const;
+    }
+
+    // H2: If Stripe payment, issue actual Stripe refund before updating DB
+    if (payment.method === "stripe" && payment.stripePaymentIntentId) {
+      try {
+        await getStripe().refunds.create({
+          payment_intent: payment.stripePaymentIntentId,
+          amount: refundAmount,
+        });
+      } catch (err) {
+        console.error("[Refund] Stripe refund API failed:", err);
+        return { error: "Failed to process Stripe refund", status: 502 } as const;
+      }
+    } else if (payment.method === "stripe" && !payment.stripePaymentIntentId) {
+      console.warn(`[Refund] Stripe payment ${payment.id} missing PaymentIntent ID — DB-only refund`);
     }
 
     // Update payment with refund info

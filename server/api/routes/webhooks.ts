@@ -1,12 +1,72 @@
 import { Hono } from "hono";
 import { db } from "@/db";
 import { payments, bookings } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { stripe } from "@/lib/stripe";
 import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { logAudit } from "../lib/audit-logger";
 
 const app = new Hono();
+
+// ── Helpers ──────────────────────────────────────────────────────
+
+/**
+ * In-memory set for event ID deduplication within a single process lifecycle.
+ * Stripe retries webhooks on non-2xx responses — this prevents processing the same event twice.
+ * For multi-instance deployments, replace with a DB table or Redis set.
+ */
+const processedEvents = new Set<string>();
+const MAX_PROCESSED_EVENTS = 10000;
+
+function markEventProcessed(eventId: string) {
+  processedEvents.add(eventId);
+  // Prevent unbounded memory growth — evict oldest entries
+  if (processedEvents.size > MAX_PROCESSED_EVENTS) {
+    const first = processedEvents.values().next().value;
+    if (first) processedEvents.delete(first);
+  }
+}
+
+/**
+ * Extract PaymentIntent ID from Stripe event objects.
+ * Stripe sometimes returns the full object, sometimes just the string ID.
+ */
+function extractPaymentIntentId(pi: string | { id: string } | null | undefined): string | null {
+  if (!pi) return null;
+  return typeof pi === "string" ? pi : pi.id;
+}
+
+/**
+ * Find a payment record by PaymentIntent ID (primary) or bookingId from metadata (fallback).
+ * The fallback handles payments created before we started storing stripePaymentIntentId.
+ */
+async function findPayment(
+  paymentIntentId: string | null,
+  metadata: Record<string, string> | null | undefined,
+  eventType: string
+) {
+  // Primary lookup: by PaymentIntent ID
+  if (paymentIntentId) {
+    const payment = await db.query.payments.findFirst({
+      where: eq(payments.stripePaymentIntentId, paymentIntentId),
+    });
+    if (payment) return payment;
+  }
+
+  // Fallback: by bookingId from metadata (for charges/disputes that carry payment_intent_data.metadata)
+  const bookingId = metadata?.bookingId;
+  if (bookingId) {
+    const payment = await db.query.payments.findFirst({
+      where: and(eq(payments.bookingId, bookingId), eq(payments.method, "stripe")),
+    });
+    if (payment) return payment;
+  }
+
+  console.warn(`[Webhook] ${eventType}: no payment found (pi=${paymentIntentId}, bookingId=${bookingId || "none"})`);
+  return null;
+}
+
+// ── Webhook Handler ──────────────────────────────────────────────
 
 app.post("/stripe", async (c) => {
   const body = await c.req.text();
@@ -16,28 +76,45 @@ app.post("/stripe", async (c) => {
     return c.json({ error: "Missing signature" }, 400);
   }
 
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error("[Webhook] STRIPE_WEBHOOK_SECRET is not configured");
+    return c.json({ error: "Webhook not configured" }, 500);
+  }
+
   let event;
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch {
     return c.json({ error: "Invalid signature" }, 400);
   }
 
+  // Event-level idempotency: skip already-processed events
+  if (processedEvents.has(event.id)) {
+    return c.json({ received: true, deduplicated: true });
+  }
+
   switch (event.type) {
+    // ── Payment Confirmed ──────────────────────────────────────
     case "checkout.session.completed": {
       const session = event.data.object;
       const bookingId = session.metadata?.bookingId;
+      const paymentIntentId = extractPaymentIntentId(session.payment_intent);
 
       if (bookingId && session.id) {
+        // Idempotency: skip if already confirmed
+        const existing = await db.query.payments.findFirst({
+          where: and(eq(payments.stripeSessionId, session.id), eq(payments.status, "confirmed")),
+        });
+        if (existing) break;
+
+        // Confirm payment and store PaymentIntent ID for future cross-referencing
         await db
           .update(payments)
           .set({
             status: "confirmed",
             confirmedAt: new Date(),
+            ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
           })
           .where(eq(payments.stripeSessionId, session.id));
 
@@ -53,111 +130,45 @@ app.post("/stripe", async (c) => {
       break;
     }
 
-    case "charge.refunded": {
-      const charge = event.data.object;
-      const paymentIntentId = charge.payment_intent;
-
-      if (paymentIntentId) {
-        const bookingId = charge.metadata?.bookingId;
-        if (bookingId) {
-          await db
-            .update(payments)
-            .set({ status: "refunded" })
-            .where(eq(payments.bookingId, bookingId));
-        }
-      }
-      break;
-    }
-
+    // ── Checkout Expired (customer abandoned) ───────────────────
     case "checkout.session.expired": {
       const session = event.data.object;
-
       if (session.id) {
+        // Only update if still pending (idempotent)
         await db
           .update(payments)
           .set({ status: "failed" })
-          .where(eq(payments.stripeSessionId, session.id));
+          .where(and(eq(payments.stripeSessionId, session.id), eq(payments.status, "pending")));
       }
       break;
     }
 
-    case "charge.dispute.created": {
-      const dispute = event.data.object;
-      const bookingId = dispute.metadata?.bookingId;
-      const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+    // ── Refund Processed ────────────────────────────────────────
+    case "charge.refunded": {
+      const charge = event.data.object;
+      const paymentIntentId = extractPaymentIntentId(charge.payment_intent);
+      const payment = await findPayment(paymentIntentId, charge.metadata, "charge.refunded");
 
-      logAudit({
-        action: "payment.refund",
-        resourceType: "dispute",
-        resourceId: dispute.id,
-        details: {
-          reason: dispute.reason,
-          amount: dispute.amount,
-          currency: dispute.currency,
-          status: dispute.status,
-          bookingId: bookingId || null,
-          chargeId: chargeId || null,
-        },
-      });
-
-      // Mark the associated payment as disputed if we can find it
-      if (bookingId) {
-        await db
-          .update(payments)
-          .set({ status: "failed" })
-          .where(eq(payments.bookingId, bookingId));
-
-        await db
-          .update(bookings)
-          .set({ notes: `[DISPUTE] ${dispute.reason} — Dispute ID: ${dispute.id}`, updatedAt: new Date() })
-          .where(eq(bookings.id, bookingId));
-      }
-      break;
-    }
-
-    case "charge.dispute.updated": {
-      const dispute = event.data.object;
-      const bookingId = dispute.metadata?.bookingId;
-
-      logAudit({
-        action: "payment.refund",
-        resourceType: "dispute",
-        resourceId: dispute.id,
-        details: {
-          reason: dispute.reason,
-          amount: dispute.amount,
-          status: dispute.status,
-          bookingId: bookingId || null,
-        },
-      });
-
-      // If dispute is won, restore the payment
-      if (dispute.status === "won" && bookingId) {
-        await db
-          .update(payments)
-          .set({ status: "confirmed" })
-          .where(eq(payments.bookingId, bookingId));
-      }
-
-      // If dispute is lost, mark as refunded
-      if (dispute.status === "lost" && bookingId) {
+      if (payment && payment.status !== "refunded") {
+        // Determine if full or partial refund
+        const refundedAmount = charge.amount_refunded || 0;
         await db
           .update(payments)
           .set({
             status: "refunded",
-            refundAmount: dispute.amount,
+            refundAmount: refundedAmount > 0 ? refundedAmount : payment.amount,
             refundedAt: new Date(),
-            refundReason: `Dispute lost: ${dispute.reason}`,
           })
-          .where(eq(payments.bookingId, bookingId));
+          .where(eq(payments.id, payment.id));
       }
       break;
     }
 
+    // ── Payment Failed (card declined, 3DS failed, etc.) ────────
     case "payment_intent.payment_failed": {
       const paymentIntent = event.data.object;
-      const bookingId = paymentIntent.metadata?.bookingId;
       const failureMessage = paymentIntent.last_payment_error?.message || "Unknown failure";
+      const failureCode = paymentIntent.last_payment_error?.code;
 
       logAudit({
         action: "payment.confirm",
@@ -166,21 +177,162 @@ app.post("/stripe", async (c) => {
         details: {
           status: "failed",
           failureMessage,
-          bookingId: bookingId || null,
+          failureCode: failureCode || null,
+          bookingId: paymentIntent.metadata?.bookingId || null,
         },
       });
 
-      if (bookingId) {
-        // Mark associated payment as failed
+      const payment = await findPayment(paymentIntent.id, paymentIntent.metadata, "payment_intent.payment_failed");
+      if (payment && payment.status === "pending") {
         await db
           .update(payments)
           .set({ status: "failed" })
-          .where(eq(payments.bookingId, bookingId));
+          .where(eq(payments.id, payment.id));
       }
       break;
     }
+
+    // ── Dispute Opened ──────────────────────────────────────────
+    case "charge.dispute.created": {
+      const dispute = event.data.object;
+      const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+      const paymentIntentId = extractPaymentIntentId(dispute.payment_intent);
+
+      logAudit({
+        action: "payment.dispute",
+        resourceType: "dispute",
+        resourceId: dispute.id,
+        details: {
+          reason: dispute.reason,
+          amount: dispute.amount,
+          currency: dispute.currency,
+          status: dispute.status,
+          chargeId: chargeId || null,
+          paymentIntentId: paymentIntentId || null,
+        },
+      });
+
+      const payment = await findPayment(paymentIntentId, dispute.metadata, "charge.dispute.created");
+      if (payment) {
+        await db
+          .update(payments)
+          .set({ status: "disputed" })
+          .where(eq(payments.id, payment.id));
+
+        await db
+          .update(bookings)
+          .set({
+            notes: `[DISPUTE] ${dispute.reason} — Dispute ID: ${dispute.id}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(bookings.id, payment.bookingId));
+      }
+      break;
+    }
+
+    // ── Dispute Resolution ──────────────────────────────────────
+    case "charge.dispute.updated": {
+      const dispute = event.data.object;
+      const paymentIntentId = extractPaymentIntentId(dispute.payment_intent);
+
+      logAudit({
+        action: "payment.dispute",
+        resourceType: "dispute",
+        resourceId: dispute.id,
+        details: {
+          reason: dispute.reason,
+          amount: dispute.amount,
+          status: dispute.status,
+          paymentIntentId: paymentIntentId || null,
+        },
+      });
+
+      const payment = await findPayment(paymentIntentId, dispute.metadata, "charge.dispute.updated");
+      if (payment) {
+        if (dispute.status === "won") {
+          await db
+            .update(payments)
+            .set({ status: "confirmed" })
+            .where(eq(payments.id, payment.id));
+
+          await db
+            .update(bookings)
+            .set({
+              notes: `[DISPUTE WON] Resolved in our favor — Dispute ID: ${dispute.id}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(bookings.id, payment.bookingId));
+        }
+
+        if (dispute.status === "lost") {
+          await db
+            .update(payments)
+            .set({
+              status: "refunded",
+              refundAmount: dispute.amount,
+              refundedAt: new Date(),
+              refundReason: `Dispute lost: ${dispute.reason}`,
+            })
+            .where(eq(payments.id, payment.id));
+        }
+      }
+      break;
+    }
+
+    // ── Dispute Funds Withdrawn (funds debited from your Stripe balance) ──
+    case "charge.dispute.funds_withdrawn": {
+      const dispute = event.data.object;
+      const paymentIntentId = extractPaymentIntentId(dispute.payment_intent);
+
+      logAudit({
+        action: "payment.dispute",
+        resourceType: "dispute",
+        resourceId: dispute.id,
+        details: {
+          event: "funds_withdrawn",
+          amount: dispute.amount,
+          currency: dispute.currency,
+          paymentIntentId: paymentIntentId || null,
+        },
+      });
+      break;
+    }
+
+    // ── Dispute Funds Reinstated (funds returned after winning dispute) ──
+    case "charge.dispute.funds_reinstated": {
+      const dispute = event.data.object;
+      const paymentIntentId = extractPaymentIntentId(dispute.payment_intent);
+
+      logAudit({
+        action: "payment.dispute",
+        resourceType: "dispute",
+        resourceId: dispute.id,
+        details: {
+          event: "funds_reinstated",
+          amount: dispute.amount,
+          currency: dispute.currency,
+          paymentIntentId: paymentIntentId || null,
+        },
+      });
+
+      // Restore payment status since funds are back
+      const payment = await findPayment(paymentIntentId, dispute.metadata, "charge.dispute.funds_reinstated");
+      if (payment && payment.status === "disputed") {
+        await db
+          .update(payments)
+          .set({ status: "confirmed" })
+          .where(eq(payments.id, payment.id));
+      }
+      break;
+    }
+
+    // ── Catch-all for unhandled events ───────────────────────────
+    default:
+      // Log unhandled events at debug level — don't fail
+      break;
   }
 
+  markEventProcessed(event.id);
   return c.json({ received: true });
 });
 

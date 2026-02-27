@@ -29,6 +29,7 @@ export const PAYMENT_STATUSES = [
   "confirmed",
   "failed",
   "refunded",
+  "disputed",
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
