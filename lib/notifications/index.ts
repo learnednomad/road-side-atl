@@ -1,12 +1,21 @@
-import { sendBookingConfirmation, sendProviderAssignment, sendStatusUpdate } from "./email";
+import { sendBookingConfirmation, sendProviderAssignment, sendStatusUpdate, sendObservationFollowUpEmail, sendReferralCreditEmail, sendPreServiceConfirmationEmail, sendInspectionReportEmail, sendTierPromotionEmail, sendPaymentReceiptEmail, sendB2bServiceDispatchedEmail, sendB2bInvoiceEmail } from "./email";
 import {
   sendBookingConfirmationSMS,
   sendProviderAssignmentSMS,
   sendStatusUpdateSMS,
+  sendObservationFollowUpSMS,
+  sendPreServiceConfirmationSMS,
+  sendReferralSMS,
+  sendReferralCreditSMS,
+  sendTierPromotionSMS,
+  sendPaymentReceiptSMS,
+  sendB2bServiceDispatchedSMS,
 } from "./sms";
+import { notifyBookingStatusPush, notifyProviderNewJobPush } from "./push";
 
 interface BookingInfo {
   id: string;
+  userId?: string | null;
   contactName: string;
   contactEmail: string;
   contactPhone: string;
@@ -15,28 +24,150 @@ interface BookingInfo {
 }
 
 interface ProviderInfo {
+  id: string;
   name: string;
   email: string;
   phone: string;
 }
 
 export async function notifyBookingCreated(booking: BookingInfo) {
-  await Promise.allSettled([
+  const tasks: Promise<unknown>[] = [
     sendBookingConfirmation(booking),
     sendBookingConfirmationSMS(booking.contactPhone, booking),
+  ];
+  if (booking.userId) {
+    tasks.push(notifyBookingStatusPush(booking.userId, booking.id, "confirmed"));
+  }
+  await Promise.allSettled(tasks);
+}
+
+export async function notifyProviderAssigned(booking: BookingInfo, provider: ProviderInfo, estimatedPrice?: number, estimatedPayout?: number, serviceName?: string) {
+  const tasks: Promise<unknown>[] = [
+    sendProviderAssignment(booking, provider, estimatedPayout),
+    sendProviderAssignmentSMS(provider.phone, booking, estimatedPrice, estimatedPayout),
+  ];
+  tasks.push(notifyProviderNewJobPush(provider.id, booking.id, booking.contactName, serviceName || "Roadside Assistance"));
+  await Promise.allSettled(tasks);
+}
+
+export async function notifyStatusChange(booking: BookingInfo, newStatus: string, amountPaid?: number) {
+  const tasks: Promise<unknown>[] = [
+    sendStatusUpdate(booking, newStatus, amountPaid),
+    sendStatusUpdateSMS(booking.contactPhone, booking, newStatus, amountPaid),
+  ];
+  if (booking.userId) {
+    tasks.push(notifyBookingStatusPush(booking.userId, booking.id, newStatus));
+  }
+  await Promise.allSettled(tasks);
+}
+
+export async function notifyObservationFollowUp(customer: { name: string; email: string; phone: string }, findings: string) {
+  await Promise.allSettled([
+    sendObservationFollowUpEmail(customer.email, customer.name, findings),
+    sendObservationFollowUpSMS(customer.phone, findings),
   ]);
 }
 
-export async function notifyProviderAssigned(booking: BookingInfo, provider: ProviderInfo) {
+export async function notifyReferralLink(phone: string, referralLink: string) {
+  await sendReferralSMS(phone, referralLink);
+}
+
+export async function notifyReferralCredit(phone: string, amount: number, email?: string, name?: string) {
+  const tasks: Promise<unknown>[] = [sendReferralCreditSMS(phone, amount)];
+  if (email && name) {
+    tasks.push(sendReferralCreditEmail(email, name, amount));
+  }
+  await Promise.allSettled(tasks);
+}
+
+export async function notifyPreServiceConfirmation(
+  customer: { name: string; email: string; phone: string },
+  inspectorName: string,
+  eta: string,
+  serviceName: string
+) {
   await Promise.allSettled([
-    sendProviderAssignment(booking, provider),
-    sendProviderAssignmentSMS(provider.phone, booking),
+    sendPreServiceConfirmationEmail(customer.email, customer.name, inspectorName, eta, serviceName),
+    sendPreServiceConfirmationSMS(customer.phone, inspectorName, eta),
   ]);
 }
 
-export async function notifyStatusChange(booking: BookingInfo, newStatus: string) {
+export async function notifyTierPromotion(
+  customer: { name: string; email: string; phone: string },
+) {
   await Promise.allSettled([
-    sendStatusUpdate(booking, newStatus),
-    sendStatusUpdateSMS(booking.contactPhone, booking, newStatus),
+    sendTierPromotionEmail(customer.email, customer.name),
+    sendTierPromotionSMS(customer.phone),
+  ]);
+}
+
+export async function notifyInspectionReport(
+  customer: { name: string; email: string },
+  bookingId: string,
+  vehicleDescription: string,
+  reportUrl: string,
+  inspectionDate: string
+) {
+  await sendInspectionReportEmail(customer.email, customer.name, bookingId, vehicleDescription, reportUrl, inspectionDate);
+}
+
+export async function notifyB2bServiceDispatched(
+  customer: { name: string; email: string; phone: string },
+  companyName: string,
+  serviceName: string,
+  locationAddress: string
+) {
+  await Promise.allSettled([
+    sendB2bServiceDispatchedEmail(customer.email, customer.name, companyName, serviceName, locationAddress),
+    sendB2bServiceDispatchedSMS(customer.phone, companyName, serviceName),
+  ]);
+}
+
+export async function notifyB2bInvoiceSent(
+  contact: { name: string; email: string },
+  companyName: string,
+  invoiceNumber: string,
+  lineItems: { description: string; quantity: number; unitPrice: number; total: number }[],
+  totalCents: number,
+  dueDate: Date | null,
+  billingPeriodStart: string | null,
+  billingPeriodEnd: string | null,
+) {
+  await Promise.allSettled([
+    sendB2bInvoiceEmail(
+      contact.email,
+      contact.name,
+      companyName,
+      invoiceNumber,
+      lineItems,
+      totalCents,
+      dueDate,
+      billingPeriodStart,
+      billingPeriodEnd,
+    ),
+  ]);
+}
+
+export async function notifyPaymentConfirmed(
+  customer: { name: string; email: string; phone: string },
+  bookingId: string,
+  serviceName: string,
+  amountPaid: number,
+  paymentMethod: string,
+  paymentDate: string,
+  providerName?: string
+) {
+  await Promise.allSettled([
+    sendPaymentReceiptEmail(
+      customer.email,
+      customer.name,
+      bookingId,
+      serviceName,
+      amountPaid,
+      paymentMethod,
+      paymentDate,
+      providerName
+    ),
+    sendPaymentReceiptSMS(customer.phone, bookingId, amountPaid, paymentMethod),
   ]);
 }

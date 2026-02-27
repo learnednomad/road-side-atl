@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ export default function ProviderJobDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  function fetchJob() {
+  const fetchJob = useCallback(() => {
     setLoading(true);
     setError(false);
     fetch(`/api/provider/jobs/${params.id}`)
@@ -48,11 +48,11 @@ export default function ProviderJobDetailPage() {
       .then((data) => setJob(data))
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }
+  }, [params.id]);
 
   useEffect(() => {
-    fetchJob();
-  }, [params.id]);
+    fetchJob(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
+  }, [fetchJob]);
 
   if (loading) {
     return (

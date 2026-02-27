@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Table,
   TableBody,
@@ -86,7 +86,7 @@ export function AuditLogsClient() {
   const [searchUserId, setSearchUserId] = useState("");
   const [page, setPage] = useState(1);
 
-  async function fetchLogs() {
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -106,11 +106,11 @@ export function AuditLogsClient() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [actionFilter, resourceFilter, searchUserId, page]);
 
   useEffect(() => {
     fetchLogs();
-  }, [actionFilter, resourceFilter, page]);
+  }, [fetchLogs]);
 
   function handleSearch() {
     setPage(1);

@@ -15,6 +15,7 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "confirmed",
   "failed",
   "refunded",
+  "disputed",
 ]);
 
 export const payments = pgTable("payments", {
@@ -28,8 +29,13 @@ export const payments = pgTable("payments", {
   method: paymentMethodEnum("method").notNull(),
   status: paymentStatusEnum("status").default("pending").notNull(),
   stripeSessionId: text("stripeSessionId"),
+  stripePaymentIntentId: text("stripePaymentIntentId"),
   confirmedAt: timestamp("confirmedAt", { mode: "date" }),
   confirmedBy: text("confirmedBy").references(() => users.id),
   tenantId: text("tenantId"),
+  refundAmount: integer("refundAmount"), // cents, null = no refund
+  refundedAt: timestamp("refundedAt", { mode: "date" }),
+  refundedBy: text("refundedBy").references(() => users.id),
+  refundReason: text("refundReason"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
 });

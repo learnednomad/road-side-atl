@@ -19,6 +19,7 @@ export function useWebSocket({ userId, role, enabled = true }: UseWebSocketOptio
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const retriesRef = useRef(0);
+  const connectRef = useRef<() => void>(() => {});
 
   const connect = useCallback(() => {
     if (!enabled || !userId || !role) return;
@@ -48,7 +49,7 @@ export function useWebSocket({ userId, role, enabled = true }: UseWebSocketOptio
       // Exponential backoff reconnect
       const delay = Math.min(1000 * Math.pow(2, retriesRef.current), 30_000);
       retriesRef.current++;
-      reconnectTimeoutRef.current = setTimeout(connect, delay);
+      reconnectTimeoutRef.current = setTimeout(() => connectRef.current(), delay);
     };
 
     ws.onerror = () => {
@@ -57,6 +58,10 @@ export function useWebSocket({ userId, role, enabled = true }: UseWebSocketOptio
 
     wsRef.current = ws;
   }, [enabled, userId, role]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     connect();
