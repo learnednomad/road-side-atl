@@ -19,6 +19,7 @@ export const users = pgTable("users", {
   cleanTransactionCount: integer("cleanTransactionCount").default(0).notNull(),
   referralCode: text("referralCode").unique(),
   taxId: text("taxId"),
+  stripeCustomerId: text("stripeCustomerId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 });

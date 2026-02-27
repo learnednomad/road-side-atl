@@ -19,6 +19,7 @@ export type AuditAction =
   | "payout.mark_paid"
   | "payment.confirm"
   | "payment.refund"
+  | "payment.dispute"
   | "user.login"
   | "user.logout"
   | "user.register"
