@@ -4,16 +4,16 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList } from "lucide-react";
+import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList, Home, Wrench, Info, CalendarCheck, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { BUSINESS } from "@/lib/constants";
 
 const navLinks = [
-  { href: "/", label: "Home" },
-  { href: "/services", label: "Services" },
-  { href: "/about", label: "About" },
-  { href: "/book", label: "Book Now" },
+  { href: "/", label: "Home", icon: Home },
+  { href: "/services", label: "Services", icon: Wrench },
+  { href: "/about", label: "About", icon: Info },
+  { href: "/book", label: "Book Now", icon: CalendarCheck },
 ];
 
 function getPortalLink(role?: string): { href: string; label: string } {
@@ -35,10 +35,12 @@ export function Navbar() {
   const portal = getPortalLink(session?.user?.role);
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <nav className="container mx-auto flex h-16 items-center justify-between px-4">
+    <>
+      <div className="h-1 bg-red-600" />
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <nav className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="text-xl font-bold">
-          {BUSINESS.name}
+          RoadSide <span className="text-red-600">ATL</span>
         </Link>
 
         {/* Desktop nav */}
@@ -49,8 +51,8 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`text-sm font-medium transition-colors hover:text-foreground ${
-                  isActive ? "text-foreground" : "text-muted-foreground"
+                className={`text-sm font-medium transition-colors hover:text-red-600 ${
+                  isActive ? "text-red-600" : "text-muted-foreground"
                 }`}
               >
                 {link.label}
@@ -112,80 +114,112 @@ export function Navbar() {
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-72">
+          <SheetContent side="right" className="flex w-80 flex-col gap-0 p-0">
             <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
             <SheetDescription className="sr-only">Main navigation links and service booking options</SheetDescription>
-            <div className="mt-8 flex flex-col gap-4">
-              {navLinks.map((link) => {
-                const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setOpen(false)}
-                    className={`text-lg font-medium ${
-                      isActive ? "text-primary" : ""
-                    }`}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
-              <Button asChild variant="outline" className="w-full">
-                <a href={`tel:${BUSINESS.phone}`}>
-                  <Phone className="mr-2 h-4 w-4" />
-                  {BUSINESS.phone}
-                </a>
-              </Button>
-              {isLoggedIn ? (
-                <>
-                  {session?.user?.role === "customer" && (
-                    <Button asChild variant="outline" className="w-full">
-                      <Link href="/my-bookings" onClick={() => setOpen(false)}>
-                        <ClipboardList className="mr-2 h-4 w-4" />
+
+            {/* Brand header */}
+            <div className="border-b px-6 py-5">
+              <p className="text-lg font-bold">{BUSINESS.name}</p>
+              <p className="text-xs text-muted-foreground">24/7 Roadside Assistance</p>
+            </div>
+
+            {/* Nav links */}
+            <nav className="flex-1 px-3 py-4">
+              <div className="space-y-1">
+                {navLinks.map((link) => {
+                  const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setOpen(false)}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-red-600/10 text-red-600"
+                          : "text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <link.icon className={`h-5 w-5 ${isActive ? "text-red-600" : "text-muted-foreground"}`} />
+                      {link.label}
+                      {isActive && <div className="ml-auto h-2 w-2 rounded-full bg-red-600" />}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Divider */}
+              <div className="my-4 border-t" />
+
+              {/* Account section */}
+              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Account</p>
+              <div className="space-y-1">
+                {isLoggedIn ? (
+                  <>
+                    {session?.user?.role === "customer" && (
+                      <Link
+                        href="/my-bookings"
+                        onClick={() => setOpen(false)}
+                        className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                      >
+                        <ClipboardList className="h-5 w-5 text-muted-foreground" />
                         My Bookings
                       </Link>
-                    </Button>
-                  )}
-                  {(session?.user?.role === "admin" || session?.user?.role === "provider") && (
-                    <Button asChild variant="outline" className="w-full">
-                      <Link href={portal.href} onClick={() => setOpen(false)}>
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                    )}
+                    {(session?.user?.role === "admin" || session?.user?.role === "provider") && (
+                      <Link
+                        href={portal.href}
+                        onClick={() => setOpen(false)}
+                        className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                      >
+                        <LayoutDashboard className="h-5 w-5 text-muted-foreground" />
                         {portal.label}
                       </Link>
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    className="w-full"
-                    onClick={() => {
-                      setOpen(false);
-                      signOut({ callbackUrl: "/" });
-                    }}
+                    )}
+                    <button
+                      onClick={() => {
+                        setOpen(false);
+                        signOut({ callbackUrl: "/" });
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                    >
+                      <LogOut className="h-5 w-5 text-muted-foreground" />
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    href="/login"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href="/login" onClick={() => setOpen(false)}>
-                      <LogIn className="mr-2 h-4 w-4" />
-                      Sign In
-                    </Link>
-                  </Button>
-                  <Button asChild className="w-full">
-                    <Link href="/book" onClick={() => setOpen(false)}>
-                      Get Help Now
-                    </Link>
-                  </Button>
-                </>
-              )}
+                    <LogIn className="h-5 w-5 text-muted-foreground" />
+                    Sign In
+                  </Link>
+                )}
+              </div>
+            </nav>
+
+            {/* Bottom CTA area */}
+            <div className="mt-auto space-y-3 border-t bg-muted/30 px-4 py-5">
+              <Button asChild className="w-full" size="lg">
+                <Link href="/book" onClick={() => setOpen(false)}>
+                  Get Help Now
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <a
+                href={`tel:${BUSINESS.phone}`}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-600 bg-red-600/5 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-600/10"
+              >
+                <Phone className="h-4 w-4" />
+                Call {BUSINESS.phone}
+              </a>
             </div>
           </SheetContent>
         </Sheet>
-      </nav>
-    </header>
+        </nav>
+      </header>
+    </>
   );
 }
