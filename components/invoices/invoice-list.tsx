@@ -49,11 +49,12 @@ import { formatPrice } from "@/lib/utils";
 interface Invoice {
   id: string;
   invoiceNumber: string;
-  status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
+  status: "draft" | "sent" | "issued" | "paid" | "overdue" | "cancelled" | "void";
   customerName: string;
   customerEmail: string | null;
   total: number;
   issueDate: string;
+  issuedAt: string | null;
   dueDate: string | null;
   createdAt: string;
 }
@@ -61,13 +62,16 @@ interface Invoice {
 const statusVariants: Record<string, "secondary" | "default" | "destructive" | "outline"> = {
   draft: "secondary",
   sent: "default",
+  issued: "default",
   paid: "default",
   overdue: "destructive",
   cancelled: "outline",
+  void: "outline",
 };
 
 const statusColors: Record<string, string> = {
   sent: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  issued: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   paid: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
 };
 
@@ -85,6 +89,7 @@ export function InvoiceList({ role }: InvoiceListProps) {
   const [fetchError, setFetchError] = useState(false);
 
   const basePath = role === "admin" ? "/admin" : "/provider";
+  const apiPath = role === "admin" ? "/api/admin/invoices" : "/api/provider/invoices";
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -96,7 +101,7 @@ export function InvoiceList({ role }: InvoiceListProps) {
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (search) params.set("search", search);
 
-      const res = await fetch(`/api/invoices?${params}`);
+      const res = await fetch(`${apiPath}?${params}`);
       if (res.ok) {
         const data = await res.json();
         setInvoices(data.data || []);
@@ -108,7 +113,7 @@ export function InvoiceList({ role }: InvoiceListProps) {
       setFetchError(true);
     }
     setLoading(false);
-  }, [page, statusFilter, search]);
+  }, [page, statusFilter, search, apiPath]);
 
   useEffect(() => {
     fetchInvoices();
@@ -121,9 +126,13 @@ export function InvoiceList({ role }: InvoiceListProps) {
     try {
       let res: Response;
       if (action === "send") {
-        res = await fetch(`/api/invoices/${id}/send`, { method: "POST" });
+        res = await fetch(`${apiPath}/${id}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "issued" }),
+        });
       } else if (action === "paid") {
-        res = await fetch(`/api/invoices/${id}/status`, {
+        res = await fetch(`${apiPath}/${id}/status`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "paid" }),

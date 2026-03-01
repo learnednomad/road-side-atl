@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "@/db";
 import { invoices, providers } from "@/db/schema";
-import { eq, desc, and, count } from "drizzle-orm";
+import { eq, desc, and, or, ilike, count } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
 import { createStandaloneInvoiceSchema, updateInvoiceStatusSchema } from "@/lib/validators";
 import { generateInvoiceNumber } from "../lib/invoice-generator";
@@ -28,6 +28,8 @@ async function getProvider(userId: string) {
 // List provider's invoices
 app.get("/", async (c) => {
   const user = c.get("user");
+  const status = c.req.query("status");
+  const search = c.req.query("search");
   const page = parseInt(c.req.query("page") || "1");
   const limit = parseInt(c.req.query("limit") || "20");
   const offset = (page - 1) * limit;
@@ -37,15 +39,32 @@ app.get("/", async (c) => {
     return c.json({ error: "Provider profile not found" }, 404);
   }
 
+  const conditions = [eq(invoices.providerId, provider.id)];
+
+  if (status) {
+    conditions.push(eq(invoices.status, status as any));
+  }
+
+  if (search) {
+    conditions.push(
+      or(
+        ilike(invoices.customerName, `%${search}%`),
+        ilike(invoices.invoiceNumber, `%${search}%`)
+      )!
+    );
+  }
+
+  const whereClause = and(...conditions);
+
   const [totalResult] = await db
     .select({ count: count() })
     .from(invoices)
-    .where(eq(invoices.providerId, provider.id));
+    .where(whereClause);
 
   const results = await db
     .select()
     .from(invoices)
-    .where(eq(invoices.providerId, provider.id))
+    .where(whereClause)
     .orderBy(desc(invoices.createdAt))
     .limit(limit)
     .offset(offset);
