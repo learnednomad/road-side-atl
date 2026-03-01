@@ -4,6 +4,7 @@ import { invoices, providers } from "@/db/schema";
 import { eq, desc, and, or, ilike, count } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
 import { createStandaloneInvoiceSchema, updateInvoiceStatusSchema } from "@/lib/validators";
+import { invoiceStatusEnum } from "@/db/schema/invoices";
 import { generateInvoiceNumber } from "../lib/invoice-generator";
 import { generateInvoiceHTML } from "@/lib/invoices/generate-invoice-html";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
@@ -42,7 +43,7 @@ app.get("/", async (c) => {
   const conditions = [eq(invoices.providerId, provider.id)];
 
   if (status) {
-    conditions.push(eq(invoices.status, status as any));
+    conditions.push(eq(invoices.status, status as (typeof invoiceStatusEnum.enumValues)[number]));
   }
 
   if (search) {
