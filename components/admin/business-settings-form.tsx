@@ -5,11 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoUpload } from "./logo-upload";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import {
+  Loader2,
+  Save,
+  Building2,
+  Landmark,
+  FileText,
+  Mail,
+  Phone,
+  MapPin,
+  CreditCard,
+  Hash,
+  Globe,
+  Receipt,
+  Percent,
+  Clock,
+  StickyNote,
+} from "lucide-react";
 
 export function BusinessSettingsForm() {
   const [loading, setLoading] = useState(true);
@@ -121,49 +136,75 @@ export function BusinessSettingsForm() {
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-6">
+    <form onSubmit={handleSave} className="space-y-8">
       {/* Company Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Company Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <LogoUpload currentUrl={logoUrl} onUploaded={setLogoUrl} />
-          <Separator />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <Building2 className="h-5 w-5 text-primary" />
+            </div>
             <div>
-              <Label htmlFor="companyName">Company Name *</Label>
+              <CardTitle>Company Information</CardTitle>
+              <CardDescription>
+                Your business identity shown on invoices and customer communications.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <LogoUpload currentUrl={logoUrl} onUploaded={setLogoUrl} />
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="companyName" className="flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                Company Name <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="companyName"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="RoadSide ATL"
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="companyEmail">Company Email</Label>
+            <div className="space-y-2">
+              <Label htmlFor="companyEmail" className="flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                Company Email
+              </Label>
               <Input
                 id="companyEmail"
                 type="email"
                 value={companyEmail}
                 onChange={(e) => setCompanyEmail(e.target.value)}
+                placeholder="hello@roadsideatl.com"
               />
             </div>
-            <div>
-              <Label htmlFor="companyPhone">Phone</Label>
+            <div className="space-y-2">
+              <Label htmlFor="companyPhone" className="flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                Phone
+              </Label>
               <Input
                 id="companyPhone"
                 value={companyPhone}
                 onChange={(e) => setCompanyPhone(e.target.value)}
+                placeholder="(404) 555-0100"
               />
             </div>
           </div>
-          <div>
-            <Label htmlFor="companyAddress">Address</Label>
+          <div className="space-y-2">
+            <Label htmlFor="companyAddress" className="flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+              Address
+            </Label>
             <Textarea
               id="companyAddress"
               value={companyAddress}
               onChange={(e) => setCompanyAddress(e.target.value)}
+              placeholder="123 Peachtree St NW, Atlanta, GA 30303"
               rows={2}
             />
           </div>
@@ -173,48 +214,78 @@ export function BusinessSettingsForm() {
       {/* Banking */}
       <Card>
         <CardHeader>
-          <CardTitle>Banking Information</CardTitle>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+              <Landmark className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <CardTitle>Banking Information</CardTitle>
+              <CardDescription>
+                Bank details for receiving payments and displayed on invoices.
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="bankName">Bank Name</Label>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="bankName" className="flex items-center gap-1.5">
+                <Landmark className="h-3.5 w-3.5 text-muted-foreground" />
+                Bank Name
+              </Label>
               <Input
                 id="bankName"
                 value={bankName}
                 onChange={(e) => setBankName(e.target.value)}
+                placeholder="Chase, Bank of America, etc."
               />
             </div>
-            <div>
-              <Label htmlFor="bankAccountName">Account Name</Label>
+            <div className="space-y-2">
+              <Label htmlFor="bankAccountName" className="flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                Account Name
+              </Label>
               <Input
                 id="bankAccountName"
                 value={bankAccountName}
                 onChange={(e) => setBankAccountName(e.target.value)}
+                placeholder="Business checking account name"
               />
             </div>
-            <div>
-              <Label htmlFor="bankAccountNumber">Account Number</Label>
+            <div className="space-y-2">
+              <Label htmlFor="bankAccountNumber" className="flex items-center gap-1.5">
+                <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                Account Number
+              </Label>
               <Input
                 id="bankAccountNumber"
                 value={bankAccountNumber}
                 onChange={(e) => setBankAccountNumber(e.target.value)}
+                placeholder="xxxx-xxxx-xxxx"
               />
             </div>
-            <div>
-              <Label htmlFor="bankRoutingNumber">Routing Number</Label>
+            <div className="space-y-2">
+              <Label htmlFor="bankRoutingNumber" className="flex items-center gap-1.5">
+                <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                Routing Number
+              </Label>
               <Input
                 id="bankRoutingNumber"
                 value={bankRoutingNumber}
                 onChange={(e) => setBankRoutingNumber(e.target.value)}
+                placeholder="9-digit routing number"
               />
             </div>
-            <div>
-              <Label htmlFor="bankSwiftCode">SWIFT Code</Label>
+            <div className="space-y-2">
+              <Label htmlFor="bankSwiftCode" className="flex items-center gap-1.5">
+                <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                SWIFT Code
+              </Label>
               <Input
                 id="bankSwiftCode"
                 value={bankSwiftCode}
                 onChange={(e) => setBankSwiftCode(e.target.value)}
+                placeholder="For international transfers"
               />
             </div>
           </div>
@@ -224,21 +295,40 @@ export function BusinessSettingsForm() {
       {/* Invoice Defaults */}
       <Card>
         <CardHeader>
-          <CardTitle>Invoice Defaults</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+              <FileText className="h-5 w-5 text-blue-600" />
+            </div>
             <div>
-              <Label htmlFor="invoicePrefix">Invoice Prefix</Label>
+              <CardTitle>Invoice Defaults</CardTitle>
+              <CardDescription>
+                Pre-fill values applied to new invoices. Can be overridden per invoice.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="invoicePrefix" className="flex items-center gap-1.5">
+                <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
+                Invoice Prefix
+              </Label>
               <Input
                 id="invoicePrefix"
                 value={invoicePrefix}
                 onChange={(e) => setInvoicePrefix(e.target.value)}
                 placeholder="INV"
               />
+              <p className="text-xs text-muted-foreground">
+                Invoices will be numbered like {invoicePrefix || "INV"}-2026-0001
+              </p>
             </div>
-            <div>
-              <Label htmlFor="defaultTaxRate">Default Tax Rate (%)</Label>
+            <div className="space-y-2">
+              <Label htmlFor="defaultTaxRate" className="flex items-center gap-1.5">
+                <Percent className="h-3.5 w-3.5 text-muted-foreground" />
+                Default Tax Rate (%)
+              </Label>
               <Input
                 id="defaultTaxRate"
                 type="number"
@@ -253,8 +343,9 @@ export function BusinessSettingsForm() {
                 }
               />
             </div>
-            <div>
-              <Label htmlFor="defaultPaymentTerms">
+            <div className="space-y-2">
+              <Label htmlFor="defaultPaymentTerms" className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                 Default Payment Terms
               </Label>
               <Input
@@ -264,8 +355,9 @@ export function BusinessSettingsForm() {
                 placeholder="e.g. Net 30"
               />
             </div>
-            <div>
-              <Label htmlFor="defaultPaymentMethod">
+            <div className="space-y-2">
+              <Label htmlFor="defaultPaymentMethod" className="flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
                 Default Payment Method
               </Label>
               <Input
@@ -276,8 +368,9 @@ export function BusinessSettingsForm() {
               />
             </div>
           </div>
-          <div>
-            <Label htmlFor="defaultPaymentInstructions">
+          <div className="space-y-2">
+            <Label htmlFor="defaultPaymentInstructions" className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
               Default Payment Instructions
             </Label>
             <Textarea
@@ -286,11 +379,15 @@ export function BusinessSettingsForm() {
               onChange={(e) =>
                 setDefaultPaymentInstructions(e.target.value)
               }
-              rows={2}
+              placeholder="Include bank details, CashApp handle, or other payment instructions..."
+              rows={3}
             />
           </div>
-          <div>
-            <Label htmlFor="invoiceFooterNote">Invoice Footer Note</Label>
+          <div className="space-y-2">
+            <Label htmlFor="invoiceFooterNote" className="flex items-center gap-1.5">
+              <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
+              Invoice Footer Note
+            </Label>
             <Textarea
               id="invoiceFooterNote"
               value={invoiceFooterNote}
@@ -302,9 +399,17 @@ export function BusinessSettingsForm() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={saving}>
-          {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {/* Save */}
+      <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-6 py-4">
+        <p className="text-sm text-muted-foreground">
+          Changes are saved immediately and apply to new invoices.
+        </p>
+        <Button type="submit" disabled={saving} size="lg">
+          {saving ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="mr-2 h-4 w-4" />
+          )}
           Save Settings
         </Button>
       </div>

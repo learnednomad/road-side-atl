@@ -114,8 +114,9 @@ export function usePushNotifications(): UsePushNotificationsResult {
 
       setIsSubscribed(true);
       return true;
-    } catch (err: any) {
-      setError(err.message || "Failed to subscribe");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to subscribe";
+      setError(message);
       return false;
     } finally {
       setIsLoading(false);
@@ -147,8 +148,9 @@ export function usePushNotifications(): UsePushNotificationsResult {
 
       setIsSubscribed(false);
       return true;
-    } catch (err: any) {
-      setError(err.message || "Failed to unsubscribe");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to unsubscribe";
+      setError(message);
       return false;
     } finally {
       setIsLoading(false);

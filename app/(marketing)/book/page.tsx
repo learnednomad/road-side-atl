@@ -29,7 +29,17 @@ export default async function BookPage() {
     email: session.user.email || "",
   } : undefined;
 
-  let allServices: any[] = [];
+  type Service = {
+    id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    basePrice: number;
+    pricePerMile: number | null;
+    category: string;
+  };
+
+  let allServices: Service[] = [];
   try {
     allServices = await db
       .select()
@@ -43,7 +53,9 @@ export default async function BookPage() {
       { id: "3", name: "Lockout Service", slug: "lockout", basePrice: 7500, pricePerMile: null, category: "roadside" },
       { id: "4", name: "Flat Tire Change", slug: "flat-tire", basePrice: 10000, pricePerMile: null, category: "roadside" },
       { id: "5", name: "Fuel Delivery", slug: "fuel-delivery", basePrice: 7500, pricePerMile: null, category: "roadside" },
-      { id: "6", name: "Car Purchase Diagnostics", slug: "car-purchase-diagnostics", basePrice: 25000, pricePerMile: null, category: "diagnostics" },
+      { id: "6", name: "Basic Inspection", slug: "basic-inspection", description: "Essential pre-purchase check covering OBD2 scan, visual exterior/interior inspection, fluid levels, tire condition, and battery health.", basePrice: 15000, pricePerMile: null, category: "diagnostics" },
+      { id: "7", name: "Standard Inspection", slug: "standard-inspection", description: "Comprehensive inspection including OBD2 diagnostics, brake system check, suspension test, electrical system review, engine performance analysis, and photo documentation.", basePrice: 25000, pricePerMile: null, category: "diagnostics" },
+      { id: "8", name: "Premium Inspection", slug: "premium-inspection", description: "Complete diagnostic report with full mechanical inspection, detailed OBD2 code analysis, test drive evaluation, undercarriage examination, emissions check, and branded PDF report with repair cost estimates.", basePrice: 39900, pricePerMile: null, category: "diagnostics" },
     ];
   }
 

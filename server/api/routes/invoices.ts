@@ -6,7 +6,8 @@ import {
   businessSettings,
   users,
 } from "@/db/schema";
-import { eq, desc, and, or, ilike, count, sql } from "drizzle-orm";
+import { eq, desc, and, or, ilike, count } from "drizzle-orm";
+import { invoiceStatusEnum } from "@/db/schema/invoices";
 import { requireAuth } from "../middleware/auth";
 import { createInvoiceSchema, updateInvoiceSchema } from "@/lib/validators";
 import { renderInvoicePdf } from "@/lib/invoice-pdf/render";
@@ -178,7 +179,7 @@ app.get("/", async (c) => {
   }
 
   if (status) {
-    conditions.push(eq(invoices.status, status as any));
+    conditions.push(eq(invoices.status, status as (typeof invoiceStatusEnum.enumValues)[number]));
   }
 
   if (search) {

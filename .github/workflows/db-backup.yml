@@ -1,0 +1,42 @@
+name: Database Backup
+
+on:
+  schedule:
+    # Run daily at 3:00 AM UTC
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual backup"
+        required: false
+        default: "Manual trigger"
+
+jobs:
+  backup:
+    name: Backup PostgreSQL to S3
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Run database backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          S3_BACKUP_BUCKET: ${{ vars.S3_BACKUP_BUCKET || 'roadside-atl-backups' }}
+          S3_BACKUP_PREFIX: ${{ vars.S3_BACKUP_PREFIX || 'backups' }}
+          BACKUP_RETENTION_DAYS: "30"
+        run: |
+          chmod +x scripts/backup-db.sh
+          ./scripts/backup-db.sh

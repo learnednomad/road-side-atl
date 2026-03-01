@@ -16,7 +16,6 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatPrice } from "@/lib/utils";
 
 const COLORS = [
   "hsl(var(--chart-1, 220 70% 50%))",

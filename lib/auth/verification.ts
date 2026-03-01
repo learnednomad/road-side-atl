@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { verificationTokens, passwordResetTokens } from "@/db/schema/auth";
 import { users } from "@/db/schema/users";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { sendEmail } from "@/lib/notifications/email";
 

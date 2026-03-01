@@ -122,7 +122,7 @@ export function InvoiceForm({ role, invoiceId }: InvoiceFormProps) {
         setNotes(data.notes || "");
         if (data.lineItems && data.lineItems.length > 0) {
           setLineItems(
-            data.lineItems.map((item: any) => ({
+            data.lineItems.map((item: { description: string; details?: string; quantity: number; unitPrice: number }) => ({
               description: item.description,
               details: item.details || "",
               quantity: item.quantity,
