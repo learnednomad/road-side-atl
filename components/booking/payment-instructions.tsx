@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign, Smartphone, CreditCard, Loader2 } from "lucide-react";
+import { Smartphone, CreditCard, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ export function PaymentInstructions({
   bookingId,
   paid,
 }: PaymentInstructionsProps) {
+  const [stripeLoading, setStripeLoading] = useState(false);
+
   if (paid) {
     return (
       <Card className="border-green-200 bg-green-50">
@@ -35,8 +37,6 @@ export function PaymentInstructions({
       </Card>
     );
   }
-
-  const [stripeLoading, setStripeLoading] = useState(false);
 
   async function handleStripeCheckout() {
     setStripeLoading(true);

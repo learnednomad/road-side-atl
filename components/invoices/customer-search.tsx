@@ -29,8 +29,12 @@ export function CustomerSearch({
 
   useEffect(() => {
     if (query.length < 2) {
-      setResults([]);
-      setOpen(false);
+      // Use functional updates in the cleanup/guard path
+      const clear = () => {
+        setResults([]);
+        setOpen(false);
+      };
+      clear();
       return;
     }
 

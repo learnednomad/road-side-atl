@@ -116,6 +116,8 @@ export function InvoiceList({ role }: InvoiceListProps) {
   }, [page, statusFilter, search, apiPath]);
 
   useEffect(() => {
+    // Data fetching on dependency change — setState is deferred to async callback
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchInvoices();
   }, [fetchInvoices]);
 
