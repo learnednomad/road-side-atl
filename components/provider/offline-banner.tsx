@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import { AlertTriangle, Wifi } from "lucide-react";
 
 export function OfflineBanner() {
-  const [isOffline, setIsOffline] = useState(false);
+  const [isOffline, setIsOffline] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !navigator.onLine;
+  });
   const [showReconnected, setShowReconnected] = useState(false);
 
   useEffect(() => {
-    // Set initial state from navigator (only available client-side)
-    setIsOffline(!navigator.onLine);
-
     function handleOffline() {
       setIsOffline(true);
       setShowReconnected(false);
