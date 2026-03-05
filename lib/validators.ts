@@ -391,3 +391,81 @@ export const generateB2bInvoiceSchema = z
     path: ["billingPeriodEnd"],
   });
 export type GenerateB2bInvoiceInput = z.infer<typeof generateB2bInvoiceSchema>;
+
+// Provider onboarding validators
+export const providerApplicationSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  email: z.email("Valid email is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  phone: z.string().min(10, "Phone number is required"),
+  serviceArea: z.array(z.string().min(1)).min(1, "At least one service area is required"),
+  specialties: z.array(z.string()).optional(),
+  fcraConsent: z.literal(true, { message: "FCRA consent is required" }),
+});
+export type ProviderApplicationInput = z.infer<typeof providerApplicationSchema>;
+
+export const inviteAcceptSchema = z.object({
+  inviteToken: z.string().min(1, "Invite token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  phone: z.string().min(10, "Phone number is required"),
+  serviceArea: z.array(z.string().min(1)).min(1, "At least one service area is required"),
+  specialties: z.array(z.string()).optional(),
+  fcraConsent: z.literal(true, { message: "FCRA consent is required" }),
+});
+export type InviteAcceptInput = z.infer<typeof inviteAcceptSchema>;
+
+export const onboardingInviteSchema = z.object({
+  email: z.email("Valid email is required"),
+  name: z.string().min(2, "Name is required"),
+});
+export type OnboardingInviteInput = z.infer<typeof onboardingInviteSchema>;
+
+export const onboardingStepResponseSchema = z.object({
+  id: z.string(),
+  providerId: z.string(),
+  stepType: z.string(),
+  status: z.string(),
+  draftData: z.record(z.string(), z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  rejectionReason: z.string().nullable(),
+  completedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const onboardingDashboardResponseSchema = z.object({
+  steps: z.array(onboardingStepResponseSchema),
+  provider: z.object({
+    status: z.string(),
+    name: z.string(),
+    completedStepsCount: z.number(),
+    totalSteps: z.number(),
+  }),
+});
+export type OnboardingDashboardResponse = z.infer<typeof onboardingDashboardResponseSchema>;
+
+// Admin provider action schemas
+export const adminRejectProviderSchema = z.object({
+  reason: z.string().min(1, "Rejection reason is required"),
+});
+export type AdminRejectProviderInput = z.infer<typeof adminRejectProviderSchema>;
+
+export const adminSuspendProviderSchema = z.object({
+  reason: z.string().min(1, "Suspension reason is required"),
+});
+export type AdminSuspendProviderInput = z.infer<typeof adminSuspendProviderSchema>;
+
+export const adminReviewStepSchema = z.object({
+  status: z.enum(["complete", "rejected"]),
+  rejectionReason: z.string().min(1).optional(),
+}).refine(
+  (val) => val.status !== "rejected" || (val.rejectionReason !== undefined && val.rejectionReason.length > 0),
+  { message: "Rejection reason is required when rejecting a step" },
+);
+export type AdminReviewStepInput = z.infer<typeof adminReviewStepSchema>;
+
+export const providerStepUpdateSchema = z.object({
+  status: z.enum(["draft", "in_progress"]),
+  draftData: z.record(z.string(), z.unknown()).optional(),
+});
+export type ProviderStepUpdateInput = z.infer<typeof providerStepUpdateSchema>;

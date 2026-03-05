@@ -35,8 +35,19 @@ import pricingConfigRoutes from "./routes/pricing-config";
 import pricingEstimateRoutes from "./routes/pricing-estimate";
 import financialReportsRoutes from "./routes/financial-reports";
 import b2bAccountsRoutes from "./routes/b2b-accounts";
+import onboardingRoutes from "./routes/onboarding";
+import { requireOnboardingComplete } from "./middleware/onboarding";
 
 const app = new Hono().basePath("/api");
+
+// Gate dispatch-related provider routes — providers must complete onboarding
+// NOT applied to: /onboarding/*, /provider/observations/*, profile, availability, settings
+app.use("/provider/jobs", requireOnboardingComplete);
+app.use("/provider/jobs/*", requireOnboardingComplete);
+app.use("/provider/stats", requireOnboardingComplete);
+app.use("/provider/earnings/*", requireOnboardingComplete);
+app.use("/provider/location", requireOnboardingComplete);
+app.use("/provider/invoices/*", requireOnboardingComplete);
 
 // Health endpoint — PUBLIC (no auth), used by monitoring and Docker health checks (NFR37: <5s response)
 app.get("/health", async (c) => {
@@ -127,5 +138,6 @@ app.route("/admin/pricing", pricingConfigRoutes);
 app.route("/pricing-estimate", pricingEstimateRoutes);
 app.route("/admin/financial-reports", financialReportsRoutes);
 app.route("/admin/b2b-accounts", b2bAccountsRoutes);
+app.route("/onboarding", onboardingRoutes);
 
 export default app;

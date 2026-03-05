@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useProviderStatus } from "@/lib/hooks/use-provider-status";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -16,11 +17,19 @@ import {
   Users,
   ChevronsLeft,
   ChevronsRight,
+  GraduationCap,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
-const links = [
+// Dispatch-gated hrefs — disabled when provider is not active
+const DISPATCH_GATED = new Set([
+  "/provider/jobs",
+  "/provider/earnings",
+  "/provider/invoices",
+]);
+
+const baseLinks = [
   { href: "/provider", label: "Dashboard", icon: LayoutDashboard },
   { href: "/provider/jobs", label: "Jobs", icon: ClipboardList },
   { href: "/provider/earnings", label: "Earnings", icon: DollarSign },
@@ -37,6 +46,7 @@ export function ProviderSidebar() {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("provider-sidebar-collapsed") === "true";
   });
+  const providerStatus = useProviderStatus();
 
   const toggle = () => {
     setCollapsed((prev) => {
@@ -44,6 +54,18 @@ export function ProviderSidebar() {
       return !prev;
     });
   };
+
+  const isOnboarding = ["onboarding", "applied", "pending_review"].includes(providerStatus ?? "");
+  const showOnboardingLink = isOnboarding;
+
+  // Build links list — insert Onboarding link after Dashboard when applicable
+  const links = showOnboardingLink
+    ? [
+        baseLinks[0],
+        { href: "/provider/onboarding", label: "Onboarding", icon: GraduationCap },
+        ...baseLinks.slice(1),
+      ]
+    : baseLinks;
 
   return (
     <aside
@@ -79,6 +101,24 @@ export function ProviderSidebar() {
             const isActive =
               pathname === link.href ||
               (link.href !== "/provider" && pathname.startsWith(link.href));
+            const isGated = isOnboarding && DISPATCH_GATED.has(link.href);
+
+            if (isGated) {
+              return (
+                <span
+                  key={link.href}
+                  title={collapsed ? `${link.label} (locked)` : undefined}
+                  className={cn(
+                    "flex items-center rounded-md px-3 py-2 text-sm font-medium opacity-40 cursor-not-allowed",
+                    collapsed ? "justify-center" : "gap-3",
+                  )}
+                >
+                  <link.icon className="h-4 w-4 shrink-0" />
+                  {!collapsed && <span className="truncate">{link.label}</span>}
+                </span>
+              );
+            }
+
             return (
               <Link
                 key={link.href}
