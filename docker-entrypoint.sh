@@ -28,21 +28,29 @@ reset().catch(e => { console.error('DB reset error:', e.message); process.exit(1
 " 2>&1
 fi
 
-# Run database migrations
-echo "Running database migrations..."
-if npx drizzle-kit migrate 2>&1; then
-  echo "Migrations completed successfully!"
-else
-  echo "Warning: Migrations may have failed, but continuing..."
-fi
-
-# Run seed if SEED_DB is set (for demo/development)
+# Apply database schema
 if [ "${SEED_DB:-false}" = "true" ]; then
+  # Fresh DB after reset: push schema directly (avoids migration conflicts)
+  echo "Pushing schema to fresh database..."
+  if npx drizzle-kit push --force 2>&1; then
+    echo "Schema push completed successfully!"
+  else
+    echo "Warning: Schema push may have failed, but continuing..."
+  fi
+
   echo "Seeding database with demo data..."
   if npx tsx db/seed.ts 2>&1; then
     echo "Database seeded successfully!"
   else
     echo "Warning: Seed may have failed, but continuing..."
+  fi
+else
+  # Production: use migrations for safe incremental updates
+  echo "Running database migrations..."
+  if npx drizzle-kit migrate 2>&1; then
+    echo "Migrations completed successfully!"
+  else
+    echo "Warning: Migrations may have failed, but continuing..."
   fi
 fi
 
