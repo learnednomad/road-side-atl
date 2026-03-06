@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList, Home, Wrench, Info, CalendarCheck, ArrowRight } from "lucide-react";
+import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList, Home, Wrench, Info, CalendarCheck, ArrowRight, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { BUSINESS } from "@/lib/constants";
@@ -94,6 +94,12 @@ export function Navbar() {
             </>
           ) : (
             <>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/become-provider">
+                  <Truck className="mr-2 h-4 w-4" />
+                  Become a Provider
+                </Link>
+              </Button>
               <Button asChild variant="ghost" size="sm">
                 <Link href="/login">
                   <LogIn className="mr-2 h-4 w-4" />
@@ -188,14 +194,24 @@ export function Navbar() {
                     </button>
                   </>
                 ) : (
-                  <Link
-                    href="/login"
-                    onClick={() => setOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
-                  >
-                    <LogIn className="h-5 w-5 text-muted-foreground" />
-                    Sign In
-                  </Link>
+                  <>
+                    <Link
+                      href="/become-provider"
+                      onClick={() => setOpen(false)}
+                      className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                    >
+                      <Truck className="h-5 w-5 text-muted-foreground" />
+                      Become a Provider
+                    </Link>
+                    <Link
+                      href="/login"
+                      onClick={() => setOpen(false)}
+                      className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                    >
+                      <LogIn className="h-5 w-5 text-muted-foreground" />
+                      Sign In
+                    </Link>
+                  </>
                 )}
               </div>
             </nav>
