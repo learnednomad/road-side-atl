@@ -1,0 +1,19 @@
+CREATE INDEX IF NOT EXISTS "bookings_user_id_idx" ON "bookings" ("userId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "bookings_provider_id_idx" ON "bookings" ("providerId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "bookings_status_idx" ON "bookings" ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "bookings_created_at_idx" ON "bookings" ("createdAt");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "bookings_tenant_id_idx" ON "bookings" ("tenantId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payments_booking_id_idx" ON "payments" ("bookingId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payments_stripe_session_idx" ON "payments" ("stripeSessionId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payments_status_idx" ON "payments" ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "providers_user_id_idx" ON "providers" ("userId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "providers_status_idx" ON "providers" ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payouts_provider_id_idx" ON "provider_payouts" ("providerId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payouts_booking_id_idx" ON "provider_payouts" ("bookingId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payouts_status_idx" ON "provider_payouts" ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "invoices_customer_id_idx" ON "invoices" ("customerId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "invoices_status_idx" ON "invoices" ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "invoices_booking_id_idx" ON "invoices" ("bookingId");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "reviews_provider_id_idx" ON "reviews" ("provider_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "reviews_customer_id_idx" ON "reviews" ("customer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "dispatch_logs_booking_id_idx" ON "dispatch_logs" ("bookingId");
