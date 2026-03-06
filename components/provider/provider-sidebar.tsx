@@ -27,6 +27,9 @@ const DISPATCH_GATED = new Set([
   "/provider/jobs",
   "/provider/earnings",
   "/provider/invoices",
+  "/provider/observations",
+  "/provider/inspections",
+  "/provider/referrals",
 ]);
 
 const baseLinks = [

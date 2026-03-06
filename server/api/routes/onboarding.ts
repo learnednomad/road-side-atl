@@ -212,6 +212,7 @@ app.post("/apply", async (c) => {
           phone,
           password: hashedPassword,
           role: "provider",
+          emailVerified: new Date(),
         })
         .returning({ id: users.id });
 

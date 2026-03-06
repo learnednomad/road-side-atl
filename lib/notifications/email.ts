@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { formatPrice } from "@/lib/utils";
+import { escapeHtml } from "@/lib/escape-html";
 
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY;
@@ -8,10 +9,6 @@ function getResend(): Resend | null {
 }
 
 const FROM = process.env.RESEND_FROM || "noreply@roadsideatl.com";
-
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
 
 // Generic email sender for verification/password reset emails
 export async function sendEmail(opts: { to: string; subject: string; html: string }) {
@@ -54,11 +51,11 @@ export async function sendBookingConfirmation(booking: BookingInfo) {
     subject: `Booking Confirmed - RoadSide ATL #${booking.id.slice(0, 8)}`,
     html: `
       <h2>Your booking has been received!</h2>
-      <p>Hi ${booking.contactName},</p>
+      <p>Hi ${escapeHtml(booking.contactName)},</p>
       <p>We've received your roadside assistance request.</p>
       <ul>
         <li><strong>Booking ID:</strong> ${booking.id.slice(0, 8)}</li>
-        <li><strong>Location:</strong> ${booking.location.address}</li>
+        <li><strong>Location:</strong> ${escapeHtml(booking.location.address)}</li>
         <li><strong>Estimated Price:</strong> ${formatPrice(booking.estimatedPrice)}</li>
       </ul>
       <p>We'll assign a provider shortly and keep you updated.</p>
@@ -78,12 +75,12 @@ export async function sendProviderAssignment(booking: BookingInfo, provider: Pro
     subject: `New Job Assignment - Booking #${booking.id.slice(0, 8)}`,
     html: `
       <h2>New Job Assigned</h2>
-      <p>Hi ${provider.name},</p>
+      <p>Hi ${escapeHtml(provider.name)},</p>
       <p>You've been assigned a new job.</p>
       <ul>
-        <li><strong>Customer:</strong> ${booking.contactName}</li>
-        <li><strong>Phone:</strong> ${booking.contactPhone}</li>
-        <li><strong>Location:</strong> ${booking.location.address}</li>
+        <li><strong>Customer:</strong> ${escapeHtml(booking.contactName)}</li>
+        <li><strong>Phone:</strong> ${escapeHtml(booking.contactPhone)}</li>
+        <li><strong>Location:</strong> ${escapeHtml(booking.location.address)}</li>
         <li><strong>Estimated Price:</strong> ${formatPrice(booking.estimatedPrice)}</li>
         ${estimatedPayout ? `<li><strong>Your Estimated Payout:</strong> ${formatPrice(estimatedPayout)}</li>` : ""}
       </ul>
@@ -116,7 +113,7 @@ export async function sendStatusUpdate(booking: BookingInfo, newStatus: string, 
     subject: `Booking Update - #${booking.id.slice(0, 8)}`,
     html: `
       <h2>Booking Status Update</h2>
-      <p>Hi ${booking.contactName},</p>
+      <p>Hi ${escapeHtml(booking.contactName)},</p>
       <p>${message}</p>
       <p>Booking ID: ${booking.id.slice(0, 8)}</p>
       <p>— RoadSide ATL</p>
@@ -135,9 +132,9 @@ export async function sendObservationFollowUpEmail(email: string, customerName: 
     subject: "Vehicle Observation - RoadSide ATL",
     html: `
       <h2>Vehicle Observation Report</h2>
-      <p>Hi ${customerName},</p>
+      <p>Hi ${escapeHtml(customerName)},</p>
       <p>During your recent service, our provider noticed some items that may need attention:</p>
-      <p>${findings}</p>
+      <p>${escapeHtml(findings)}</p>
       <p>We recommend booking a diagnostic inspection for a thorough assessment.</p>
       <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/book">Book an Inspection</a></p>
       <p>— RoadSide ATL</p>
@@ -162,8 +159,8 @@ export async function sendPreServiceConfirmationEmail(
     subject: `Your Inspector ${inspectorName} Is On the Way - RoadSide ATL`,
     html: `
       <h2>Pre-Service Confirmation</h2>
-      <p>Hi ${customerName},</p>
-      <p>Your <strong>${serviceName}</strong> has been assigned to inspector <strong>${inspectorName}</strong>.</p>
+      <p>Hi ${escapeHtml(customerName)},</p>
+      <p>Your <strong>${escapeHtml(serviceName)}</strong> has been assigned to inspector <strong>${escapeHtml(inspectorName)}</strong>.</p>
       <p>Estimated arrival: <strong>${eta}</strong></p>
       <p>Please ensure the vehicle is accessible at the specified location.</p>
       <p>— RoadSide ATL</p>
@@ -182,7 +179,7 @@ export async function sendReferralCreditEmail(email: string, name: string, amoun
     subject: "You Earned a Referral Credit! - RoadSide ATL",
     html: `
       <h2>Referral Credit Earned!</h2>
-      <p>Hi ${name},</p>
+      <p>Hi ${escapeHtml(name)},</p>
       <p>You just earned a <strong>${formatPrice(amount)}</strong> referral credit on RoadSide ATL!</p>
       <p>This credit will be automatically available to apply on your next booking.</p>
       <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/dashboard/referrals">View Your Referrals</a></p>
@@ -201,7 +198,7 @@ export async function sendTierPromotionEmail(email: string, name: string) {
     to: email,
     subject: "Card Payments Unlocked! - RoadSide ATL",
     html: `
-      <h2>Congratulations, ${name}!</h2>
+      <h2>Congratulations, ${escapeHtml(name)}!</h2>
       <p>You've earned Trusted Customer status on RoadSide ATL.</p>
       <p>You can now pay with <strong>credit and debit cards</strong> in addition to Cash, CashApp, and Zelle.</p>
       <p>Thank you for being a loyal customer!</p>
@@ -229,8 +226,8 @@ export async function sendInspectionReportEmail(
     subject: `Vehicle Inspection Report - RoadSide ATL #${bookingId.slice(0, 8)}`,
     html: `
       <h2>Your Vehicle Inspection Report</h2>
-      <p>Hi ${customerName},</p>
-      <p>Your inspection report for the <strong>${vehicleDescription}</strong> is ready.</p>
+      <p>Hi ${escapeHtml(customerName)},</p>
+      <p>Your inspection report for the <strong>${escapeHtml(vehicleDescription)}</strong> is ready.</p>
       <p>Inspection Date: ${inspectionDate}</p>
       <p><a href="${reportUrl}" style="display: inline-block; padding: 12px 24px; background-color: #1a1a2e; color: white; text-decoration: none; border-radius: 6px;">View Report</a></p>
       <p>You can also download the PDF version from the link above.</p>
@@ -256,8 +253,8 @@ export async function sendB2bServiceDispatchedEmail(
     subject: `Service Dispatched on Your Behalf - RoadSide ATL`,
     html: `
       <h2>Service Dispatched</h2>
-      <p>Hi ${customerName},</p>
-      <p><strong>${companyName}</strong> has requested <strong>${serviceName}</strong> for your vehicle at <strong>${locationAddress}</strong>.</p>
+      <p>Hi ${escapeHtml(customerName)},</p>
+      <p><strong>${escapeHtml(companyName)}</strong> has requested <strong>${escapeHtml(serviceName)}</strong> for your vehicle at <strong>${escapeHtml(locationAddress)}</strong>.</p>
       <p>A provider will be dispatched to your location shortly. We'll keep you updated on the status.</p>
       <p>— RoadSide ATL</p>
       <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
@@ -363,15 +360,15 @@ export async function sendPaymentReceiptEmail(
     subject: `Payment Receipt - RoadSide ATL #${bookingId.slice(0, 8)}`,
     html: `
       <h2>Payment Receipt</h2>
-      <p>Hi ${customerName},</p>
+      <p>Hi ${escapeHtml(customerName)},</p>
       <p>Your payment has been confirmed. Thank you!</p>
       <ul>
         <li><strong>Booking ID:</strong> ${bookingId.slice(0, 8)}</li>
-        <li><strong>Service:</strong> ${serviceName}</li>
+        <li><strong>Service:</strong> ${escapeHtml(serviceName)}</li>
         <li><strong>Amount Paid:</strong> ${formatPrice(amountPaid)}</li>
-        <li><strong>Payment Method:</strong> ${displayMethod}</li>
+        <li><strong>Payment Method:</strong> ${escapeHtml(displayMethod)}</li>
         <li><strong>Date:</strong> ${new Date(paymentDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</li>
-        ${providerName ? `<li><strong>Provider:</strong> ${providerName}</li>` : ""}
+        ${providerName ? `<li><strong>Provider:</strong> ${escapeHtml(providerName)}</li>` : ""}
       </ul>
       <p><a href="${receiptUrl}" style="display: inline-block; padding: 12px 24px; background-color: #1a1a2e; color: white; text-decoration: none; border-radius: 6px;">View Full Receipt</a></p>
       <p>— RoadSide ATL</p>

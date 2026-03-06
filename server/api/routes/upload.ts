@@ -26,7 +26,7 @@ app.post("/logo", requireAdmin, async (c) => {
 
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     return c.json(
-      { error: "Invalid file type. Allowed: PNG, JPEG, SVG, WebP" },
+      { error: "Invalid file type. Allowed: PNG, JPEG, WebP" },
       400
     );
   }

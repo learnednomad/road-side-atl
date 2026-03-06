@@ -94,7 +94,6 @@ export function validateFileContent(
 export const ALLOWED_IMAGE_TYPES = [
   "image/png",
   "image/jpeg",
-  "image/svg+xml",
   "image/webp",
 ];
 
