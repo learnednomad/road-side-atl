@@ -1,16 +1,17 @@
 import { BUSINESS } from "@/lib/constants";
+import { escapeHtml } from "@/lib/escape-html";
 
 interface InvoiceData {
   invoiceNumber: string;
   customerName: string;
-  customerEmail: string;
-  customerPhone: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
   lineItems: Array<{
     description: string;
     quantity: number;
     unitPrice: number;
     total: number;
-  }>;
+  }> | null;
   subtotal: number;
   total: number;
   status: string;
@@ -44,7 +45,7 @@ export function generateInvoiceHTML(data: InvoiceData): string {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Invoice ${data.invoiceNumber}</title>
+  <title>Invoice ${escapeHtml(data.invoiceNumber)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; line-height: 1.5; padding: 40px; max-width: 800px; margin: 0 auto; }
@@ -81,11 +82,11 @@ export function generateInvoiceHTML(data: InvoiceData): string {
       <div class="invoice-title">Invoice</div>
     </div>
     <div>
-      <div class="invoice-number">${data.invoiceNumber}</div>
+      <div class="invoice-number">${escapeHtml(data.invoiceNumber)}</div>
       ${data.issuedAt ? `<div class="invoice-date">Issued: ${formatDate(data.issuedAt)}</div>` : ""}
       ${data.paidAt ? `<div class="invoice-date">Paid: ${formatDate(data.paidAt)}</div>` : ""}
       <div style="margin-top: 8px; text-align: right;">
-        <span class="status-badge">${data.status}</span>
+        <span class="status-badge">${escapeHtml(data.status)}</span>
       </div>
     </div>
   </div>
@@ -99,13 +100,13 @@ export function generateInvoiceHTML(data: InvoiceData): string {
     </div>
     <div class="address-block">
       <div class="address-label">Bill To</div>
-      <div class="address-value">${data.customerName}</div>
-      <div class="address-sub">${data.customerEmail}</div>
-      <div class="address-sub">${data.customerPhone}</div>
+      <div class="address-value">${escapeHtml(data.customerName)}</div>
+      <div class="address-sub">${escapeHtml(data.customerEmail)}</div>
+      <div class="address-sub">${escapeHtml(data.customerPhone)}</div>
     </div>
   </div>
 
-  ${data.providerName ? `<div style="margin-bottom: 20px; font-size: 13px; color: #64748b;">Service Provider: <strong>${data.providerName}</strong></div>` : ""}
+  ${data.providerName ? `<div style="margin-bottom: 20px; font-size: 13px; color: #64748b;">Service Provider: <strong>${escapeHtml(data.providerName)}</strong></div>` : ""}
 
   <table>
     <thead>
@@ -117,11 +118,11 @@ export function generateInvoiceHTML(data: InvoiceData): string {
       </tr>
     </thead>
     <tbody>
-      ${data.lineItems
+      ${(data.lineItems ?? [])
         .map(
           (item) => `
         <tr>
-          <td>${item.description}</td>
+          <td>${escapeHtml(item.description)}</td>
           <td>${item.quantity}</td>
           <td>${formatCurrency(item.unitPrice)}</td>
           <td>${formatCurrency(item.total)}</td>
@@ -145,7 +146,7 @@ export function generateInvoiceHTML(data: InvoiceData): string {
     </div>
   </div>
 
-  ${data.notes ? `<div class="notes"><div class="notes-label">Notes</div>${data.notes}</div>` : ""}
+  ${data.notes ? `<div class="notes"><div class="notes-label">Notes</div>${escapeHtml(data.notes)}</div>` : ""}
 
   <div class="footer">
     <div>Thank you for choosing ${BUSINESS.name}!</div>

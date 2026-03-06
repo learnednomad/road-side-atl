@@ -77,6 +77,11 @@ const statusVariant: Record<ProviderStatus, "default" | "secondary" | "destructi
   pending: "secondary",
   inactive: "destructive",
   resubmission_requested: "secondary",
+  applied: "secondary",
+  onboarding: "secondary",
+  pending_review: "secondary",
+  rejected: "destructive",
+  suspended: "destructive",
 };
 
 const PAGE_SIZE = 10;

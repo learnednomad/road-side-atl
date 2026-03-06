@@ -141,7 +141,7 @@ app.patch("/jobs/:id/accept", async (c) => {
     .returning();
 
   // Fire-and-forget notifications
-  notifyStatusChange(booking, "in_progress").catch(() => {});
+  notifyStatusChange(booking, "in_progress").catch((err) => { console.error("[Notifications] Failed:", err); });
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
   if (booking.userId) {
     broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
@@ -189,7 +189,7 @@ app.patch("/jobs/:id/reject", async (c) => {
   const excludeProviderIds = previousDispatches
     .filter((d) => d.assignedProviderId)
     .map((d) => d.assignedProviderId!);
-  autoDispatchBooking(bookingId, { excludeProviderIds }).catch(() => {});
+  autoDispatchBooking(bookingId, { excludeProviderIds }).catch((err) => { console.error("[Dispatch] Failed:", err); });
 
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
   if (booking.userId) {
@@ -197,6 +197,111 @@ app.patch("/jobs/:id/reject", async (c) => {
   }
 
   return c.json(updated);
+});
+
+// Cancel mid-job — unassign provider and trigger automatic re-dispatch
+app.patch("/jobs/:id/cancel", async (c) => {
+  const user = c.get("user");
+  const bookingId = c.req.param("id");
+  const body = await c.req.json().catch(() => ({}));
+  const reason = (body as { reason?: string }).reason || "Provider cancelled";
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, bookingId), eq(bookings.providerId, provider.id)),
+  });
+
+  if (!booking) {
+    return c.json({ error: "Job not found" }, 404);
+  }
+
+  // Allow cancellation from dispatched or in_progress
+  if (booking.status !== "dispatched" && booking.status !== "in_progress") {
+    return c.json({ error: "Job can only be cancelled when dispatched or in progress" }, 400);
+  }
+
+  // Unassign provider and revert to pending for re-dispatch
+  const [updated] = await db
+    .update(bookings)
+    .set({
+      providerId: null,
+      status: "pending",
+      notes: booking.notes
+        ? `${booking.notes}\n[Provider cancelled: ${reason}]`
+        : `[Provider cancelled: ${reason}]`,
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, bookingId))
+    .returning();
+
+  // Clear provider tracking state
+  await db
+    .update(providers)
+    .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
+    .where(eq(providers.id, provider.id));
+  clearDelayNotification(bookingId);
+
+  logAudit({
+    action: "booking.cancel",
+    userId: user.id,
+    resourceType: "booking",
+    resourceId: bookingId,
+    details: {
+      type: "provider_cancellation",
+      previousStatus: booking.status,
+      providerId: provider.id,
+      providerName: provider.name,
+      reason,
+    },
+  });
+
+  // Build exclusion list and trigger automatic re-dispatch
+  const previousDispatches = await db.query.dispatchLogs.findMany({
+    where: eq(dispatchLogs.bookingId, bookingId),
+  });
+  const excludeProviderIds = [
+    ...previousDispatches
+      .filter((d) => d.assignedProviderId)
+      .map((d) => d.assignedProviderId!),
+    provider.id,
+  ];
+
+  const dispatchResult = await autoDispatchBooking(bookingId, { excludeProviderIds }).catch((err) => {
+    console.error("[Dispatch] Re-dispatch after provider cancellation failed:", err);
+    return null;
+  });
+
+  notifyStatusChange(booking, "provider_cancelled").catch((err) => {
+    console.error("[Notifications] Failed:", err);
+  });
+  broadcastToAdmins({
+    type: "booking:provider_cancelled",
+    data: {
+      bookingId,
+      previousProviderId: provider.id,
+      previousProviderName: provider.name,
+      reason,
+      reDispatched: dispatchResult?.success || false,
+    },
+  });
+  if (booking.userId) {
+    broadcastToUser(booking.userId, {
+      type: "booking:status_changed",
+      data: { bookingId, status: "pending" },
+    });
+  }
+
+  return c.json({
+    ...updated,
+    reDispatchResult: dispatchResult,
+  });
 });
 
 // Update job status
@@ -242,7 +347,7 @@ app.patch("/jobs/:id/status", async (c) => {
     .where(eq(bookings.id, bookingId))
     .returning();
 
-  notifyStatusChange(booking, parsed.data.status).catch(() => {});
+  notifyStatusChange(booking, parsed.data.status).catch((err) => { console.error("[Notifications] Failed:", err); });
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
   if (booking.userId) {
     broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
@@ -253,7 +358,7 @@ app.patch("/jobs/:id/status", async (c) => {
       db.update(providers)
         .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
         .where(eq(providers.id, booking.providerId))
-        .catch(() => {});
+        .catch((err) => { console.error("[Error]", err); });
     }
     clearDelayNotification(bookingId);
   }
@@ -275,15 +380,15 @@ app.patch("/jobs/:id/status", async (c) => {
             referralCode = await generateReferralCode(bookingUser.id);
           }
           const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
-          notifyReferralLink(booking.contactPhone, referralLink).catch(() => {});
+          notifyReferralLink(booking.contactPhone, referralLink).catch((err) => { console.error("[Notifications] Failed:", err); });
         }
-      })().catch(() => {});
+      })().catch((err) => { console.error("[Notifications] Failed:", err); });
     }
 
     // Credit referral on first booking completion (fire-and-forget)
     (async () => {
       await creditReferralOnFirstBooking(booking.userId!, bookingId);
-    })().catch(() => {});
+    })().catch((err) => { console.error("[Error]", err); });
   }
 
   return c.json(updated);
@@ -351,14 +456,14 @@ app.post("/location", async (c) => {
       markDelayNotified(activeBooking.id);
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "";
       const trackingUrl = `${baseUrl}/track/${activeBooking.id}`;
-      sendDelayNotificationSMS(activeBooking.contactPhone, provider.name, etaMinutes, trackingUrl).catch(() => {});
+      sendDelayNotificationSMS(activeBooking.contactPhone, provider.name, etaMinutes, trackingUrl).catch((err) => { console.error("[Notifications] Failed:", err); });
       logAudit({
         action: "booking.delay_notification",
         userId: user.id,
         resourceType: "booking",
         resourceId: activeBooking.id,
         details: { etaMinutes, providerLat: latitude, providerLng: longitude },
-      }).catch(() => {});
+      }).catch((err) => { console.error("[Error]", err); });
     }
   }
 

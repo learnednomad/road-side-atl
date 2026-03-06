@@ -19,6 +19,7 @@ export type AuditAction =
   | "payout.mark_paid"
   | "payment.confirm"
   | "payment.refund"
+  | "payment.dispute"
   | "user.login"
   | "user.logout"
   | "user.register"
@@ -65,7 +66,33 @@ export type AuditAction =
   | "b2b_account.generate_invoice"
   | "invoice.send"
   | "invoice.mark_paid"
-  | "invoice.mark_overdue";
+  | "invoice.mark_overdue"
+  | "onboarding.fcra_consent"
+  | "onboarding.step_started"
+  | "onboarding.step_completed"
+  | "onboarding.step_rejected"
+  | "onboarding.activated"
+  | "onboarding.suspended"
+  | "onboarding.rejected"
+  | "onboarding.migration_bypass"
+  | "onboarding.status_changed"
+  | "onboarding.invite_sent"
+  | "onboarding.invite_accepted"
+  | "document.uploaded"
+  | "document.approved"
+  | "document.rejected"
+  | "document.resubmitted"
+  | "checkr.candidate_created"
+  | "checkr.report_received"
+  | "checkr.adjudication_approved"
+  | "stripe_connect.account_created"
+  | "stripe_connect.onboarding_completed"
+  | "stripe_connect.link_generated"
+  | "training.card_acknowledged"
+  | "training.module_completed"
+  | "migration.initiated"
+  | "migration.completed"
+  | "migration.suspended_deadline";
 
 export interface AuditLogEntry {
   action: AuditAction;
@@ -131,6 +158,11 @@ async function flushLogs(): Promise<void> {
           created_at TIMESTAMP DEFAULT NOW()
         )
       `);
+      // Create indexes for common query patterns
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS audit_logs_user_id_idx ON audit_logs (user_id)`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS audit_logs_action_idx ON audit_logs (action)`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS audit_logs_created_at_idx ON audit_logs (created_at)`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS audit_logs_resource_idx ON audit_logs (resource_type, resource_id)`);
       tableEnsured = true;
     }
 

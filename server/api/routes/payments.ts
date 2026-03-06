@@ -1,8 +1,9 @@
 import { Hono } from "hono";
+import Stripe from "stripe";
 import { db } from "@/db";
 import { bookings, payments, services, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { stripe } from "@/lib/stripe";
+import { eq, and } from "drizzle-orm";
+import { stripe, getStripe } from "@/lib/stripe";
 import { createStripeCheckoutSchema, isPaymentMethodAllowedForTier } from "@/lib/validators";
 import { requireAuth } from "@/server/api/middleware/auth";
 import { validatePaymentMethod } from "@/server/api/middleware/trust-tier";
@@ -19,6 +20,42 @@ const app = new Hono<AuthEnv>();
 app.use("/stripe/*", rateLimitStrict);
 app.use("/stripe/*", requireAuth);
 app.use("/stripe/*", validatePaymentMethod);
+
+/**
+ * Get or create a Stripe Customer for the authenticated user.
+ * Stores the Stripe customer ID in the users table for reuse.
+ */
+async function getOrCreateStripeCustomer(userId: string): Promise<string> {
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { id: true, stripeCustomerId: true, name: true, email: true, phone: true },
+  });
+
+  if (!dbUser) throw new Error("User not found");
+
+  // Return existing Stripe Customer ID if we have one
+  if (dbUser.stripeCustomerId) {
+    return dbUser.stripeCustomerId;
+  }
+
+  // Create new Stripe Customer
+  const customer = await getStripe().customers.create({
+    name: dbUser.name || undefined,
+    email: dbUser.email || undefined,
+    phone: dbUser.phone || undefined,
+    metadata: {
+      userId: dbUser.id,
+    },
+  });
+
+  // Store for future use
+  await db
+    .update(users)
+    .set({ stripeCustomerId: customer.id, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+
+  return customer.id;
+}
 
 // Create Stripe checkout session
 app.post("/stripe/checkout", async (c) => {
@@ -51,30 +88,66 @@ app.post("/stripe/checkout", async (c) => {
     return c.json({ error: "Booking not found" }, 404);
   }
 
+  // Idempotency: prevent duplicate checkout sessions for same booking
+  const existingPending = await db.query.payments.findFirst({
+    where: and(eq(payments.bookingId, parsed.data.bookingId), eq(payments.status, "pending")),
+  });
+  if (existingPending?.stripeSessionId) {
+    const existingSession = await stripe.checkout.sessions.retrieve(existingPending.stripeSessionId);
+    if (existingSession.status === "open" && existingSession.url) {
+      return c.json({ url: existingSession.url });
+    }
+  }
+
   const service = await db.query.services.findFirst({
     where: eq(services.id, booking.serviceId),
   });
 
+  const baseUrl = process.env.AUTH_URL;
+  if (!baseUrl) {
+    return c.json({ error: "Server misconfiguration" }, 500);
+  }
+
+  // Create or retrieve Stripe Customer for authenticated user
+  const stripeCustomerId = await getOrCreateStripeCustomer(user.id);
+
+  // Build line item — use linked Stripe Product if available, otherwise inline product_data
+  const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
+    price_data: {
+      currency: "usd",
+      unit_amount: booking.estimatedPrice,
+      ...(service?.stripeProductId
+        ? { product: service.stripeProductId }
+        : {
+            product_data: {
+              name: service?.name || "Roadside Service",
+              description: `Booking #${booking.id.slice(0, 8)}`,
+            },
+          }),
+    },
+    quantity: 1,
+  };
+
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          product_data: {
-            name: service?.name || "Roadside Service",
-            description: `Booking #${booking.id.slice(0, 8)}`,
-          },
-          unit_amount: booking.estimatedPrice,
-        },
-        quantity: 1,
-      },
-    ],
+    line_items: [lineItem],
     mode: "payment",
-    success_url: `${c.req.header("origin") || process.env.AUTH_URL}/book/confirmation?bookingId=${booking.id}&paid=true`,
-    cancel_url: `${c.req.header("origin") || process.env.AUTH_URL}/book/confirmation?bookingId=${booking.id}`,
+    customer: stripeCustomerId,
+    success_url: `${baseUrl}/book/confirmation?bookingId=${booking.id}&paid=true`,
+    cancel_url: `${baseUrl}/book/confirmation?bookingId=${booking.id}`,
+    // Session-level metadata (available on checkout.session.completed)
     metadata: {
       bookingId: booking.id,
+      serviceSlug: service?.slug || "unknown",
+      userId: user.id,
+    },
+    // PaymentIntent-level metadata (available on charge.refunded, dispute, payment_failed events)
+    payment_intent_data: {
+      metadata: {
+        bookingId: booking.id,
+        serviceSlug: service?.slug || "unknown",
+        userId: user.id,
+      },
     },
   });
 

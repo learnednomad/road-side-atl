@@ -10,4 +10,9 @@ export type WSEvent =
   | { type: "booking:price_override"; data: { bookingId: string } }
   | { type: "service:commission_updated"; data: { serviceId: string; commissionRate: number } }
   | { type: "payout:batch_paid"; data: { payoutIds: string[]; count: number } }
-  | { type: "payment:refunded"; data: { paymentId: string; bookingId: string; refundType: string; refundAmount: number } };
+  | { type: "payment:refunded"; data: { paymentId: string; bookingId: string; refundType: string; refundAmount: number } }
+  | { type: "booking:rescheduled"; data: { bookingId: string; scheduledAt: string } }
+  | { type: "booking:provider_cancelled"; data: { bookingId: string; previousProviderId: string; previousProviderName: string; reason: string; reDispatched: boolean } }
+  | { type: "onboarding:step_updated"; data: { providerId: string; stepType: string; newStatus: string; rejectionReason?: string } }
+  | { type: "onboarding:document_reviewed"; data: { providerId: string; documentType: string; status: string; rejectionReason?: string } }
+  | { type: "onboarding:activated"; data: { providerId: string; providerName: string } };

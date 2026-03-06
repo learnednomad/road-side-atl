@@ -29,14 +29,21 @@ export const PAYMENT_STATUSES = [
   "confirmed",
   "failed",
   "refunded",
+  "disputed",
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export const USER_ROLES = ["customer", "admin", "provider"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const PROVIDER_STATUSES = ["active", "inactive", "pending", "resubmission_requested"] as const;
+export const PROVIDER_STATUSES = [
+  "active", "inactive", "pending", "resubmission_requested",
+  "applied", "onboarding", "pending_review", "rejected", "suspended",
+] as const;
 export type ProviderStatus = (typeof PROVIDER_STATUSES)[number];
+
+export const PROVIDER_ONBOARDING_STATUSES = ["applied", "onboarding", "pending_review", "rejected", "suspended"] as const;
+export type ProviderOnboardingStatus = (typeof PROVIDER_ONBOARDING_STATUSES)[number];
 
 export const COMMISSION_TYPES = ["percentage", "flat_per_job"] as const;
 export type CommissionType = (typeof COMMISSION_TYPES)[number];
@@ -94,3 +101,33 @@ export const B2B_INVOICE_DUE_DAYS: Record<B2bPaymentTerms, number> = {
   net_30: 30,
   net_60: 60,
 };
+
+export const ONBOARDING_STEP_TYPES = [
+  "background_check", "insurance", "certifications", "training", "stripe_connect",
+] as const;
+export type OnboardingStepType = (typeof ONBOARDING_STEP_TYPES)[number];
+
+export const ONBOARDING_STEP_STATUSES = [
+  "pending", "draft", "in_progress", "pending_review", "complete", "rejected", "blocked",
+] as const;
+export type OnboardingStepStatus = (typeof ONBOARDING_STEP_STATUSES)[number];
+
+export const DOCUMENT_TYPES = ["insurance", "certification", "vehicle_doc"] as const;
+export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
+export const DOCUMENT_STATUSES = ["pending_review", "approved", "rejected"] as const;
+export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
+
+export const TRAINING_TOPICS = [
+  "dispatch_protocol",
+  "safety_procedures",
+  "cancellation_policy",
+  "payment_terms",
+  "service_area",
+  "platform_terms",
+] as const;
+export type TrainingTopic = (typeof TRAINING_TOPICS)[number];
+
+export const ONBOARDING_INVITE_EXPIRY_HOURS = 72;
+
+export const REAPPLY_COOLDOWN_DAYS = 30;
