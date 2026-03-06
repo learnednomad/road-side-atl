@@ -52,6 +52,16 @@ else
   echo "Warning: Migrations may have failed, but continuing..."
 fi
 
+# Run seed if SEED_DB is set (for demo/development)
+if [ "${SEED_DB:-false}" = "true" ]; then
+  echo "Seeding database with demo data..."
+  if npx tsx db/seed.ts 2>&1; then
+    echo "Database seeded successfully!"
+  else
+    echo "Warning: Seed may have failed, but continuing..."
+  fi
+fi
+
 # Start the server
 echo "Starting Next.js server..."
 echo "Server will be available at http://0.0.0.0:${PORT:-3000}"
