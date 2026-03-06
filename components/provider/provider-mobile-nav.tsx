@@ -1,9 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { useProviderStatus } from "@/lib/hooks/use-provider-status";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ClipboardList, FileText, Settings, LogOut, Home, Menu } from "lucide-react";
+import {
+  LayoutDashboard,
+  ClipboardList,
+  FileText,
+  Settings,
+  LogOut,
+  Home,
+  Menu,
+  DollarSign,
+  Eye,
+  Search,
+  Users,
+  GraduationCap,
+} from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,16 +29,38 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const links = [
+const DISPATCH_GATED = new Set([
+  "/provider/jobs",
+  "/provider/earnings",
+  "/provider/invoices",
+]);
+
+const baseLinks = [
   { href: "/provider", label: "Dashboard", icon: LayoutDashboard },
   { href: "/provider/jobs", label: "Jobs", icon: ClipboardList },
+  { href: "/provider/earnings", label: "Earnings", icon: DollarSign },
   { href: "/provider/invoices", label: "Invoices", icon: FileText },
+  { href: "/provider/observations", label: "Observations", icon: Eye },
+  { href: "/provider/inspections", label: "Inspections", icon: Search },
+  { href: "/provider/referrals", label: "Referrals", icon: Users },
   { href: "/provider/settings", label: "Settings", icon: Settings },
 ];
 
 export function ProviderMobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const providerStatus = useProviderStatus();
+
+  const isOnboarding = ["onboarding", "applied", "pending_review"].includes(providerStatus ?? "");
+  const showOnboardingLink = isOnboarding;
+
+  const links = showOnboardingLink
+    ? [
+        baseLinks[0],
+        { href: "/provider/onboarding", label: "Onboarding", icon: GraduationCap },
+        ...baseLinks.slice(1),
+      ]
+    : baseLinks;
 
   return (
     <header className="flex h-16 items-center justify-between border-b px-4 lg:hidden">
@@ -46,6 +82,20 @@ export function ProviderMobileNav() {
                 const isActive =
                   pathname === link.href ||
                   (link.href !== "/provider" && pathname.startsWith(link.href));
+                const isGated = isOnboarding && DISPATCH_GATED.has(link.href);
+
+                if (isGated) {
+                  return (
+                    <span
+                      key={link.href}
+                      className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium opacity-40 cursor-not-allowed"
+                    >
+                      <link.icon className="h-4 w-4" />
+                      {link.label}
+                    </span>
+                  );
+                }
+
                 return (
                   <Link
                     key={link.href}

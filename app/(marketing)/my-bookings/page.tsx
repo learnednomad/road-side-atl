@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { bookings, services, payments, providers } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { bookings, services, payments, providers, reviews } from "@/db/schema";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { MyBookingsClient } from "./my-bookings-client";
 
 export default async function MyBookingsPage() {
@@ -29,7 +29,7 @@ export default async function MyBookingsPage() {
   const bookingIds = userBookings.map((b) => b.booking.id);
   const bookingPayments =
     bookingIds.length > 0
-      ? await db.select().from(payments).where(eq(payments.status, "confirmed"))
+      ? await db.select().from(payments).where(and(inArray(payments.bookingId, bookingIds), eq(payments.status, "confirmed")))
       : [];
 
   // Map payments to bookings
@@ -40,6 +40,16 @@ export default async function MyBookingsPage() {
     }
     paymentMap.get(payment.bookingId)!.push(payment);
   }
+
+  // Fetch reviews for completed bookings
+  const completedBookingIds = userBookings
+    .filter((b) => b.booking.status === "completed")
+    .map((b) => b.booking.id);
+  const existingReviews =
+    completedBookingIds.length > 0
+      ? await db.select({ bookingId: reviews.bookingId }).from(reviews).where(inArray(reviews.bookingId, completedBookingIds))
+      : [];
+  const reviewedBookingIds = new Set(existingReviews.map((r) => r.bookingId));
 
   // Serialize data for client component
   const serializedBookings = userBookings.map(({ booking, service, provider }) => ({
@@ -78,6 +88,7 @@ export default async function MyBookingsPage() {
       status: p.status,
       confirmedAt: p.confirmedAt?.toISOString() || null,
     })),
+    hasReview: reviewedBookingIds.has(booking.id),
   }));
 
   return (

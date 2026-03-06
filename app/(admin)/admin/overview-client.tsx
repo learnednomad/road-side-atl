@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatsCards } from "@/components/admin/stats-cards";
+import { HealthWidget } from "@/components/admin/health-widget";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BookingStatus } from "@/lib/constants";
@@ -53,6 +54,8 @@ export function AdminOverviewClient({ stats, recentBookings }: Props) {
         monthlyRevenue={stats.monthlyRevenue}
         sparklines={sparklines ?? undefined}
       />
+
+      <HealthWidget />
 
       <Card>
         <CardHeader>

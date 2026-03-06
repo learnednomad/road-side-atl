@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/status-badge";
-import type { BookingStatus, PaymentMethod } from "@/lib/constants";
+import type { BookingStatus } from "@/lib/constants";
 import {
   ArrowLeft,
   Car,
@@ -22,6 +22,8 @@ import {
   Truck,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { BookingPriceOverride } from "@/components/admin/booking-price-override";
+import { BookingNotesEditor } from "@/components/admin/booking-notes-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -252,6 +254,14 @@ export default async function AdminBookingDetailPage({
         </Card>
       </div>
 
+      {/* Price Override */}
+      <BookingPriceOverride
+        bookingId={booking.id}
+        estimatedPrice={booking.estimatedPrice}
+        currentOverride={booking.priceOverrideCents}
+        currentReason={booking.priceOverrideReason}
+      />
+
       {/* Payments */}
       <Card>
         <CardHeader>
@@ -290,17 +300,8 @@ export default async function AdminBookingDetailPage({
         </CardContent>
       </Card>
 
-      {/* Notes */}
-      {booking.notes && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm">{booking.notes}</p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Internal Notes (editable) */}
+      <BookingNotesEditor bookingId={booking.id} initialNotes={booking.notes || ""} />
     </div>
   );
 }

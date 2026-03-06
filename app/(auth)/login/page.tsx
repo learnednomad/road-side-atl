@@ -29,16 +29,26 @@ export default function LoginPage() {
   );
 }
 
+const AUTH_ERROR_MAP: Record<string, string> = {
+  CredentialsSignin: "Invalid email or password",
+  OAuthAccountNotLinked: "This email is linked to another sign-in method",
+  OAuthSignin: "Could not sign in with this provider",
+  OAuthCallback: "Could not complete sign-in",
+  SessionRequired: "Please sign in to continue",
+  Default: "An error occurred during sign-in",
+};
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "";
+  const rawCallbackUrl = searchParams.get("callbackUrl") || "";
+  const callbackUrl = rawCallbackUrl.startsWith("/") && !rawCallbackUrl.startsWith("//") ? rawCallbackUrl : "";
   const errorParam = searchParams.get("error");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(
-    errorParam === "CredentialsSignin" ? "Invalid email or password" : errorParam || ""
+    errorParam ? (AUTH_ERROR_MAP[errorParam] || AUTH_ERROR_MAP.Default) : ""
   );
   const [loading, setLoading] = useState<"credentials" | "magic" | "google" | null>(null);
   const [magicLinkSent, setMagicLinkSent] = useState(false);

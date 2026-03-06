@@ -40,8 +40,8 @@ export default function ProviderDashboard() {
     setLoading(true);
     setFetchError(false);
     Promise.all([
-      fetch("/api/provider/jobs?status=dispatched").then((r) => r.json()),
-      fetch("/api/provider/stats").then((r) => r.json()),
+      fetch("/api/provider/jobs?status=dispatched").then((r) => r.ok ? r.json() : { data: [] }),
+      fetch("/api/provider/stats").then((r) => r.ok ? r.json() : null),
     ])
       .then(([jobsData, statsData]) => {
         setJobs(jobsData.data || []);
@@ -52,7 +52,7 @@ export default function ProviderDashboard() {
   }
 
   useEffect(() => {
-    fetchData();
+    fetchData(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
   }, []);
 
   // Listen for new job assignments

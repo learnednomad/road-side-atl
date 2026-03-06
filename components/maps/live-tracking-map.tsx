@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useGoogleMaps } from "@/lib/hooks/use-google-maps";
 
 interface Location {
@@ -29,7 +29,6 @@ export function LiveTrackingMap({
   const pickupMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const destMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const providerMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
-  const [mapId] = useState(() => `map-${Math.random().toString(36).slice(2)}`);
 
   // Initialize map
   useEffect(() => {
@@ -88,7 +87,7 @@ export function LiveTrackingMap({
     return () => {
       mapInstanceRef.current = null;
     };
-  }, [isLoaded, pickupLocation, destinationLocation]);
+  }, [isLoaded, pickupLocation, destinationLocation, providerLocation]);
 
   // Update provider marker position
   useEffect(() => {
@@ -98,14 +97,14 @@ export function LiveTrackingMap({
       if (!providerMarkerRef.current) {
         // Create provider marker (orange truck icon)
         const providerPin = document.createElement("div");
-        providerPin.innerHTML = `
-          <div style="background: #f97316; border: 3px solid white; border-radius: 8px; padding: 6px 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 4px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2">
-              <path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-            </svg>
-            <span style="color: white; font-size: 11px; font-weight: 600;">${providerName || "Provider"}</span>
-          </div>
-        `;
+        const wrapper = document.createElement("div");
+        wrapper.style.cssText = "background: #f97316; border: 3px solid white; border-radius: 8px; padding: 6px 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 4px;";
+        wrapper.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>`;
+        const nameSpan = document.createElement("span");
+        nameSpan.style.cssText = "color: white; font-size: 11px; font-weight: 600;";
+        nameSpan.textContent = providerName || "Provider";
+        wrapper.appendChild(nameSpan);
+        providerPin.appendChild(wrapper);
         providerMarkerRef.current = new google.maps.marker.AdvancedMarkerElement({
           map: mapInstanceRef.current,
           position: providerLocation,

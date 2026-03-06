@@ -46,7 +46,7 @@ export function LocationTracker({ enabled: initialEnabled = false }: LocationTra
 
   useEffect(() => {
     if (tracking) {
-      sendLocation();
+      sendLocation(); // eslint-disable-line react-hooks/set-state-in-effect -- interval bootstrap
       intervalRef.current = setInterval(sendLocation, 30_000);
     } else {
       clearInterval(intervalRef.current);

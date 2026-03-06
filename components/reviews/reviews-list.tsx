@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "./star-rating";
 import { Loader2 } from "lucide-react";
@@ -26,7 +26,7 @@ export function ReviewsList({ providerId, limit = 5 }: ReviewsListProps) {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
-  async function fetchReviews(newOffset = 0) {
+  const fetchReviews = useCallback(async (newOffset = 0) => {
     try {
       const res = await fetch(
         `/api/reviews/provider/${providerId}?limit=${limit}&offset=${newOffset}`
@@ -46,11 +46,11 @@ export function ReviewsList({ providerId, limit = 5 }: ReviewsListProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [providerId, limit]);
 
   useEffect(() => {
     fetchReviews(0);
-  }, [providerId]);
+  }, [fetchReviews]);
 
   if (loading) {
     return (

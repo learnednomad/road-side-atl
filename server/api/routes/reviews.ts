@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "@/db";
 import { reviews, providers, bookings, users } from "@/db/schema";
 import { eq, desc, avg, count } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { requireAuth } from "../middleware/auth";
 
 type AuthEnv = {

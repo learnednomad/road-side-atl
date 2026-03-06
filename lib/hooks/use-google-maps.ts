@@ -27,6 +27,7 @@ export function useGoogleMaps() {
   useEffect(() => {
     if (loadedRef.current) return;
     if (!initLoader()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization error handling
       setError("Google Maps API key not configured");
       return;
     }

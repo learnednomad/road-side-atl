@@ -84,10 +84,10 @@ export default function AboutPage() {
               desc: "Book online in minutes or call us directly. Pay your way — Cash, CashApp, Zelle, or credit/debit card.",
             },
           ].map((item) => (
-            <Card key={item.title}>
+            <Card key={item.title} className="card-hover-glow">
               <CardContent className="pt-6">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                  <item.icon className="h-5 w-5 text-primary" />
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-red-600/10">
+                  <item.icon className="h-5 w-5 text-red-600" />
                 </div>
                 <h3 className="mb-1 font-semibold">{item.title}</h3>
                 <p className="text-sm text-muted-foreground">{item.desc}</p>

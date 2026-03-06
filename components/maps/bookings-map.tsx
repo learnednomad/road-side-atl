@@ -43,6 +43,7 @@ export function BookingsMap({ bookings = [], providers = [], className }: Bookin
     });
 
     mapInstanceRef.current = map;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- map initialization state
     setInfoWindow(new google.maps.InfoWindow());
   }, [isLoaded]);
 

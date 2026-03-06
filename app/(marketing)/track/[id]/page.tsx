@@ -54,6 +54,8 @@ export default async function TrackingPage({
               id: provider.id,
               name: provider.name,
               phone: provider.phone,
+              rating: provider.averageRating ?? null,
+              photoUrl: null,
               currentLocation: provider.currentLocation,
             }
           : null

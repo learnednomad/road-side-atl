@@ -1,12 +1,21 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, providers, payments } from "@/db/schema";
-import { eq, desc, and, count, sql } from "drizzle-orm";
+import { bookings, services, providers, payments, providerPayouts, users, dispatchLogs } from "@/db/schema";
+import { eq, desc, and, count, sql, inArray } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
+import { BOOKING_STATUSES } from "@/lib/constants";
+import type { BookingStatus } from "@/lib/constants";
 import { updateBookingStatusSchema } from "@/lib/validators";
-import { notifyStatusChange } from "@/lib/notifications";
+import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
+import { geocodeAddress } from "@/lib/geocoding";
+import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
+import { calculateEtaMinutes } from "../lib/eta-calculator";
+import { logAudit } from "../lib/audit-logger";
+import { sendDelayNotificationSMS } from "@/lib/notifications/sms";
+import { ETA_DELAY_THRESHOLD_MINUTES } from "@/lib/constants";
+import { markDelayNotified, hasDelayNotification, clearDelayNotification } from "../lib/delay-tracker";
 
 type AuthEnv = {
   Variables: {
@@ -36,8 +45,8 @@ app.get("/jobs", async (c) => {
   }
 
   const conditions = [eq(bookings.providerId, provider.id)];
-  if (status) {
-    conditions.push(eq(bookings.status, status as any));
+  if (status && BOOKING_STATUSES.includes(status as BookingStatus)) {
+    conditions.push(eq(bookings.status, status as BookingStatus));
   }
 
   const [totalResult] = await db
@@ -132,7 +141,7 @@ app.patch("/jobs/:id/accept", async (c) => {
     .returning();
 
   // Fire-and-forget notifications
-  notifyStatusChange(booking, "in_progress").catch(() => {});
+  notifyStatusChange(booking, "in_progress").catch((err) => { console.error("[Notifications] Failed:", err); });
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
   if (booking.userId) {
     broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
@@ -162,6 +171,10 @@ app.patch("/jobs/:id/reject", async (c) => {
     return c.json({ error: "Job not found" }, 404);
   }
 
+  if (booking.status !== "dispatched") {
+    return c.json({ error: "Job can only be rejected when dispatched" }, 400);
+  }
+
   // Unassign provider and revert to confirmed
   const [updated] = await db
     .update(bookings)
@@ -169,12 +182,126 @@ app.patch("/jobs/:id/reject", async (c) => {
     .where(eq(bookings.id, bookingId))
     .returning();
 
-  // Try to re-dispatch
-  autoDispatchBooking(bookingId).catch(() => {});
+  // Build exclusion list from previous dispatch attempts, then re-dispatch
+  const previousDispatches = await db.query.dispatchLogs.findMany({
+    where: eq(dispatchLogs.bookingId, bookingId),
+  });
+  const excludeProviderIds = previousDispatches
+    .filter((d) => d.assignedProviderId)
+    .map((d) => d.assignedProviderId!);
+  autoDispatchBooking(bookingId, { excludeProviderIds }).catch((err) => { console.error("[Dispatch] Failed:", err); });
 
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
+  if (booking.userId) {
+    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
+  }
 
   return c.json(updated);
+});
+
+// Cancel mid-job — unassign provider and trigger automatic re-dispatch
+app.patch("/jobs/:id/cancel", async (c) => {
+  const user = c.get("user");
+  const bookingId = c.req.param("id");
+  const body = await c.req.json().catch(() => ({}));
+  const reason = (body as { reason?: string }).reason || "Provider cancelled";
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, bookingId), eq(bookings.providerId, provider.id)),
+  });
+
+  if (!booking) {
+    return c.json({ error: "Job not found" }, 404);
+  }
+
+  // Allow cancellation from dispatched or in_progress
+  if (booking.status !== "dispatched" && booking.status !== "in_progress") {
+    return c.json({ error: "Job can only be cancelled when dispatched or in progress" }, 400);
+  }
+
+  // Unassign provider and revert to pending for re-dispatch
+  const [updated] = await db
+    .update(bookings)
+    .set({
+      providerId: null,
+      status: "pending",
+      notes: booking.notes
+        ? `${booking.notes}\n[Provider cancelled: ${reason}]`
+        : `[Provider cancelled: ${reason}]`,
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, bookingId))
+    .returning();
+
+  // Clear provider tracking state
+  await db
+    .update(providers)
+    .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
+    .where(eq(providers.id, provider.id));
+  clearDelayNotification(bookingId);
+
+  logAudit({
+    action: "booking.cancel",
+    userId: user.id,
+    resourceType: "booking",
+    resourceId: bookingId,
+    details: {
+      type: "provider_cancellation",
+      previousStatus: booking.status,
+      providerId: provider.id,
+      providerName: provider.name,
+      reason,
+    },
+  });
+
+  // Build exclusion list and trigger automatic re-dispatch
+  const previousDispatches = await db.query.dispatchLogs.findMany({
+    where: eq(dispatchLogs.bookingId, bookingId),
+  });
+  const excludeProviderIds = [
+    ...previousDispatches
+      .filter((d) => d.assignedProviderId)
+      .map((d) => d.assignedProviderId!),
+    provider.id,
+  ];
+
+  const dispatchResult = await autoDispatchBooking(bookingId, { excludeProviderIds }).catch((err) => {
+    console.error("[Dispatch] Re-dispatch after provider cancellation failed:", err);
+    return null;
+  });
+
+  notifyStatusChange(booking, "provider_cancelled").catch((err) => {
+    console.error("[Notifications] Failed:", err);
+  });
+  broadcastToAdmins({
+    type: "booking:provider_cancelled",
+    data: {
+      bookingId,
+      previousProviderId: provider.id,
+      previousProviderName: provider.name,
+      reason,
+      reDispatched: dispatchResult?.success || false,
+    },
+  });
+  if (booking.userId) {
+    broadcastToUser(booking.userId, {
+      type: "booking:status_changed",
+      data: { bookingId, status: "pending" },
+    });
+  }
+
+  return c.json({
+    ...updated,
+    reDispatchResult: dispatchResult,
+  });
 });
 
 // Update job status
@@ -204,16 +331,64 @@ app.patch("/jobs/:id/status", async (c) => {
     return c.json({ error: "Job not found" }, 404);
   }
 
+  const VALID_PROVIDER_TRANSITIONS: Record<string, string[]> = {
+    dispatched: ["in_progress"],
+    in_progress: ["completed"],
+    confirmed: ["cancelled"],
+  };
+  const allowedNext = VALID_PROVIDER_TRANSITIONS[booking.status];
+  if (!allowedNext || !allowedNext.includes(parsed.data.status)) {
+    return c.json({ error: `Invalid status transition from ${booking.status} to ${parsed.data.status}` }, 400);
+  }
+
   const [updated] = await db
     .update(bookings)
     .set({ status: parsed.data.status, updatedAt: new Date() })
     .where(eq(bookings.id, bookingId))
     .returning();
 
-  notifyStatusChange(booking, parsed.data.status).catch(() => {});
+  notifyStatusChange(booking, parsed.data.status).catch((err) => { console.error("[Notifications] Failed:", err); });
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
   if (booking.userId) {
     broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
+  }
+
+  if (parsed.data.status === "completed" || parsed.data.status === "cancelled") {
+    if (booking.providerId) {
+      db.update(providers)
+        .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
+        .where(eq(providers.id, booking.providerId))
+        .catch((err) => { console.error("[Error]", err); });
+    }
+    clearDelayNotification(bookingId);
+  }
+
+  // Post-service referral SMS on completion (fire-and-forget) — only if payment confirmed
+  if (parsed.data.status === "completed" && booking.contactPhone && booking.userId) {
+    const confirmedPayment = await db.query.payments.findFirst({
+      where: and(eq(payments.bookingId, bookingId), eq(payments.status, "confirmed")),
+    });
+
+    if (confirmedPayment) {
+      (async () => {
+        const bookingUser = await db.query.users.findFirst({
+          where: eq(users.id, booking.userId!),
+        });
+        if (bookingUser) {
+          let referralCode = bookingUser.referralCode;
+          if (!referralCode) {
+            referralCode = await generateReferralCode(bookingUser.id);
+          }
+          const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
+          notifyReferralLink(booking.contactPhone, referralLink).catch((err) => { console.error("[Notifications] Failed:", err); });
+        }
+      })().catch((err) => { console.error("[Notifications] Failed:", err); });
+    }
+
+    // Credit referral on first booking completion (fire-and-forget)
+    (async () => {
+      await creditReferralOnFirstBooking(booking.userId!, bookingId);
+    })().catch((err) => { console.error("[Error]", err); });
   }
 
   return c.json(updated);
@@ -250,6 +425,47 @@ app.post("/location", async (c) => {
     type: "provider:location_updated",
     data: { providerId: provider.id, lat: latitude, lng: longitude },
   });
+
+  const activeBookings = await db.query.bookings.findMany({
+    where: and(
+      eq(bookings.providerId, provider.id),
+      inArray(bookings.status, ["dispatched", "in_progress"])
+    ),
+  });
+
+  for (const activeBooking of activeBookings) {
+    const pickupLat = activeBooking.location?.latitude;
+    const pickupLng = activeBooking.location?.longitude;
+
+    let etaMinutes: number | undefined;
+    if (pickupLat && pickupLng) {
+      etaMinutes = calculateEtaMinutes(latitude, longitude, pickupLat, pickupLng);
+    }
+
+    broadcastToUser(activeBooking.id, {
+      type: "provider:location_updated",
+      data: { providerId: provider.id, lat: latitude, lng: longitude, etaMinutes },
+    });
+
+    if (
+      etaMinutes &&
+      etaMinutes > ETA_DELAY_THRESHOLD_MINUTES &&
+      !hasDelayNotification(activeBooking.id) &&
+      activeBooking.contactPhone
+    ) {
+      markDelayNotified(activeBooking.id);
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "";
+      const trackingUrl = `${baseUrl}/track/${activeBooking.id}`;
+      sendDelayNotificationSMS(activeBooking.contactPhone, provider.name, etaMinutes, trackingUrl).catch((err) => { console.error("[Notifications] Failed:", err); });
+      logAudit({
+        action: "booking.delay_notification",
+        userId: user.id,
+        resourceType: "booking",
+        resourceId: activeBooking.id,
+        details: { etaMinutes, providerLat: latitude, providerLng: longitude },
+      }).catch((err) => { console.error("[Error]", err); });
+    }
+  }
 
   return c.json({ success: true });
 });
@@ -365,6 +581,15 @@ app.patch("/profile", async (c) => {
   if (typeof body.latitude === "number") updates.latitude = body.latitude;
   if (typeof body.longitude === "number") updates.longitude = body.longitude;
 
+  // Geocode if address provided without coordinates
+  if (updates.address && !updates.latitude && !updates.longitude) {
+    const geocoded = await geocodeAddress(updates.address).catch(() => null);
+    if (geocoded) {
+      updates.latitude = geocoded.latitude;
+      updates.longitude = geocoded.longitude;
+    }
+  }
+
   const [updated] = await db
     .update(providers)
     .set(updates)
@@ -399,6 +624,428 @@ app.patch("/availability", async (c) => {
     .returning();
 
   return c.json(updated);
+});
+
+// Earnings summary
+app.get("/earnings/summary", async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [earningsSummary] = await db
+    .select({
+      totalEarned: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      pendingPayout: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'pending' then ${providerPayouts.amount} else 0 end), 0)`,
+      paidOut: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'paid' then ${providerPayouts.amount} else 0 end), 0)`,
+    })
+    .from(providerPayouts)
+    .where(eq(providerPayouts.providerId, provider.id));
+
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekStart = new Date(todayStart);
+  weekStart.setDate(weekStart.getDate() - ((todayStart.getDay() + 6) % 7));
+
+  const [[monthEarnings], [todayEarnings], [weekEarnings]] = await Promise.all([
+    db
+      .select({
+        thisMonth: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        completedJobs: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          eq(providerPayouts.payoutType, "standard"),
+          sql`${providerPayouts.createdAt} >= ${monthStart.toISOString()}`
+        )
+      ),
+    db
+      .select({
+        total: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        jobCount: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          eq(providerPayouts.payoutType, "standard"),
+          sql`${providerPayouts.createdAt} >= ${todayStart.toISOString()}`
+        )
+      ),
+    db
+      .select({
+        total: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        jobCount: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          eq(providerPayouts.payoutType, "standard"),
+          sql`${providerPayouts.createdAt} >= ${weekStart.toISOString()}`
+        )
+      ),
+  ]);
+
+  // Fetch per-service commission rates for provider visibility
+  const serviceRates = await db
+    .select({
+      name: services.name,
+      category: services.category,
+      commissionRate: services.commissionRate,
+    })
+    .from(services)
+    .where(eq(services.active, true))
+    .orderBy(services.category, services.name);
+
+  return c.json({
+    totalEarned: Number(earningsSummary.totalEarned),
+    pendingPayout: Number(earningsSummary.pendingPayout),
+    paidOut: Number(earningsSummary.paidOut),
+    thisMonthEarnings: Number(monthEarnings.thisMonth),
+    completedJobsThisMonth: Number(monthEarnings.completedJobs),
+    todayEarnings: Number(todayEarnings.total),
+    todayJobCount: Number(todayEarnings.jobCount),
+    thisWeekEarnings: Number(weekEarnings.total),
+    thisWeekJobCount: Number(weekEarnings.jobCount),
+    commissionRate: provider.commissionRate,
+    commissionType: provider.commissionType,
+    flatFeeAmount: provider.flatFeeAmount,
+    serviceCommissionRates: serviceRates.map((s) => ({
+      name: s.name,
+      category: s.category,
+      platformCommissionPercent: s.commissionRate / 100,
+      providerSharePercent: (10000 - s.commissionRate) / 100,
+    })),
+  });
+});
+
+// Earnings history (payout list)
+app.get("/earnings/history", async (c) => {
+  const user = c.get("user");
+  const status = c.req.query("status");
+  const page = parseInt(c.req.query("page") || "1");
+  const limit = parseInt(c.req.query("limit") || "20");
+  const offset = (page - 1) * limit;
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  const conditions = [eq(providerPayouts.providerId, provider.id)];
+  if (status && (status === "pending" || status === "paid")) {
+    conditions.push(eq(providerPayouts.status, status));
+  }
+
+  const [totalResult] = await db
+    .select({ count: count() })
+    .from(providerPayouts)
+    .where(and(...conditions));
+
+  const results = await db
+    .select({
+      payout: providerPayouts,
+      booking: bookings,
+      service: services,
+      bookingAmount: sql<number>`(
+        SELECT coalesce(p.amount, 0)
+        FROM payments p
+        WHERE p."bookingId" = ${providerPayouts.bookingId}
+        AND p.status = 'confirmed'
+        LIMIT 1
+      )`,
+    })
+    .from(providerPayouts)
+    .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .where(and(...conditions))
+    .orderBy(desc(providerPayouts.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return c.json({
+    data: results.map((r) => {
+      const subqueryAmount = Number(r.bookingAmount);
+      const bookingAmount = subqueryAmount > 0 ? subqueryAmount : (r.booking.priceOverrideCents ?? r.booking.finalPrice ?? r.booking.estimatedPrice ?? 0);
+      const payoutAmount = r.payout.amount;
+      return {
+        payout: {
+          ...r.payout,
+          createdAt: r.payout.createdAt.toISOString(),
+          paidAt: r.payout.paidAt?.toISOString() || null,
+        },
+        booking: {
+          id: r.booking.id,
+          contactName: r.booking.contactName,
+          createdAt: r.booking.createdAt.toISOString(),
+        },
+        service: {
+          name: r.service.name,
+          category: r.service.category,
+          commissionRate: r.service.commissionRate,
+          providerSharePercent: (10000 - r.service.commissionRate) / 100,
+        },
+        bookingAmount,
+        commissionDeducted: bookingAmount - payoutAmount,
+      };
+    }),
+    total: totalResult.count,
+    page,
+    limit,
+    totalPages: Math.ceil(totalResult.count / limit),
+  });
+});
+
+// Daily earnings (last 30 days)
+app.get("/earnings/daily", async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider not found" }, 404);
+  }
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const daily = await db
+    .select({
+      date: sql<string>`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`,
+      earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      jobCount: sql<number>`count(*)`,
+    })
+    .from(providerPayouts)
+    .where(
+      and(
+        eq(providerPayouts.providerId, provider.id),
+        sql`${providerPayouts.createdAt} >= ${thirtyDaysAgo.toISOString()}`,
+        eq(providerPayouts.payoutType, "standard"),
+      )
+    )
+    .groupBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`)
+    .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`);
+
+  return c.json({
+    daily: daily.map((d) => ({
+      date: d.date,
+      earnings: Number(d.earnings),
+      jobCount: Number(d.jobCount),
+    })),
+  });
+});
+
+// Weekly earnings (last 12 weeks)
+app.get("/earnings/weekly", async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider not found" }, 404);
+  }
+
+  const twelveWeeksAgo = new Date();
+  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
+
+  const weekly = await db
+    .select({
+      week: sql<string>`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
+      weekStart: sql<string>`to_char(date_trunc('week', ${providerPayouts.createdAt}), 'YYYY-MM-DD')`,
+      weekEnd: sql<string>`to_char(date_trunc('week', ${providerPayouts.createdAt}) + interval '6 days', 'YYYY-MM-DD')`,
+      earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      jobCount: sql<number>`count(*)`,
+    })
+    .from(providerPayouts)
+    .where(
+      and(
+        eq(providerPayouts.providerId, provider.id),
+        sql`${providerPayouts.createdAt} >= ${twelveWeeksAgo.toISOString()}`,
+        eq(providerPayouts.payoutType, "standard"),
+      )
+    )
+    .groupBy(
+      sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
+      sql`date_trunc('week', ${providerPayouts.createdAt})`,
+    )
+    .orderBy(sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`);
+
+  return c.json({
+    weekly: weekly.map((w) => ({
+      week: w.week,
+      weekStart: w.weekStart,
+      weekEnd: w.weekEnd,
+      earnings: Number(w.earnings),
+      jobCount: Number(w.jobCount),
+    })),
+  });
+});
+
+// Earnings trends with period support (?period=daily|weekly|monthly)
+app.get("/earnings/trends", async (c) => {
+  const user = c.get("user");
+  const period = c.req.query("period") || "monthly";
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  if (period === "daily") {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const trends = await db
+      .select({
+        date: sql<string>`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`,
+        earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        jobCount: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          sql`${providerPayouts.createdAt} >= ${thirtyDaysAgo.toISOString()}`,
+          eq(providerPayouts.payoutType, "standard"),
+        )
+      )
+      .groupBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`);
+
+    return c.json({
+      period: "daily",
+      trends: trends.map((t) => ({
+        label: t.date,
+        earnings: Number(t.earnings),
+        jobCount: Number(t.jobCount),
+      })),
+    });
+  }
+
+  if (period === "weekly") {
+    const twelveWeeksAgo = new Date();
+    twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
+
+    const trends = await db
+      .select({
+        week: sql<string>`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
+        weekStart: sql<string>`to_char(date_trunc('week', ${providerPayouts.createdAt}), 'YYYY-MM-DD')`,
+        earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+        jobCount: sql<number>`count(*)`,
+      })
+      .from(providerPayouts)
+      .where(
+        and(
+          eq(providerPayouts.providerId, provider.id),
+          sql`${providerPayouts.createdAt} >= ${twelveWeeksAgo.toISOString()}`,
+          eq(providerPayouts.payoutType, "standard"),
+        )
+      )
+      .groupBy(
+        sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
+        sql`date_trunc('week', ${providerPayouts.createdAt})`,
+      )
+      .orderBy(sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`);
+
+    return c.json({
+      period: "weekly",
+      trends: trends.map((t) => ({
+        label: t.week,
+        weekStart: t.weekStart,
+        earnings: Number(t.earnings),
+        jobCount: Number(t.jobCount),
+      })),
+    });
+  }
+
+  // Default: monthly (backward compatible)
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 12);
+  startDate.setDate(1);
+
+  const trends = await db
+    .select({
+      month: sql<string>`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`,
+      earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      jobCount: sql<number>`count(*)`,
+    })
+    .from(providerPayouts)
+    .where(
+      and(
+        eq(providerPayouts.providerId, provider.id),
+        eq(providerPayouts.payoutType, "standard"),
+        sql`${providerPayouts.createdAt} >= ${startDate.toISOString()}`
+      )
+    )
+    .groupBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`)
+    .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`);
+
+  return c.json({
+    period: "monthly",
+    trends: trends.map((t) => ({
+      label: t.month,
+      earnings: Number(t.earnings),
+      jobCount: Number(t.jobCount),
+    })),
+  });
+});
+
+// Earnings breakdown by service
+app.get("/earnings/by-service", async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+
+  if (!provider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
+  const breakdown = await db
+    .select({
+      serviceName: services.name,
+      serviceCategory: services.category,
+      commissionRate: services.commissionRate,
+      earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
+      jobCount: sql<number>`count(*)`,
+    })
+    .from(providerPayouts)
+    .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .where(eq(providerPayouts.providerId, provider.id))
+    .groupBy(services.name, services.category, services.commissionRate);
+
+  return c.json({
+    breakdown: breakdown.map((b) => ({
+      serviceName: b.serviceName,
+      serviceCategory: b.serviceCategory,
+      commissionRate: b.commissionRate,
+      providerSharePercent: (10000 - b.commissionRate) / 100,
+      earnings: Number(b.earnings),
+      jobCount: Number(b.jobCount),
+    })),
+  });
 });
 
 export default app;

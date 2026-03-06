@@ -4,14 +4,16 @@ import { bookings, services, payments } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { requireAuth } from "../middleware/auth";
-import { createBookingSchema } from "@/lib/validators";
+import { createBookingSchema, rescheduleBookingSchema } from "@/lib/validators";
 import {
   TOWING_BASE_MILES,
   TOWING_PRICE_PER_MILE_CENTS,
 } from "@/lib/constants";
+import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { geocodeAddress } from "@/lib/geocoding";
-import { notifyBookingCreated } from "@/lib/notifications";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
+import { notifyBookingCreated, notifyStatusChange } from "@/lib/notifications";
+import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
+import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 
@@ -38,10 +40,15 @@ app.post("/", async (c) => {
     return c.json({ error: "Service not found" }, 404);
   }
 
-  // Calculate price
-  let estimatedPrice = service.basePrice;
+  // Calculate price via centralized pricing engine
+  const pricing = await calculateBookingPrice(
+    data.serviceId,
+    data.scheduledAt ? new Date(data.scheduledAt) : null,
+  );
+  let estimatedPrice = pricing.finalPrice;
   let towingMiles: number | undefined;
 
+  // Towing per-mile is ADDITIVE (not multiplied by time-block)
   if (service.slug === "towing" && data.location.estimatedMiles) {
     towingMiles = data.location.estimatedMiles;
     const extraMiles = Math.max(0, towingMiles - TOWING_BASE_MILES);
@@ -84,6 +91,7 @@ app.post("/", async (c) => {
       estimatedPrice,
       towingMiles,
       notes: data.notes,
+      preferredPaymentMethod: data.paymentMethod,
     })
     .returning();
 
@@ -104,13 +112,29 @@ app.post("/", async (c) => {
   });
 
   // Fire-and-forget notifications + broadcast
-  notifyBookingCreated(booking).catch(() => {});
+  notifyBookingCreated(booking).catch((err) => {
+    console.error("[Notifications] Failed to send booking created notification:", err);
+  });
   broadcastToAdmins({
     type: "booking:created",
     data: { bookingId: booking.id, contactName: booking.contactName, status: booking.status, serviceName: service.name },
   });
 
-  return c.json(booking, 201);
+  // Auto-dispatch for immediate bookings (deferred for scheduled)
+  let dispatchResult = null;
+  if (!booking.scheduledAt && process.env.AUTO_DISPATCH_ENABLED === "true") {
+    dispatchResult = await autoDispatchBooking(booking.id).catch(() => null);
+  }
+
+  return c.json({
+    ...booking,
+    pricingBreakdown: {
+      basePrice: pricing.basePrice,
+      multiplier: pricing.multiplier,
+      blockName: pricing.blockName,
+    },
+    dispatchResult,
+  }, 201);
 });
 
 // Get user's bookings (authenticated)
@@ -154,6 +178,83 @@ app.get("/:id", requireAuth, async (c) => {
   return c.json({ booking, service, payments: bookingPayments });
 });
 
+// Reschedule booking
+app.patch("/:id/reschedule", requireAuth, async (c) => {
+  const user = c.get("user");
+  const bookingId = c.req.param("id");
+
+  const body = await c.req.json();
+  const parsed = rescheduleBookingSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, bookingId), eq(bookings.userId, user.id)),
+  });
+
+  if (!booking) {
+    return c.json({ error: "Booking not found" }, 404);
+  }
+
+  // Only allow rescheduling for pending or confirmed bookings
+  if (booking.status !== "pending" && booking.status !== "confirmed") {
+    return c.json({ error: "Cannot reschedule a booking that is already in progress or completed" }, 400);
+  }
+
+  const updateData: Record<string, unknown> = {
+    scheduledAt: new Date(parsed.data.scheduledAt),
+    updatedAt: new Date(),
+  };
+
+  if (parsed.data.location) {
+    // Merge with existing location data
+    updateData.location = { ...booking.location, ...parsed.data.location };
+  }
+
+  if (parsed.data.notes !== undefined) {
+    updateData.notes = parsed.data.notes;
+  }
+
+  const [updated] = await db
+    .update(bookings)
+    .set(updateData)
+    .where(eq(bookings.id, bookingId))
+    .returning();
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "booking.update",
+    userId: user.id,
+    resourceType: "booking",
+    resourceId: bookingId,
+    details: {
+      type: "reschedule",
+      previousScheduledAt: booking.scheduledAt?.toISOString() || null,
+      newScheduledAt: parsed.data.scheduledAt,
+      locationChanged: !!parsed.data.location,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  notifyStatusChange(booking, "rescheduled").catch((err) => {
+    console.error("[Notifications] Failed to send reschedule notification:", err);
+  });
+  broadcastToAdmins({
+    type: "booking:rescheduled",
+    data: { bookingId, scheduledAt: parsed.data.scheduledAt },
+  });
+  if (booking.userId) {
+    broadcastToUser(booking.userId, {
+      type: "booking:rescheduled",
+      data: { bookingId, scheduledAt: parsed.data.scheduledAt },
+    });
+  }
+
+  return c.json(updated);
+});
+
 // Cancel booking
 app.patch("/:id/cancel", requireAuth, async (c) => {
   const user = c.get("user");
@@ -188,6 +289,14 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
     ipAddress,
     userAgent,
   });
+
+  notifyStatusChange(booking, "cancelled").catch((err) => {
+    console.error("[Notifications] Failed to send cancellation notification:", err);
+  });
+  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
+  if (booking.userId) {
+    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
+  }
 
   return c.json(updated);
 });

@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: DrizzleAdapter(db),
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 24 * 60 * 60 },
   callbacks: {
     async jwt({ token, user }) {
       if (user?.id) {

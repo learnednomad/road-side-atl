@@ -36,7 +36,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
       "lockout",
       "flat-tire",
       "fuel-delivery",
-      "car-purchase-diagnostics",
+      "basic-inspection",
+      "standard-inspection",
+      "premium-inspection",
     ].map((slug) => ({
       url: `${SITE_URL}/services#${slug}`,
       lastModified: now,

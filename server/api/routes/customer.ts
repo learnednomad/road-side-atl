@@ -42,7 +42,6 @@ app.get("/bookings", async (c) => {
     .offset(offset);
 
   // Check which bookings have reviews
-  const bookingIds = customerBookings.map((b) => b.booking.id);
   const existingReviews = await db
     .select({ bookingId: reviews.bookingId })
     .from(reviews)

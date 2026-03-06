@@ -26,6 +26,7 @@ function AcceptInviteContent() {
 
   useEffect(() => {
     if (!token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- token check short-circuit
       setVerifying(false);
       setError("No invite token provided");
       return;

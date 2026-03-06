@@ -259,7 +259,7 @@ export default function ProviderSettingsPage() {
             </div>
             <p className="text-sm text-muted-foreground">
               {profile.commissionType === "percentage"
-                ? "You earn a percentage of each completed job's total price."
+                ? "You earn a percentage of each completed job&apos;s total price."
                 : "You earn a flat fee for each completed job, regardless of job total."}
             </p>
           </div>
@@ -273,7 +273,7 @@ export default function ProviderSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Service Specialties</CardTitle>
-          <CardDescription>Types of services you're qualified to provide</CardDescription>
+          <CardDescription>Types of services you&apos;re qualified to provide</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">

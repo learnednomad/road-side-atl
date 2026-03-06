@@ -63,6 +63,7 @@ export function AddressAutocomplete({
     });
 
     autocompleteRef.current = autocomplete;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- map initialization state
     setInitialized(true);
   }, [isLoaded, initialized, onChange, onPlaceSelected]);
 

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, integer } from "drizzle-orm/pg-core";
 import { createId } from "./utils";
 
 export const userRoleEnum = pgEnum("user_role", ["customer", "admin", "provider"]);
@@ -15,6 +15,11 @@ export const users = pgTable("users", {
   password: text("password"),
   role: userRoleEnum("role").default("customer").notNull(),
   tenantId: text("tenantId"),
+  trustTier: integer("trustTier").default(1).notNull(),
+  cleanTransactionCount: integer("cleanTransactionCount").default(0).notNull(),
+  referralCode: text("referralCode").unique(),
+  taxId: text("taxId"),
+  stripeCustomerId: text("stripeCustomerId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 });

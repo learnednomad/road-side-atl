@@ -1,9 +1,4 @@
-// Load dotenv only if available (not in Docker production where env vars are already set)
-try {
-  require("dotenv/config");
-} catch {
-  // dotenv not available in production build - environment variables should already be set
-}
+import "dotenv/config";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import bcrypt from "bcryptjs";
@@ -15,8 +10,9 @@ import {
   payments,
   providerPayouts,
   dispatchLogs,
+  timeBlockConfigs,
 } from "./schema";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 function daysAgo(n: number): Date {
   const d = new Date();
@@ -45,11 +41,12 @@ async function seed() {
   await db.execute(sql`DELETE FROM accounts`).catch(() => {});
   await db.execute(sql`DELETE FROM sessions`).catch(() => {});
   await db.delete(users);
+  await db.delete(timeBlockConfigs);
   await db.delete(services);
 
   // ── SERVICES ──────────────────────────────────────────────
   console.log("Seeding services...");
-  const [svcJump, svcTow, svcLockout, svcTire, svcFuel, svcDiag] = await db
+  const [svcJump, svcTow, svcLockout, svcTire, svcFuel, , svcDiagStandard, ] = await db
     .insert(services)
     .values([
       {
@@ -59,6 +56,8 @@ async function seed() {
           "Dead battery? We'll get you running again with a professional jump start service.",
         basePrice: 10000,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Jump Start", items: ["Battery Voltage", "Terminal Condition", "Alternator Output", "Cable Integrity"] }],
       },
       {
         name: "Towing (Local)",
@@ -68,6 +67,8 @@ async function seed() {
         basePrice: 12500,
         pricePerMile: 300,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Towing", items: ["Frame Condition", "Axle Status", "Steering Lock", "Brake Status"] }],
       },
       {
         name: "Lockout Service",
@@ -76,6 +77,8 @@ async function seed() {
           "Locked out of your car? Our technicians will safely get you back in.",
         basePrice: 13500,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Lockout", items: ["Lock Mechanism", "Door Condition", "Key Status", "Window Integrity"] }],
       },
       {
         name: "Flat Tire Change",
@@ -84,6 +87,8 @@ async function seed() {
           "We'll swap your flat for your spare tire and get you back on the road. $100 service fee plus cost of tire if needed.",
         basePrice: 10000,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Tire Change", items: ["Tread Depth", "Tire Pressure", "Spare Condition", "Lug Nut Torque"] }],
       },
       {
         name: "Fuel Delivery",
@@ -92,19 +97,54 @@ async function seed() {
           "Ran out of gas? We'll bring enough fuel to get you to the nearest station. $75 delivery fee plus cost of gas.",
         basePrice: 7500,
         category: "roadside",
+        commissionRate: 2500, // 25% platform cut
+        checklistConfig: [{ category: "Fuel Delivery", items: ["Fuel Level", "Fuel Line Condition", "Cap Seal", "Tank Integrity"] }],
       },
       {
-        name: "Car Purchase Diagnostics",
-        slug: "car-purchase-diagnostics",
+        name: "Basic Inspection",
+        slug: "basic-inspection",
         description:
-          "Comprehensive pre-purchase vehicle inspection with OBD2 scan and mechanical grade assessment. Full payment required upfront before scheduling.",
+          "Essential pre-purchase check covering OBD2 scan, visual exterior/interior inspection, fluid levels, tire condition, and battery health.",
+        basePrice: 15000,
+        category: "diagnostics",
+        commissionRate: 2000, // 20% platform cut
+        checklistConfig: [{ category: "Basic Diagnostic", items: ["OBD2 Codes", "Battery Health", "Fluid Levels", "Belt Condition", "Tire Pressure"] }],
+      },
+      {
+        name: "Standard Inspection",
+        slug: "standard-inspection",
+        description:
+          "Comprehensive inspection including OBD2 diagnostics, brake system check, suspension test, electrical system review, engine performance analysis, and photo documentation.",
         basePrice: 25000,
         category: "diagnostics",
+        commissionRate: 2000, // 20% platform cut
+      },
+      {
+        name: "Premium Inspection",
+        slug: "premium-inspection",
+        description:
+          "Complete diagnostic report with full mechanical inspection, detailed OBD2 code analysis, test drive evaluation, undercarriage examination, emissions check, and branded PDF report with repair cost estimates.",
+        basePrice: 39900,
+        category: "diagnostics",
+        commissionRate: 1800, // 18% platform cut (lower for highest-value tier)
+        checklistConfig: [{ category: "Premium Diagnostic", items: ["OBD2 Codes", "Battery Health", "Fluid Levels", "Belt Condition", "Tire Pressure", "Brake Pad Thickness", "Suspension Check", "Exhaust Emissions"] }],
       },
     ])
     .returning();
 
   console.log("Services seeded.");
+
+  // ── TIME-BLOCK PRICING CONFIGS ──────────────────────────────
+  console.log("Seeding time-block pricing configs...");
+  await db.insert(timeBlockConfigs).values([
+    { name: "Standard", startHour: 6, endHour: 18, multiplier: 10000, isActive: true, priority: 1 },
+    { name: "After-Hours", startHour: 18, endHour: 6, multiplier: 12500, isActive: true, priority: 1 },
+    { name: "Emergency", startHour: 0, endHour: 24, multiplier: 15000, isActive: false, priority: 1 },
+    { name: "Ice Storm", startHour: 0, endHour: 24, multiplier: 15000, isActive: false, priority: 100 },
+    { name: "Falcons Game", startHour: 0, endHour: 24, multiplier: 13000, isActive: false, priority: 100 },
+    { name: "Holiday Weekend", startHour: 0, endHour: 24, multiplier: 12000, isActive: false, priority: 100 },
+  ]);
+  console.log("Time-block pricing configs seeded.");
 
   // ── PASSWORDS ──────────────────────────────────────────────
   const hashedAdmin = await bcrypt.hash("admin123", 12);
@@ -113,7 +153,7 @@ async function seed() {
 
   // ── ADMIN USERS ──────────────────────────────────────────────
   console.log("Seeding admin users...");
-  const [adminSani, adminOps] = await db
+  const [adminSani] = await db
     .insert(users)
     .values([
       {
@@ -270,7 +310,7 @@ async function seed() {
     )
     .returning();
 
-  const [provMarcus, provTerrence, provDeAndre, provCarlos, provJamal] = providerRecords;
+  const [provMarcus, provTerrence, provDeAndre, provCarlos] = providerRecords;
 
   // ── BOOKINGS ──────────────────────────────────────────────
   // Real Atlanta-area locations, realistic vehicles, full status coverage
@@ -346,7 +386,7 @@ async function seed() {
       },
       {
         userId: customers[3].id,
-        serviceId: svcDiag.id,
+        serviceId: svcDiagStandard.id,
         status: "completed",
         vehicleInfo: { year: "2016", make: "Chevrolet", model: "Malibu", color: "Red" },
         location: {
@@ -582,7 +622,7 @@ async function seed() {
       // ── CONFIRMED bookings (awaiting dispatch) ──
       {
         userId: customers[2].id,
-        serviceId: svcDiag.id,
+        serviceId: svcDiagStandard.id,
         status: "confirmed",
         vehicleInfo: { year: "2018", make: "Mercedes-Benz", model: "C300", color: "Navy" },
         location: {

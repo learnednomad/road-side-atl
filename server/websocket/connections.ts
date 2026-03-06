@@ -57,6 +57,14 @@ export function broadcastToProvider(providerId: string, event: WSEvent) {
   }
 }
 
+export function getConnectionCount(): number {
+  let total = 0;
+  for (const conns of connections.values()) {
+    total += conns.size;
+  }
+  return total;
+}
+
 export function broadcastToUser(userId: string, event: WSEvent) {
   const conns = connections.get(userId);
   if (conns) {

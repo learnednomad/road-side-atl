@@ -70,8 +70,38 @@ const HOMEPAGE_FAQS = [
   },
 ];
 
+const STEPS = [
+  {
+    num: 1,
+    icon: Clock,
+    title: "Book Your Service",
+    desc: "Choose your service and tell us where you are. Book online in minutes or call us directly for immediate assistance.",
+  },
+  {
+    num: 2,
+    icon: MapPin,
+    title: "We Come to You",
+    desc: "Our trained technician is dispatched to your exact location anywhere in the Atlanta metro area — ITP or OTP.",
+  },
+  {
+    num: 3,
+    icon: DollarSign,
+    title: "Pay Your Way",
+    desc: "Pay with Cash, CashApp, Zelle, or card after service is completed. Transparent pricing, no hidden fees.",
+  },
+];
+
 export default async function HomePage() {
-  let allServices: any[] = [];
+  type Service = {
+    name: string;
+    slug: string;
+    description: string;
+    basePrice: number;
+    pricePerMile: number | null;
+    category: string;
+  };
+
+  let allServices: Service[] = [];
   try {
     allServices = await db
       .select()
@@ -86,7 +116,9 @@ export default async function HomePage() {
       { name: "Lockout Service", slug: "lockout", description: "Locked out? We'll safely get you back in.", basePrice: 7500, pricePerMile: null, category: "roadside" },
       { name: "Flat Tire Change", slug: "flat-tire", description: "We'll swap your flat for your spare tire.", basePrice: 10000, pricePerMile: null, category: "roadside" },
       { name: "Fuel Delivery", slug: "fuel-delivery", description: "We'll bring fuel to get you to a station.", basePrice: 7500, pricePerMile: null, category: "roadside" },
-      { name: "Car Purchase Diagnostics", slug: "car-purchase-diagnostics", description: "Comprehensive pre-purchase inspection with OBD2 scan.", basePrice: 25000, pricePerMile: null, category: "diagnostics" },
+      { name: "Basic Inspection", slug: "basic-inspection", description: "Essential pre-purchase check covering OBD2 scan, visual exterior/interior inspection, fluid levels, tire condition, and battery health.", basePrice: 15000, pricePerMile: null, category: "diagnostics" },
+      { name: "Standard Inspection", slug: "standard-inspection", description: "Comprehensive inspection including OBD2 diagnostics, brake system check, suspension test, electrical system review, engine performance analysis, and photo documentation.", basePrice: 25000, pricePerMile: null, category: "diagnostics" },
+      { name: "Premium Inspection", slug: "premium-inspection", description: "Complete diagnostic report with full mechanical inspection, detailed OBD2 code analysis, test drive evaluation, undercarriage examination, emissions check, and branded PDF report with repair cost estimates.", basePrice: 39900, pricePerMile: null, category: "diagnostics" },
     ];
   }
 
@@ -103,12 +135,13 @@ export default async function HomePage() {
       <Hero />
 
       {/* Services Grid */}
-      <section className="py-16" id="services" aria-labelledby="services-heading">
+      <section className="animate-on-scroll py-16" id="services" aria-labelledby="services-heading">
         <div className="container mx-auto px-4">
           <h2 id="services-heading" className="mb-2 text-center text-3xl font-bold">
             Roadside Assistance Services in Atlanta
           </h2>
-          <p className="mb-10 text-center text-muted-foreground">
+          <span className="mx-auto mt-2 block h-1 w-20 rounded bg-red-600" />
+          <p className="mb-10 mt-4 text-center text-muted-foreground">
             Professional 24/7 roadside assistance and vehicle diagnostics across the Atlanta metro area
           </p>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -120,33 +153,22 @@ export default async function HomePage() {
       </section>
 
       {/* How It Works */}
-      <section className="bg-muted/50 py-16" aria-labelledby="how-it-works-heading">
+      <section className="animate-on-scroll bg-muted/50 py-16" aria-labelledby="how-it-works-heading">
         <div className="container mx-auto px-4">
           <h2 id="how-it-works-heading" className="mb-10 text-center text-3xl font-bold">
             How Our Atlanta Roadside Assistance Works
           </h2>
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              {
-                icon: Clock,
-                title: "1. Book Your Service",
-                desc: "Choose your service and tell us where you are. Book online in minutes or call us directly for immediate assistance.",
-              },
-              {
-                icon: MapPin,
-                title: "2. We Come to You",
-                desc: "Our trained technician is dispatched to your exact location anywhere in the Atlanta metro area — ITP or OTP.",
-              },
-              {
-                icon: DollarSign,
-                title: "3. Pay Your Way",
-                desc: "Pay with Cash, CashApp, Zelle, or card after service is completed. Transparent pricing, no hidden fees.",
-              },
-            ].map((step) => (
-              <Card key={step.title}>
+          <div className="relative grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Connector line (desktop only) */}
+            <div className="pointer-events-none absolute left-0 right-0 top-[3.25rem] hidden h-0.5 bg-red-600/20 lg:block" />
+            {STEPS.map((step) => (
+              <Card key={step.num} className="card-hover-glow relative">
                 <CardContent className="pt-6 text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                    <step.icon className="h-6 w-6 text-primary" />
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-lg font-bold text-white">
+                    {step.num}
+                  </div>
+                  <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-red-600/10">
+                    <step.icon className="h-5 w-5 text-red-600" />
                   </div>
                   <h3 className="mb-2 text-lg font-semibold">{step.title}</h3>
                   <p className="text-sm text-muted-foreground">{step.desc}</p>
@@ -158,7 +180,7 @@ export default async function HomePage() {
       </section>
 
       {/* Service Area - keyword rich for local SEO */}
-      <section className="py-16" aria-labelledby="service-area-heading">
+      <section className="animate-on-scroll bg-red-600/5 py-16" aria-labelledby="service-area-heading">
         <div className="container mx-auto px-4 text-center">
           <h2 id="service-area-heading" className="mb-4 text-3xl font-bold">
             Roadside Assistance Across All of Atlanta
@@ -179,16 +201,16 @@ export default async function HomePage() {
       </section>
 
       {/* FAQ Section - directly boosts SEO with FAQ schema */}
-      <section className="bg-muted/50 py-16" aria-labelledby="faq-heading">
+      <section className="animate-on-scroll bg-muted/50 py-16" aria-labelledby="faq-heading">
         <div className="container mx-auto max-w-3xl px-4">
           <h2 id="faq-heading" className="mb-10 text-center text-3xl font-bold">
             Frequently Asked Questions About Roadside Assistance in Atlanta
           </h2>
-          <div className="space-y-6">
+          <div className="space-y-4">
             {HOMEPAGE_FAQS.map((faq) => (
               <details
                 key={faq.question}
-                className="group rounded-lg border bg-background p-4"
+                className="group rounded-lg border bg-background p-4 transition-colors marker:text-red-600 hover:border-red-600/20 open:border-red-600/30"
               >
                 <summary className="cursor-pointer text-lg font-semibold">
                   {faq.question}

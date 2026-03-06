@@ -123,3 +123,36 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Scroll-driven fade-in-up animation (progressive enhancement) */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-on-scroll {
+  animation: fade-in-up ease-out both;
+  animation-timeline: view();
+  animation-range: entry 0% entry 30%;
+}
+
+/* Fallback: no animation-timeline support — just show content */
+@supports not (animation-timeline: view()) {
+  .animate-on-scroll {
+    animation: none;
+  }
+}
+
+/* Subtle card hover glow */
+.card-hover-glow {
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+.card-hover-glow:hover {
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.08);
+}

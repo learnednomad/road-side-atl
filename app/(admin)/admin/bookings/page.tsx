@@ -12,6 +12,16 @@ export const metadata: Metadata = {
 
 const PAGE_SIZE = 20;
 
+type Booking = typeof bookings.$inferSelect;
+type Service = typeof services.$inferSelect;
+type Payment = typeof payments.$inferSelect;
+
+type BookingClient = Omit<Booking, "scheduledAt" | "createdAt" | "updatedAt"> & {
+  scheduledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export default async function AdminBookingsPage({
   searchParams,
 }: {
@@ -40,7 +50,7 @@ export default async function AdminBookingsPage({
   // Group payments by booking
   const bookingMap = new Map<
     string,
-    { booking: any; service: any; payments: any[] }
+    { booking: BookingClient; service: Service; payments: Payment[] }
   >();
   for (const row of results) {
     const existing = bookingMap.get(row.booking.id);
