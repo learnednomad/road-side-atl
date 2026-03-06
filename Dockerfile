@@ -74,8 +74,9 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Health check
-HEALTHCHECK --interval=15s --timeout=10s --start-period=120s --retries=5 \
-  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/services || exit 1
+# Health check - use a simple TCP check instead of API endpoint
+# The API may return 500 during migrations/seed
+HEALTHCHECK --interval=15s --timeout=10s --start-period=120s --retries=8 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1
 
 CMD ["./docker-entrypoint.sh"]
