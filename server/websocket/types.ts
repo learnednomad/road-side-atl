@@ -15,4 +15,7 @@ export type WSEvent =
   | { type: "booking:provider_cancelled"; data: { bookingId: string; previousProviderId: string; previousProviderName: string; reason: string; reDispatched: boolean } }
   | { type: "onboarding:step_updated"; data: { providerId: string; stepType: string; newStatus: string; rejectionReason?: string } }
   | { type: "onboarding:document_reviewed"; data: { providerId: string; documentType: string; status: string; rejectionReason?: string } }
-  | { type: "onboarding:activated"; data: { providerId: string; providerName: string } };
+  | { type: "onboarding:activated"; data: { providerId: string; providerName: string } }
+  | { type: "onboarding:new_submission"; data: { providerId: string; providerName: string; stepType: string } }
+  | { type: "onboarding:ready_for_review"; data: { providerId: string; providerName: string } }
+  | { type: "payout:transfer_failed"; data: { payoutId: string; stripeTransferId: string } };

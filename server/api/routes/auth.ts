@@ -3,7 +3,9 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { registerSchema } from "@/lib/validators";
+import { encode } from "next-auth/jwt";
+import { registerSchema, loginSchema } from "@/lib/validators";
+import { NEXTAUTH_JWT_SALT } from "@/lib/constants";
 import { rateLimitAuth } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { generateReferralCode } from "../lib/referral-credits";
@@ -22,6 +24,7 @@ app.use("/register", rateLimitAuth);
 app.use("/forgot-password", rateLimitAuth);
 app.use("/reset-password", rateLimitAuth);
 app.use("/resend-verification", rateLimitAuth);
+app.use("/mobile-login", rateLimitAuth);
 
 // Register new user
 app.post("/register", async (c) => {
@@ -181,6 +184,134 @@ app.post("/reset-password", async (c) => {
     .where(eq(users.email, email));
 
   return c.json({ success: true });
+});
+
+// Mobile login - returns JWT token directly (no cookie extraction needed)
+app.post("/mobile-login", async (c) => {
+  const body = await c.req.json();
+  const parsed = loginSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: "Invalid email or password" }, 400);
+  }
+
+  const { email, password } = parsed.data;
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.email, email),
+  });
+
+  if (!user?.password) {
+    return c.json({ error: "Invalid email or password" }, 401);
+  }
+
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) {
+    return c.json({ error: "Invalid email or password" }, 401);
+  }
+
+  // Check if email is verified (skip for admin accounts)
+  if (!user.emailVerified && user.role !== "admin") {
+    return c.json({ error: "Please verify your email before signing in" }, 403);
+  }
+
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    return c.json({ error: "Server configuration error" }, 500);
+  }
+
+  // Generate a NextAuth-compatible JWT token
+  const token = await encode({
+    token: {
+      sub: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      id: user.id,
+    },
+    secret,
+    salt: NEXTAUTH_JWT_SALT,
+    maxAge: 24 * 60 * 60, // 24 hours
+  });
+
+  // Audit log
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "user.mobile_login",
+    userId: user.id,
+    resourceType: "user",
+    resourceId: user.id,
+    details: { email, platform: "mobile" },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json({
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
+  });
+});
+
+// Mobile token refresh - exchange a valid token for a fresh one
+app.post("/mobile-refresh", async (c) => {
+  const authHeader = c.req.header("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const currentToken = authHeader.slice(7);
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    return c.json({ error: "Server configuration error" }, 500);
+  }
+
+  try {
+    const { decode } = await import("next-auth/jwt");
+    const decoded = await decode({ token: currentToken, secret, salt: "authjs.session-token" });
+    if (!decoded?.sub) {
+      return c.json({ error: "Invalid token" }, 401);
+    }
+
+    // Verify user still exists and is active
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, decoded.sub),
+      columns: { id: true, name: true, email: true, role: true },
+    });
+    if (!user) {
+      return c.json({ error: "User not found" }, 401);
+    }
+
+    // Issue fresh token
+    const newToken = await encode({
+      token: {
+        sub: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        id: user.id,
+      },
+      secret,
+      salt: NEXTAUTH_JWT_SALT,
+      maxAge: 24 * 60 * 60,
+    });
+
+    return c.json({
+      token: newToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch {
+    return c.json({ error: "Invalid token" }, 401);
+  }
 });
 
 export default app;

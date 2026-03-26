@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the db module and invoice generator
+const mockUpdateReturning = vi.fn().mockResolvedValue([]);
+const mockUpdateWhere = vi.fn().mockReturnValue({ returning: mockUpdateReturning });
+const mockUpdateSet = vi.fn().mockReturnValue({ where: mockUpdateWhere });
+
 vi.mock("@/db", () => ({
   db: {
     query: {
@@ -9,13 +13,39 @@ vi.mock("@/db", () => ({
       providers: { findFirst: vi.fn() },
       providerPayouts: { findFirst: vi.fn() },
       services: { findFirst: vi.fn() },
+      onboardingSteps: { findFirst: vi.fn() },
     },
     insert: vi.fn(),
+    update: vi.fn().mockImplementation(() => ({ set: mockUpdateSet })),
+    select: vi.fn().mockImplementation(() => ({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+    })),
   },
 }));
 
 vi.mock("@/server/api/lib/invoice-generator", () => ({
   createInvoiceForBooking: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/lib/stripe", () => ({
+  stripe: { transfers: { create: vi.fn() } },
+  getStripe: () => ({ transfers: { create: vi.fn() } }),
+}));
+
+vi.mock("@/server/api/lib/audit-logger", () => ({
+  logAudit: vi.fn(),
+}));
+
+vi.mock("@/db/schema", () => ({
+  bookings: { id: "id" },
+  payments: { bookingId: "bookingId", status: "status" },
+  providers: { id: "id" },
+  providerPayouts: { id: "id", providerId: "providerId", bookingId: "bookingId", status: "status", payoutMethod: "payoutMethod", payoutType: "payoutType" },
+  services: { id: "id" },
+}));
+
+vi.mock("@/db/schema/onboarding-steps", () => ({
+  onboardingSteps: { providerId: "providerId", stepType: "stepType", status: "status" },
 }));
 
 import { db } from "@/db";

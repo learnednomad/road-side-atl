@@ -131,3 +131,52 @@ export type TrainingTopic = (typeof TRAINING_TOPICS)[number];
 export const ONBOARDING_INVITE_EXPIRY_HOURS = 72;
 
 export const REAPPLY_COOLDOWN_DAYS = 30;
+
+// Auth constants
+export const NEXTAUTH_JWT_SALT = "authjs.session-token";
+
+// Document upload constants
+export const PRESIGNED_UPLOAD_EXPIRY = 900; // 15 minutes (NFR-S2)
+export const PRESIGNED_DOWNLOAD_EXPIRY_ADMIN = 600; // 10 minutes (NFR-S3)
+export const PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER = 3600; // 1 hour
+export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB raw
+export const ALLOWED_DOCUMENT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export type AllowedDocumentImageType = (typeof ALLOWED_DOCUMENT_IMAGE_TYPES)[number];
+export const MIN_DOCUMENTS_PER_STEP: Record<string, number> = {
+  insurance: 1,
+  certifications: 1,
+  vehicle_doc: 0,
+};
+
+// Checkr background check constants
+export const CHECKR_PACKAGE = "tasker_standard";
+export const CHECKR_POLLING_THRESHOLD_HOURS = 24;
+export const CHECKR_MAX_RETRIES = 3;
+
+// Checkr status → onboarding step status mapping
+// Used by webhook handler and reconciliation polling
+// Note: adjudication overrides status when present — "engaged"/"pre_adverse_action" stay in_progress
+// Checkr Dashboard URL for admin report viewing
+export const CHECKR_DASHBOARD_BASE_URL = "https://dashboard.checkr.com/reports";
+
+// Stripe Connect migration — set when migration goes live; null = not yet launched
+export const MIGRATION_LAUNCH_DATE: Date | null = (() => {
+  if (!process.env.MIGRATION_LAUNCH_DATE) return null;
+  const d = new Date(process.env.MIGRATION_LAUNCH_DATE);
+  if (isNaN(d.getTime())) {
+    console.error(`[Constants] Invalid MIGRATION_LAUNCH_DATE: "${process.env.MIGRATION_LAUNCH_DATE}"`);
+    return null;
+  }
+  return d;
+})();
+
+export const MIGRATION_DEPRECATION_DAYS = 60;
+export const MIGRATION_GRACE_PERIOD_DAYS = 7;
+
+export const CHECKR_STATUS_MAP: Record<string, string> = {
+  clear: "complete",
+  consider: "pending_review",
+  suspended: "rejected",
+  adverse_action: "rejected",
+  post_adverse_action: "rejected",
+};

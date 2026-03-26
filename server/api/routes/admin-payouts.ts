@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { db } from "@/db";
 import { providerPayouts, providers, bookings, services, payments } from "@/db/schema";
-import { eq, desc, sql, and, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, inArray, isNull } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import { markPayoutPaidSchema, initiateRefundSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { getStripe } from "@/lib/stripe";
+import { MIGRATION_LAUNCH_DATE, MIGRATION_DEPRECATION_DAYS, MIGRATION_GRACE_PERIOD_DAYS } from "@/lib/constants";
 
 type AuthEnv = {
   Variables: {
@@ -62,7 +63,21 @@ app.get("/", async (c) => {
   }
 
   const results = await query;
-  return c.json(results);
+
+  // Attach deprecation warnings for providers approaching deadline
+  let deprecationInfo: { deprecated: boolean; deprecationDate: string | null; graceEndDate: string | null } | undefined;
+  if (MIGRATION_LAUNCH_DATE) {
+    const deprecationDate = new Date(MIGRATION_LAUNCH_DATE.getTime() + MIGRATION_DEPRECATION_DAYS * 24 * 60 * 60 * 1000);
+    const graceEndDate = new Date(deprecationDate.getTime() + MIGRATION_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    deprecationInfo = {
+      deprecated: now > deprecationDate,
+      deprecationDate: deprecationDate.toISOString(),
+      graceEndDate: graceEndDate.toISOString(),
+    };
+  }
+
+  return c.json({ payouts: results, deprecationInfo });
 });
 
 // Batch mark payouts as paid
@@ -77,14 +92,75 @@ app.post("/mark-paid", async (c) => {
   const user = c.get("user");
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
 
-  // Atomic: mark-paid + clawback settlement in single transaction
-  const { updated, settled } = await db.transaction(async (tx) => {
+  // Atomic: deprecation enforcement + mark-paid + clawback settlement in single transaction
+  let suspendedProviderIds: string[] = [];
+
+  const txResult = await db.transaction(async (tx) => {
+    let effectivePayoutIds = parsed.data.payoutIds;
+
+    // Deprecation enforcement: reject manual payouts for non-Connect providers after deadline
+    if (MIGRATION_LAUNCH_DATE) {
+      const deprecationDate = new Date(MIGRATION_LAUNCH_DATE.getTime() + MIGRATION_DEPRECATION_DAYS * 24 * 60 * 60 * 1000);
+      const graceEndDate = new Date(deprecationDate.getTime() + MIGRATION_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000);
+
+      if (now > deprecationDate) {
+        const payoutsWithProviders = await tx
+          .select({ payoutId: providerPayouts.id, providerId: providerPayouts.providerId, connectAccountId: providers.stripeConnectAccountId })
+          .from(providerPayouts)
+          .innerJoin(providers, eq(providerPayouts.providerId, providers.id))
+          .where(inArray(providerPayouts.id, effectivePayoutIds));
+
+        const nonConnectPayouts = payoutsWithProviders.filter((p) => !p.connectAccountId);
+
+        if (nonConnectPayouts.length > 0) {
+          const isGracePeriod = now <= graceEndDate;
+
+          if (!isGracePeriod || !parsed.data.override) {
+            // Suspend non-compliant providers inside transaction
+            const nonConnectProviderIds = [...new Set(nonConnectPayouts.map((p) => p.providerId))];
+            for (const pid of nonConnectProviderIds) {
+              await tx
+                .update(providers)
+                .set({
+                  status: "suspended",
+                  suspendedAt: now,
+                  suspendedReason: "stripe_connect_not_completed",
+                  updatedAt: now,
+                })
+                .where(and(eq(providers.id, pid), eq(providers.status, "active")));
+            }
+            suspendedProviderIds = nonConnectProviderIds;
+
+            // Filter out non-Connect payouts
+            const connectPayoutIds = payoutsWithProviders
+              .filter((p) => p.connectAccountId)
+              .map((p) => p.payoutId);
+
+            if (connectPayoutIds.length === 0) {
+              return { error: "deprecated" as const, suspendedProviders: nonConnectProviderIds };
+            }
+
+            effectivePayoutIds = connectPayoutIds;
+          } else {
+            // Grace period override used — audit it
+            logAudit({
+              action: "payout.manual_deprecated",
+              userId: user.id,
+              details: { reason: "grace_period_override_used", payoutIds: effectivePayoutIds },
+              ipAddress,
+              userAgent,
+            });
+          }
+        }
+      }
+    }
+
     const updated = await tx
       .update(providerPayouts)
       .set({ status: "paid", paidAt: now })
       .where(
         and(
-          inArray(providerPayouts.id, parsed.data.payoutIds),
+          inArray(providerPayouts.id, effectivePayoutIds),
           eq(providerPayouts.status, "pending"),
           eq(providerPayouts.payoutType, "standard")
         )
@@ -110,6 +186,28 @@ app.post("/mark-paid", async (c) => {
 
     return { updated, settled };
   });
+
+  // Handle deprecation rejection (returned from inside transaction)
+  if ("error" in txResult && txResult.error === "deprecated") {
+    // Audit suspensions (outside tx for fire-and-forget)
+    for (const pid of suspendedProviderIds) {
+      logAudit({
+        action: "payout.manual_deprecated",
+        userId: user.id,
+        resourceType: "provider",
+        resourceId: pid,
+        details: { reason: "manual_payouts_deprecated" },
+        ipAddress,
+        userAgent,
+      });
+    }
+    return c.json({
+      error: "Manual payouts deprecated — provider must complete Stripe Connect setup",
+      suspendedProviders: txResult.suspendedProviders,
+    }, 403);
+  }
+
+  const { updated, settled } = txResult;
 
   // Audit each payout individually (NFR14 - immutable per-record, fire-and-forget)
   for (const payout of updated) {
@@ -331,7 +429,7 @@ app.get("/outstanding", async (c) => {
   })));
 });
 
-// Aggregate summary
+// Aggregate summary with payout method breakdown
 app.get("/summary", async (c) => {
   const [summary] = await db
     .select({
@@ -341,8 +439,29 @@ app.get("/summary", async (c) => {
       paidCount: sql<number>`count(case when ${providerPayouts.status} = 'paid' then 1 end)`,
       totalClawback: sql<number>`coalesce(sum(case when ${providerPayouts.payoutType} = 'clawback' and ${providerPayouts.status} = 'pending' then abs(${providerPayouts.amount}) else 0 end), 0)`,
       clawbackCount: sql<number>`count(case when ${providerPayouts.payoutType} = 'clawback' and ${providerPayouts.status} = 'pending' then 1 end)`,
+      // Payout method breakdown
+      stripeConnectCount: sql<number>`count(case when ${providerPayouts.payoutMethod} = 'stripe_connect' and ${providerPayouts.status} = 'paid' then 1 end)`,
+      stripeConnectTotal: sql<number>`coalesce(sum(case when ${providerPayouts.payoutMethod} = 'stripe_connect' and ${providerPayouts.status} = 'paid' then ${providerPayouts.amount} else 0 end), 0)`,
+      manualBatchCount: sql<number>`count(case when ${providerPayouts.payoutMethod} = 'manual_batch' and ${providerPayouts.status} = 'paid' then 1 end)`,
+      manualBatchTotal: sql<number>`coalesce(sum(case when ${providerPayouts.payoutMethod} = 'manual_batch' and ${providerPayouts.status} = 'paid' then ${providerPayouts.amount} else 0 end), 0)`,
     })
     .from(providerPayouts);
+
+  // Pending migration: active providers without Connect who have pending payouts
+  const pendingMigration = await db
+    .select({
+      count: sql<number>`count(distinct ${providers.id})`,
+    })
+    .from(providers)
+    .innerJoin(providerPayouts, eq(providers.id, providerPayouts.providerId))
+    .where(
+      and(
+        eq(providers.status, "active"),
+        isNull(providers.stripeConnectAccountId),
+        eq(providerPayouts.status, "pending"),
+        eq(providerPayouts.payoutMethod, "manual_batch"),
+      ),
+    );
 
   return c.json({
     totalPending: Number(summary.totalPending),
@@ -351,6 +470,17 @@ app.get("/summary", async (c) => {
     paidCount: Number(summary.paidCount),
     totalClawback: Number(summary.totalClawback),
     clawbackCount: Number(summary.clawbackCount),
+    stripeConnect: {
+      count: Number(summary.stripeConnectCount),
+      total: Number(summary.stripeConnectTotal),
+    },
+    manualBatch: {
+      count: Number(summary.manualBatchCount),
+      total: Number(summary.manualBatchTotal),
+    },
+    pendingMigration: {
+      providers: Number(pendingMigration[0]?.count || 0),
+    },
   });
 });
 

@@ -31,6 +31,7 @@ vi.mock("@/db", () => {
         users: { findFirst: vi.fn() },
         providerInvites: { findFirst: vi.fn() },
         providerInviteTokens: { findFirst: vi.fn() },
+        providerDocuments: { findFirst: vi.fn(), findMany: vi.fn() },
       },
       insert: mockInsert,
       update: mockUpdate,
@@ -69,11 +70,14 @@ vi.mock("@/db/schema/provider-invites", () => ({
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn((...args: unknown[]) => ({ _op: "eq", args })),
   and: vi.fn((...args: unknown[]) => ({ _op: "and", args })),
+  or: vi.fn((...args: unknown[]) => ({ _op: "or", args })),
   desc: vi.fn((...args: unknown[]) => ({ _op: "desc", args })),
+  asc: vi.fn((...args: unknown[]) => ({ _op: "asc", args })),
   sql: vi.fn(),
   count: vi.fn(),
   inArray: vi.fn(),
   isNull: vi.fn(),
+  ilike: vi.fn((...args: unknown[]) => ({ _op: "ilike", args })),
 }));
 
 vi.mock("@/server/api/middleware/auth", () => ({
@@ -153,12 +157,25 @@ vi.mock("@/lib/csv", () => ({
 
 vi.mock("@/server/websocket/broadcast", () => ({
   broadcastToUser: vi.fn(),
+  broadcastToAdmins: vi.fn(),
 }));
 
 vi.mock("@/server/api/lib/onboarding-state-machine", async () => {
   const actual = await vi.importActual("@/server/api/lib/onboarding-state-machine");
   return actual;
 });
+
+vi.mock("@/lib/notifications", () => ({
+  notifyDocumentReviewed: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/s3", () => ({
+  getPresignedUrl: vi.fn().mockResolvedValue("https://s3.example.com/download?signed=true"),
+}));
+
+vi.mock("@/db/schema/provider-documents", () => ({
+  providerDocuments: { id: "id", providerId: "providerId", onboardingStepId: "onboardingStepId", status: "status", createdAt: "createdAt" },
+}));
 
 // ---------------------------------------------------------------------------
 // Imports

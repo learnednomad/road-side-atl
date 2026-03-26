@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { OnboardingSection } from "./onboarding-section";
+import { PROVIDER_ONBOARDING_STATUSES } from "@/lib/constants";
 import {
   Table,
   TableBody,
@@ -164,6 +166,11 @@ export default async function ProviderDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Onboarding Progress (for providers in onboarding statuses) */}
+      {(PROVIDER_ONBOARDING_STATUSES as readonly string[]).includes(provider.status) && (
+        <OnboardingSection providerId={id} />
+      )}
 
       {/* Payout History */}
       <Card>

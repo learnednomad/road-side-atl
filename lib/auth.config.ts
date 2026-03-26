@@ -46,7 +46,7 @@ export default {
       ? [
           Resend({
             apiKey: process.env.AUTH_RESEND_KEY,
-            from: process.env.AUTH_RESEND_FROM || "noreply@resend.dev",
+            from: process.env.AUTH_RESEND_FROM || process.env.RESEND_FROM || "noreply@roadsideatl.com",
           }),
         ]
       : []),
@@ -58,7 +58,7 @@ export default {
   callbacks: {
     jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role?: string }).role;
+        token.role = (user as { role?: "customer" | "admin" | "provider" }).role;
       }
       return token;
     },
