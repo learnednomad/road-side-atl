@@ -352,9 +352,11 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
       {step === 1 && (
         <>
           {/* Booking Mode Toggle */}
-          <div className="flex gap-3">
+          <div className="flex gap-3" role="radiogroup" aria-label="Service timing">
             <button
               type="button"
+              role="radio"
+              aria-checked={bookingMode === "immediate"}
               onClick={() => {
                 setBookingMode("immediate");
                 setScheduledAt("");
@@ -370,6 +372,8 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
             </button>
             <button
               type="button"
+              role="radio"
+              aria-checked={bookingMode === "scheduled"}
               onClick={() => setBookingMode("scheduled")}
               className={cn(
                 "flex-1 rounded-lg border p-4 text-center font-medium transition-colors min-h-[44px] min-w-[44px]",
@@ -388,7 +392,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
               <CardTitle>Emergency Roadside</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Emergency roadside services">
                 {services.filter((s) => s.category === "roadside").map((s) => (
                   <button
                     key={s.id}
@@ -422,7 +426,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
               <CardTitle>Pre-Purchase Inspection</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3">
+              <div className="grid gap-3" role="radiogroup" aria-label="Pre-purchase inspection services">
                 {services.filter((s) => s.category === "diagnostics").map((s) => (
                   <button
                     key={s.id}
@@ -641,10 +645,11 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                 <CardTitle>Schedule Appointment</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
+                <Label htmlFor="scheduledAt">
                   Select your preferred date and time (minimum 2 hours from now)
-                </p>
+                </Label>
                 <Input
+                  id="scheduledAt"
                   type="datetime-local"
                   value={scheduledAt}
                   onChange={(e) => setScheduledAt(e.target.value)}

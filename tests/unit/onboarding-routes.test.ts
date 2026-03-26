@@ -34,6 +34,7 @@ vi.mock("@/db", () => {
         providers: { findFirst: vi.fn() },
         providerInvites: { findFirst: vi.fn() },
         onboardingSteps: { findFirst: vi.fn(), findMany: vi.fn() },
+        providerDocuments: { findFirst: vi.fn(), findMany: vi.fn() },
       },
       insert: mockInsert,
       update: mockUpdate,
@@ -58,12 +59,20 @@ vi.mock("@/db/schema/provider-invites", () => ({
   providerInvites: { id: "id", token: "token", usedAt: "usedAt", email: "email" },
 }));
 
-vi.mock("drizzle-orm", () => ({
-  eq: vi.fn((...args: unknown[]) => ({ _op: "eq", args })),
-  and: vi.fn((...args: unknown[]) => ({ _op: "and", args })),
-  isNull: vi.fn((...args: unknown[]) => ({ _op: "isNull", args })),
-  asc: vi.fn((...args: unknown[]) => ({ _op: "asc", args })),
+vi.mock("@/db/schema/provider-documents", () => ({
+  providerDocuments: { id: "id", providerId: "providerId", onboardingStepId: "onboardingStepId", status: "status", createdAt: "createdAt" },
 }));
+
+vi.mock("drizzle-orm", async () => {
+  const actual = await vi.importActual("drizzle-orm");
+  return {
+    ...actual,
+    eq: vi.fn((...args: unknown[]) => ({ _op: "eq", args })),
+    and: vi.fn((...args: unknown[]) => ({ _op: "and", args })),
+    isNull: vi.fn((...args: unknown[]) => ({ _op: "isNull", args })),
+    asc: vi.fn((...args: unknown[]) => ({ _op: "asc", args })),
+  };
+});
 
 vi.mock("bcryptjs", () => ({
   default: {
@@ -96,6 +105,22 @@ vi.mock("@/lib/validators", () => {
         return { success: true, data };
       },
     },
+    documentUploadUrlSchema: {
+      safeParse: (data: Record<string, unknown>) => {
+        if (!data.documentType || !data.mimeType || !data.fileName) {
+          return { success: false, error: { issues: [{ message: "required" }] } };
+        }
+        return { success: true, data };
+      },
+    },
+    documentCreateSchema: {
+      safeParse: (data: Record<string, unknown>) => {
+        if (!data.s3Key || !data.documentType || !data.originalFileName || !data.fileSize || !data.mimeType || !data.onboardingStepId) {
+          return { success: false, error: { issues: [{ message: "required" }] } };
+        }
+        return { success: true, data };
+      },
+    },
   };
 });
 
@@ -108,6 +133,9 @@ vi.mock("@/lib/constants", () => ({
     "stripe_connect",
   ],
   REAPPLY_COOLDOWN_DAYS: 30,
+  PRESIGNED_UPLOAD_EXPIRY: 900,
+  PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER: 3600,
+  MIN_DOCUMENTS_PER_STEP: { insurance: 1, certifications: 1, vehicle_doc: 0 },
 }));
 
 vi.mock("@/server/api/middleware/rate-limit", () => ({
@@ -126,6 +154,12 @@ vi.mock("@/server/api/lib/audit-logger", () => ({
 
 vi.mock("@/server/websocket/broadcast", () => ({
   broadcastToUser: vi.fn(),
+  broadcastToAdmins: vi.fn(),
+}));
+
+vi.mock("@/lib/s3", () => ({
+  getPresignedUploadUrl: vi.fn().mockResolvedValue("https://s3.example.com/upload?signed=true"),
+  getPresignedUrl: vi.fn().mockResolvedValue("https://s3.example.com/download?signed=true"),
 }));
 
 vi.mock("@/server/api/lib/onboarding-state-machine", async () => {

@@ -1,10 +1,18 @@
 import { Hono } from "hono";
+import crypto from "crypto";
 import { db } from "@/db";
-import { payments, bookings } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { payments, bookings, providerPayouts } from "@/db/schema";
+import { onboardingSteps } from "@/db/schema/onboarding-steps";
+import { providers } from "@/db/schema/providers";
+import { eq, and, sql } from "drizzle-orm";
+// sql used for JSONB merge in transfer webhooks
 import { stripe } from "@/lib/stripe";
 import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { logAudit } from "../lib/audit-logger";
+import { isValidStepTransition } from "../lib/onboarding-state-machine";
+import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
+import { notifyBackgroundCheckResult } from "@/lib/notifications";
+import { checkAllStepsCompleteAndTransition, onStripeConnectStepComplete } from "../lib/all-steps-complete";
 
 const app = new Hono();
 
@@ -15,16 +23,23 @@ const app = new Hono();
  * Stripe retries webhooks on non-2xx responses — this prevents processing the same event twice.
  * For multi-instance deployments, replace with a DB table or Redis set.
  */
-const processedEvents = new Set<string>();
+const processedStripeEvents = new Set<string>();
+const processedCheckrEvents = new Set<string>();
 const MAX_PROCESSED_EVENTS = 10000;
 
-function markEventProcessed(eventId: string) {
-  processedEvents.add(eventId);
+function markEventProcessed(eventId: string, source: "stripe" | "checkr" = "stripe") {
+  const set = source === "stripe" ? processedStripeEvents : processedCheckrEvents;
+  set.add(eventId);
   // Prevent unbounded memory growth — evict oldest entries
-  if (processedEvents.size > MAX_PROCESSED_EVENTS) {
-    const first = processedEvents.values().next().value;
-    if (first) processedEvents.delete(first);
+  if (set.size > MAX_PROCESSED_EVENTS) {
+    const first = set.values().next().value;
+    if (first) set.delete(first);
   }
+}
+
+function isEventProcessed(eventId: string, source: "stripe" | "checkr" = "stripe"): boolean {
+  const set = source === "stripe" ? processedStripeEvents : processedCheckrEvents;
+  return set.has(eventId);
 }
 
 /**
@@ -90,7 +105,7 @@ app.post("/stripe", async (c) => {
   }
 
   // Event-level idempotency: skip already-processed events
-  if (processedEvents.has(event.id)) {
+  if (isEventProcessed(event.id, "stripe")) {
     return c.json({ received: true, deduplicated: true });
   }
 
@@ -326,14 +341,323 @@ app.post("/stripe", async (c) => {
       break;
     }
 
+    // ── Connect Account Updated (Stripe Connect onboarding) ─────
+    case "account.updated": {
+      const account = event.data.object as { id: string; charges_enabled?: boolean; details_submitted?: boolean };
+      if (!account.charges_enabled) break; // Only care about enabled
+
+      const connectedProvider = await db.query.providers.findFirst({
+        where: eq(providers.stripeConnectAccountId, account.id),
+      });
+      if (!connectedProvider) break; // Orphan event
+
+      // Find stripe_connect step
+      const stripeStep = await db.query.onboardingSteps.findFirst({
+        where: and(
+          eq(onboardingSteps.providerId, connectedProvider.id),
+          eq(onboardingSteps.stepType, "stripe_connect"),
+        ),
+      });
+      if (!stripeStep) break;
+
+      if (isValidStepTransition(stripeStep.status, "complete")) {
+        // Transition in_progress → complete (TOCTOU guard on expected status)
+        const [updatedStep] = await db
+          .update(onboardingSteps)
+          .set({
+            status: "complete",
+            completedAt: new Date(),
+            metadata: {
+              ...(stripeStep.metadata as Record<string, unknown> || {}),
+              chargesEnabledAt: new Date().toISOString(),
+            },
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(onboardingSteps.id, stripeStep.id),
+              eq(onboardingSteps.status, stripeStep.status),
+            ),
+          )
+          .returning();
+
+        if (updatedStep) {
+          logAudit({
+            action: "stripe_connect.onboarding_completed",
+            resourceType: "onboarding_step",
+            resourceId: stripeStep.id,
+            details: {
+              providerId: connectedProvider.id,
+              stripeAccountId: account.id,
+              source: "webhook",
+            },
+          });
+
+          // Broadcast to provider
+          if (connectedProvider.userId) {
+            broadcastToUser(connectedProvider.userId, {
+              type: "onboarding:step_updated",
+              data: {
+                providerId: connectedProvider.id,
+                stepType: "stripe_connect",
+                newStatus: "complete",
+              },
+            });
+          }
+
+          // All-steps-complete auto-transition check
+          await checkAllStepsCompleteAndTransition(
+            connectedProvider.id, stripeStep.id, "stripe_connect_webhook",
+            undefined, connectedProvider,
+          );
+
+          // Auto-migrate pending payouts + reactivate if suspended
+          onStripeConnectStepComplete(connectedProvider.id).catch((err) => {
+            console.error("[Webhook] onStripeConnectStepComplete failed:", err);
+          });
+        }
+      }
+      break;
+    }
+
+    // ── Transfer Paid (Stripe Connect payout succeeded) ─────────
+    case "transfer.paid" as string: {
+      const transfer = event.data.object as unknown as { id: string; metadata?: Record<string, string>; amount?: number; destination?: string };
+      const payoutId = transfer.metadata?.payoutId;
+
+      if (payoutId) {
+        // Update payout metadata with transfer confirmation
+        await db
+          .update(providerPayouts)
+          .set({
+            metadata: sql`coalesce(${providerPayouts.metadata}, '{}'::jsonb) || ${JSON.stringify({ transferPaidAt: new Date().toISOString() })}::jsonb`,
+          })
+          .where(eq(providerPayouts.id, payoutId));
+
+        // Find provider for notification
+        const payout = await db.query.providerPayouts.findFirst({
+          where: eq(providerPayouts.id, payoutId),
+        });
+        if (payout) {
+          const { notifyPayoutComplete } = await import("@/lib/notifications");
+          notifyPayoutComplete(payout.providerId, payout.amount).catch((err) => {
+            console.error("[Notifications] Failed:", err);
+          });
+        }
+
+        logAudit({
+          action: "payout.transfer_confirmed",
+          resourceType: "payout",
+          resourceId: payoutId,
+          details: { stripeTransferId: transfer.id, amount: transfer.amount },
+        });
+      }
+      break;
+    }
+
+    // ── Transfer Failed (Stripe Connect payout failed) ──────────
+    case "transfer.failed" as string: {
+      const transfer = event.data.object as unknown as { id: string; metadata?: Record<string, string>; amount?: number; destination?: string };
+      const payoutId = transfer.metadata?.payoutId;
+
+      if (payoutId) {
+        // Revert to manual batch — only if currently paid via stripe_connect (status guard)
+        const [reverted] = await db
+          .update(providerPayouts)
+          .set({
+            status: "pending",
+            paidAt: null,
+            payoutMethod: "manual_batch",
+            metadata: sql`coalesce(${providerPayouts.metadata}, '{}'::jsonb) || ${JSON.stringify({ transferFailedAt: new Date().toISOString(), failedTransferId: transfer.id })}::jsonb`,
+          })
+          .where(
+            and(
+              eq(providerPayouts.id, payoutId),
+              eq(providerPayouts.status, "paid"),
+              eq(providerPayouts.payoutMethod, "stripe_connect"),
+            ),
+          )
+          .returning();
+
+        if (!reverted) break; // Already handled or manually confirmed — skip
+
+        logAudit({
+          action: "payout.transfer_failed",
+          resourceType: "payout",
+          resourceId: payoutId,
+          details: { stripeTransferId: transfer.id, amount: transfer.amount },
+        });
+
+        // Notify admin
+        broadcastToAdmins({
+          type: "payout:transfer_failed",
+          data: { payoutId, stripeTransferId: transfer.id },
+        });
+      }
+      break;
+    }
+
     // ── Catch-all for unhandled events ───────────────────────────
     default:
       // Log unhandled events at debug level — don't fail
       break;
   }
 
-  markEventProcessed(event.id);
+  markEventProcessed(event.id, "stripe");
   return c.json({ received: true });
+});
+
+// ── Checkr Webhook Handler ───────────────────────────────────────
+
+function validateCheckrSignature(payload: string, signature: string): boolean {
+  const secret = process.env.CHECKR_WEBHOOK_SECRET;
+  if (!secret) return false;
+  const hmac = crypto.createHmac("sha256", secret);
+  hmac.update(payload);
+  const expected = hmac.digest("hex");
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
+
+import { CHECKR_STATUS_MAP } from "@/lib/constants";
+
+app.post("/checkr", async (c) => {
+  const rawBody = await c.req.text();
+  const signature = c.req.header("x-checkr-signature");
+
+  if (!signature || !validateCheckrSignature(rawBody, signature)) {
+    logAudit({
+      action: "checkr.webhook_invalid_signature",
+      details: { hasSignature: !!signature },
+    });
+    return c.json({ error: "Invalid signature" }, 401);
+  }
+
+  let event: { id: string; type: string; data: { object: Record<string, unknown> } };
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return c.json({ error: "Invalid JSON" }, 400);
+  }
+
+  // Event-level idempotency
+  if (isEventProcessed(event.id, "checkr")) {
+    return c.json({ ok: true }, 200);
+  }
+  markEventProcessed(event.id, "checkr");
+
+  if (event.type === "report.completed") {
+    const reportData = event.data.object;
+    const reportId = reportData.id as string;
+    const candidateId = reportData.candidate_id as string;
+    const checkrStatus = reportData.status as string;
+    const adjudication = reportData.adjudication as string | null;
+
+    // Find matching onboarding step by checkrCandidateId in metadata JSONB
+    // (checkrReportId is null until this webhook backfills it)
+    const matchingSteps = await db
+      .select()
+      .from(onboardingSteps)
+      .where(
+        and(
+          eq(onboardingSteps.stepType, "background_check"),
+          sql`${onboardingSteps.metadata}->>'checkrCandidateId' = ${candidateId}`,
+        ),
+      )
+      .limit(1);
+
+    if (!matchingSteps.length) {
+      return c.json({ ok: true }, 200);
+    }
+
+    const step = matchingSteps[0]!;
+    const effectiveStatus = adjudication || checkrStatus;
+    const newStepStatus = CHECKR_STATUS_MAP[effectiveStatus] || "in_progress";
+
+    // Backfill real report ID in step metadata (was null until this webhook)
+    const existingMetadata = (step.metadata || {}) as Record<string, unknown>;
+    await db
+      .update(onboardingSteps)
+      .set({
+        metadata: { ...existingMetadata, checkrReportId: reportId },
+        updatedAt: new Date(),
+      })
+      .where(eq(onboardingSteps.id, step.id));
+
+    if (isValidStepTransition(step.status, newStepStatus)) {
+      await db
+        .update(onboardingSteps)
+        .set({
+          status: newStepStatus as typeof step.status,
+          completedAt: newStepStatus === "complete" ? new Date() : null,
+          rejectionReason:
+            newStepStatus === "rejected"
+              ? `Background check result: ${effectiveStatus}`
+              : null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(onboardingSteps.id, step.id), eq(onboardingSteps.status, step.status)));
+    }
+
+    logAudit({
+      action: "checkr.report_received",
+      resourceType: "onboarding_step",
+      resourceId: step.id,
+      details: {
+        checkrStatus,
+        adjudication,
+        reportId,
+        providerId: step.providerId,
+        newStepStatus,
+      },
+    });
+
+    // Broadcast to provider
+    const provider = await db.query.providers.findFirst({
+      where: eq(providers.id, step.providerId),
+    });
+
+    if (provider?.userId) {
+      broadcastToUser(provider.userId, {
+        type: "onboarding:step_updated",
+        data: {
+          providerId: step.providerId,
+          stepType: "background_check",
+          newStatus: newStepStatus,
+        },
+      });
+
+      // Fire-and-forget notification
+      notifyBackgroundCheckResult(step.providerId, effectiveStatus).catch((err) => {
+        console.error("[Notifications] Failed:", err);
+      });
+    }
+
+    // Broadcast to admins for consider (pending_review)
+    if (newStepStatus === "pending_review") {
+      broadcastToAdmins({
+        type: "onboarding:step_updated",
+        data: {
+          providerId: step.providerId,
+          stepType: "background_check",
+          newStatus: "pending_review",
+        },
+      });
+    }
+
+    // All-steps-complete auto-transition check
+    if (newStepStatus === "complete") {
+      await checkAllStepsCompleteAndTransition(
+        step.providerId, step.id, "checkr_webhook",
+        undefined, provider,
+      );
+    }
+  }
+
+  return c.json({ ok: true }, 200);
 });
 
 export default app;

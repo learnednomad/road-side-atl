@@ -23,6 +23,7 @@ export type AuditAction =
   | "user.login"
   | "user.logout"
   | "user.register"
+  | "user.mobile_login"
   | "settings.update"
   | "auto_dispatch.attempt"
   | "auto_dispatch.success"
@@ -85,14 +86,28 @@ export type AuditAction =
   | "checkr.candidate_created"
   | "checkr.report_received"
   | "checkr.adjudication_approved"
+  | "checkr.adverse_action_initiated"
+  | "checkr.webhook_invalid_signature"
+  | "checkr.reconciliation_run"
   | "stripe_connect.account_created"
   | "stripe_connect.onboarding_completed"
   | "stripe_connect.link_generated"
+  | "stripe_connect.reconciliation_run"
+  | "stripe_connect.reminder_sent"
   | "training.card_acknowledged"
   | "training.module_completed"
   | "migration.initiated"
   | "migration.completed"
-  | "migration.suspended_deadline";
+  | "migration.suspended_deadline"
+  | "payout.stripe_connect_transfer"
+  | "payout.stripe_connect_failed"
+  | "payout.auto_migrated"
+  | "payout.manual_deprecated"
+  | "payout.transfer_confirmed"
+  | "payout.transfer_failed"
+  | "provider.reactivated"
+  | "provider.suspended"
+  | "stripe_connect.deadline_enforcement_run";
 
 export interface AuditLogEntry {
   action: AuditAction;
@@ -208,6 +223,7 @@ export function getRequestInfo(request: Request): {
  */
 export async function queryAuditLogs(filters: {
   action?: AuditAction;
+  actionPrefix?: string;
   userId?: string;
   resourceType?: string;
   resourceId?: string;
@@ -224,6 +240,8 @@ export async function queryAuditLogs(filters: {
 
     if (filters.action) {
       conditions.push(sql`action = ${filters.action}`);
+    } else if (filters.actionPrefix) {
+      conditions.push(sql`action LIKE ${filters.actionPrefix + ".%"}`);
     }
     if (filters.userId) {
       conditions.push(sql`user_id = ${filters.userId}`);

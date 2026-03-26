@@ -111,21 +111,21 @@ development_status:
   epic-10-retrospective: done
 
   # Epic 11: Document Upload & Admin Review Pipeline
-  epic-11: backlog
-  11-1-mobile-document-capture-and-upload-system: backlog
-  11-2-admin-pipeline-view-and-document-review: backlog
+  epic-11: done
+  11-1-mobile-document-capture-and-upload-system: done
+  11-2-admin-pipeline-view-and-document-review: done
   epic-11-retrospective: optional
 
   # Epic 12: Checkr Background Check Integration
-  epic-12: backlog
-  12-1-checkr-api-integration-and-webhook-processing: backlog
-  12-2-admin-adjudication-polling-reconciliation-and-dispatch-gating: backlog
+  epic-12: done
+  12-1-checkr-api-integration-and-webhook-processing: done
+  12-2-admin-adjudication-polling-reconciliation-and-dispatch-gating: done
   epic-12-retrospective: optional
 
   # Epic 13: Stripe Connect Express & Payout Transition
-  epic-13: backlog
-  13-1-stripe-connect-express-onboarding-flow: backlog
-  13-2-payout-routing-abandonment-reminders-and-manual-deprecation: backlog
+  epic-13: done
+  13-1-stripe-connect-express-onboarding-flow: done
+  13-2-payout-routing-abandonment-reminders-and-manual-deprecation: done
   epic-13-retrospective: optional
 
   # Epic 14: Training, Activation & Onboarding Notifications

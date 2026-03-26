@@ -75,15 +75,23 @@ function LoginForm() {
       }
       setLoading(null);
     } else {
+      // Refresh the router cache so middleware/layouts see the new session
+      router.refresh();
+
       if (callbackUrl) {
         router.push(callbackUrl);
       } else {
+        // Fetch fresh session to determine role-based redirect
         const session = await getSession();
         const role = session?.user?.role;
-        const dest = role === "admin" ? "/admin" : role === "provider" ? "/provider" : "/";
-        router.push(dest);
+        if (role === "admin") {
+          router.push("/admin");
+        } else if (role === "provider") {
+          router.push("/provider");
+        } else {
+          router.push("/my-bookings");
+        }
       }
-      router.refresh();
     }
   }
 
@@ -107,7 +115,7 @@ function LoginForm() {
 
   async function handleGoogleSignIn() {
     setLoading("google");
-    await signIn("google", { callbackUrl: callbackUrl || "/dashboard" });
+    await signIn("google", { callbackUrl: callbackUrl || "/my-bookings" });
   }
 
   if (showVerificationMessage) {
