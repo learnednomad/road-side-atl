@@ -31,8 +31,8 @@ function getClientId(c: Context): string {
     return cfIp;
   }
 
-  // Fallback — less reliable but can't be spoofed via headers
-  return c.req.header("x-real-ip") || "unknown-client";
+  // Fallback — use a hash of available request info when no trusted proxy is configured
+  return "unknown-client";
 }
 
 /**

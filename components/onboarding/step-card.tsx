@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,7 +80,11 @@ function getActionLabel(status: string): string | null {
   }
 }
 
+// Step types that support document upload navigation
+const DOCUMENT_STEP_TYPES = new Set(["insurance", "certifications"]);
+
 export function StepCard({ step }: { step: OnboardingStep }) {
+  const router = useRouter();
   const config = STEP_CONFIG[step.stepType] || {
     icon: Shield,
     label: step.stepType,
@@ -90,6 +95,13 @@ export function StepCard({ step }: { step: OnboardingStep }) {
   const Icon = config.icon;
   const isComplete = step.status === "complete";
   const isDisabled = step.status === "blocked" || step.status === "pending_review";
+  const hasDocumentUpload = DOCUMENT_STEP_TYPES.has(step.stepType);
+
+  const handleAction = () => {
+    if (hasDocumentUpload) {
+      router.push(`/provider/onboarding/documents?stepId=${step.id}&type=${step.stepType}`);
+    }
+  };
 
   return (
     <Card
@@ -125,7 +137,8 @@ export function StepCard({ step }: { step: OnboardingStep }) {
             variant={step.status === "rejected" ? "destructive" : "outline"}
             size="sm"
             className="shrink-0"
-            disabled
+            disabled={!hasDocumentUpload}
+            onClick={handleAction}
           >
             {actionLabel}
           </Button>

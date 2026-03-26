@@ -200,6 +200,24 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Become a Provider CTA */}
+      <section className="animate-on-scroll py-16" aria-labelledby="provider-cta-heading">
+        <div className="container mx-auto max-w-3xl px-4 text-center">
+          <h2 id="provider-cta-heading" className="mb-4 text-3xl font-bold">
+            Want to Earn With Us?
+          </h2>
+          <p className="mx-auto mb-8 max-w-xl text-lg text-muted-foreground">
+            Join our team of roadside assistance providers. Set your own hours, earn competitive pay, and help Atlanta drivers when they need it most.
+          </p>
+          <Button asChild size="lg" variant="outline" className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white">
+            <Link href="/become-provider">
+              Apply to Become a Provider
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Link>
+          </Button>
+        </div>
+      </section>
+
       {/* FAQ Section - directly boosts SEO with FAQ schema */}
       <section className="animate-on-scroll bg-muted/50 py-16" aria-labelledby="faq-heading">
         <div className="container mx-auto max-w-3xl px-4">

@@ -10,7 +10,6 @@ import {
   FileText,
   Settings,
   LogOut,
-  Home,
   DollarSign,
   Eye,
   Search,
@@ -142,17 +141,6 @@ export function ProviderSidebar() {
           })}
         </div>
         <div className="space-y-1 border-t pt-4">
-          <Link
-            href="/"
-            title={collapsed ? "Back to Site" : undefined}
-            className={cn(
-              "flex items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
-              collapsed ? "justify-center" : "gap-3"
-            )}
-          >
-            <Home className="h-4 w-4 shrink-0" />
-            {!collapsed && <span className="truncate">Back to Site</span>}
-          </Link>
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
             title={collapsed ? "Sign Out" : undefined}

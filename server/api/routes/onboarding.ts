@@ -3,16 +3,21 @@ import { db } from "@/db";
 import { users } from "@/db/schema/users";
 import { providers } from "@/db/schema/providers";
 import { onboardingSteps } from "@/db/schema/onboarding-steps";
+import { providerDocuments } from "@/db/schema/provider-documents";
 import { providerInvites } from "@/db/schema/provider-invites";
 import { eq, and, isNull, asc } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { providerApplicationSchema, inviteAcceptSchema, providerStepUpdateSchema } from "@/lib/validators";
-import { ONBOARDING_STEP_TYPES, REAPPLY_COOLDOWN_DAYS } from "@/lib/constants";
+import { providerApplicationSchema, inviteAcceptSchema, providerStepUpdateSchema, documentUploadUrlSchema, documentCreateSchema } from "@/lib/validators";
+import { ONBOARDING_STEP_TYPES, REAPPLY_COOLDOWN_DAYS, PRESIGNED_UPLOAD_EXPIRY, PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER, MIN_DOCUMENTS_PER_STEP, CHECKR_PACKAGE } from "@/lib/constants";
 import { isValidProviderTransition, isValidStepTransition } from "../lib/onboarding-state-machine";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { requireProvider } from "../middleware/auth";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
-import { broadcastToUser } from "@/server/websocket/broadcast";
+import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
+import { getPresignedUploadUrl, getPresignedUrl } from "@/lib/s3";
+import { createCandidate, createInvitation, CheckrApiError } from "../lib/checkr";
+import { stripe } from "@/lib/stripe";
+import { checkAllStepsCompleteAndTransition } from "../lib/all-steps-complete";
 
 const app = new Hono();
 
@@ -170,6 +175,90 @@ async function initializeOnboardingPipeline(
   return { steps, bgStep };
 }
 
+function splitName(fullName: string): { firstName: string; lastName: string } {
+  const trimmed = fullName.trim();
+  if (!trimmed) return { firstName: "Unknown", lastName: "Unknown" };
+  const parts = trimmed.split(" ");
+  const firstName = parts[0]!;
+  const lastName = parts.length > 1 ? parts.slice(1).join(" ") : firstName;
+  return { firstName, lastName };
+}
+
+/**
+ * Initiate Checkr background check and update step metadata with Checkr IDs.
+ * Called post-transaction so provider/step already exist.
+ * Handles Checkr failure gracefully — step stays in_progress with null metadata.
+ */
+async function initiateCheckrBackgroundCheck(
+  bgStepId: string,
+  providerId: string,
+  userId: string,
+  providerData: { firstName: string; lastName: string; email: string; dob?: string },
+  ipAddress: string,
+  userAgent: string,
+): Promise<boolean> {
+  try {
+    if (!providerData.dob) {
+      console.warn("[Checkr] No DOB provided for provider %s — deferring background check initiation", providerId);
+      return false;
+    }
+
+    const candidate = await createCandidate({
+      firstName: providerData.firstName,
+      lastName: providerData.lastName,
+      email: providerData.email,
+      dob: providerData.dob,
+    });
+
+    const invitation = await createInvitation(candidate.id, CHECKR_PACKAGE);
+
+    // Update step metadata with Checkr IDs
+    await db
+      .update(onboardingSteps)
+      .set({
+        metadata: {
+          checkrCandidateId: candidate.id,
+          checkrReportId: null, // Set by report.completed webhook with actual report ID
+          checkrInvitationId: invitation.id,
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(onboardingSteps.id, bgStepId));
+
+    logAudit({
+      action: "checkr.candidate_created",
+      userId,
+      resourceType: "onboarding_step",
+      resourceId: bgStepId,
+      details: {
+        providerId,
+        checkrCandidateId: candidate.id,
+        checkrInvitationId: invitation.id,
+      },
+      ipAddress,
+      userAgent,
+    });
+    return true;
+  } catch (err) {
+    // Log failure but don't throw — step stays in_progress with null metadata
+    console.error("[Checkr] Failed to initiate background check:", err);
+    logAudit({
+      action: "checkr.candidate_created",
+      userId,
+      resourceType: "onboarding_step",
+      resourceId: bgStepId,
+      details: {
+        providerId,
+        error: err instanceof CheckrApiError ? `${err.statusCode}: ${err.message}` : "Unknown error",
+        needsRetry: true,
+      },
+      ipAddress,
+      userAgent,
+    });
+    return false;
+  }
+}
+
 // POST /apply — public provider application
 app.post("/apply", async (c) => {
   const body = await c.req.json();
@@ -179,7 +268,7 @@ app.post("/apply", async (c) => {
     return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
   }
 
-  const { name, email, password, phone, serviceArea, specialties } = parsed.data;
+  const { name, email, password, phone, dob, serviceArea, specialties } = parsed.data;
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
 
   // Check for existing user
@@ -266,6 +355,18 @@ app.post("/apply", async (c) => {
       details: { stepType: "background_check", providerId: result.provider.id },
       ipAddress,
       userAgent,
+    });
+
+    // Initiate Checkr background check (post-transaction, non-blocking)
+    initiateCheckrBackgroundCheck(
+      result.bgStep.id,
+      result.provider.id,
+      result.user.id,
+      { ...splitName(name), email, dob },
+      ipAddress,
+      userAgent,
+    ).catch((err) => {
+      console.error("[Checkr] Background check initiation failed:", err);
     });
   }
 
@@ -410,6 +511,20 @@ app.post("/invite-accept", async (c) => {
     ipAddress,
     userAgent,
   });
+
+  if (result.bgStep) {
+    // Initiate Checkr background check (post-transaction, non-blocking)
+    initiateCheckrBackgroundCheck(
+      result.bgStep.id,
+      result.provider.id,
+      result.user.id,
+      { ...splitName(invite.name), email: invite.email },
+      ipAddress,
+      userAgent,
+    ).catch((err) => {
+      console.error("[Checkr] Background check initiation failed:", err);
+    });
+  }
 
   return c.json(
     {
@@ -582,6 +697,469 @@ app.patch("/steps/:stepId", requireProvider, async (c) => {
   }
 
   return c.json(updated, 200);
+});
+
+// POST /background-check/retry — retry Checkr initiation for failed initial call
+app.post("/background-check/retry", requireProvider, async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const bgStep = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "background_check"),
+    ),
+  });
+  if (!bgStep) return c.json({ error: "Background check step not found" }, 404);
+
+  // Only allow retry if metadata has null Checkr IDs (failed initial call)
+  const metadata = bgStep.metadata as { checkrCandidateId?: string | null } | null;
+  if (metadata?.checkrCandidateId) {
+    return c.json({ error: "Background check already initiated" }, 400);
+  }
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+
+  const success = await initiateCheckrBackgroundCheck(
+    bgStep.id,
+    provider.id,
+    user.id,
+    {
+      ...splitName(provider.name),
+      email: provider.email,
+      dob: (bgStep.metadata as Record<string, unknown> | null)?.dob as string | undefined,
+    },
+    ipAddress,
+    userAgent,
+  );
+
+  if (!success) {
+    return c.json({ error: "Background check service temporarily unavailable" }, 503);
+  }
+  return c.json({ message: "Background check initiated successfully" }, 200);
+});
+
+// --- Document upload endpoints ---
+
+// POST /upload-url — generate presigned S3 upload URL
+app.post("/upload-url", requireProvider, async (c) => {
+  const user = c.get("user");
+  const body = await c.req.json();
+  const parsed = documentUploadUrlSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+
+  const provider = await db.query.providers.findFirst({ where: eq(providers.userId, user.id) });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const ext = parsed.data.fileName.split(".").pop() || "jpg";
+  const s3Key = `onboarding/${provider.id}/${parsed.data.documentType}/${Date.now()}.${ext}`;
+
+  const uploadUrl = await getPresignedUploadUrl(s3Key, parsed.data.mimeType, PRESIGNED_UPLOAD_EXPIRY);
+
+  return c.json({ uploadUrl, s3Key, expiresIn: PRESIGNED_UPLOAD_EXPIRY }, 200);
+});
+
+// POST /documents — create provider_documents record after S3 upload
+app.post("/documents", requireProvider, async (c) => {
+  const user = c.get("user");
+  const body = await c.req.json();
+  const parsed = documentCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+
+  const provider = await db.query.providers.findFirst({ where: eq(providers.userId, user.id) });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  // Verify S3 key belongs to this provider (prevent key injection)
+  if (!parsed.data.s3Key.startsWith(`onboarding/${provider.id}/`)) {
+    return c.json({ error: "Invalid S3 key" }, 400);
+  }
+
+  // Verify onboarding step belongs to this provider
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.id, parsed.data.onboardingStepId),
+      eq(onboardingSteps.providerId, provider.id),
+    ),
+  });
+  if (!step) return c.json({ error: "Onboarding step not found" }, 404);
+
+  // Check if this is a re-upload after rejection (existing rejected doc for same step/type)
+  const existingRejected = await db.query.providerDocuments.findFirst({
+    where: and(
+      eq(providerDocuments.onboardingStepId, parsed.data.onboardingStepId),
+      eq(providerDocuments.providerId, provider.id),
+      eq(providerDocuments.documentType, parsed.data.documentType as "insurance" | "certification" | "vehicle_doc"),
+      eq(providerDocuments.status, "rejected"),
+    ),
+  });
+
+  const [doc] = await db.insert(providerDocuments).values({
+    providerId: provider.id,
+    onboardingStepId: parsed.data.onboardingStepId,
+    documentType: parsed.data.documentType as "insurance" | "certification" | "vehicle_doc",
+    s3Key: parsed.data.s3Key,
+    originalFileName: parsed.data.originalFileName,
+    fileSize: parsed.data.fileSize,
+    mimeType: parsed.data.mimeType,
+    status: "pending_review",
+  }).returning();
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  const auditAction = existingRejected ? "document.resubmitted" : "document.uploaded";
+  logAudit({
+    action: auditAction,
+    userId: user.id,
+    resourceType: "provider_document",
+    resourceId: doc.id,
+    details: {
+      providerId: provider.id,
+      documentType: parsed.data.documentType,
+      stepId: step.id,
+      ...(existingRejected && { previousDocumentId: existingRejected.id }),
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json(doc, 201);
+});
+
+// GET /documents — returns all documents for the authenticated provider grouped by step
+app.get("/documents", requireProvider, async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({ where: eq(providers.userId, user.id) });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const docs = await db.query.providerDocuments.findMany({
+    where: eq(providerDocuments.providerId, provider.id),
+    orderBy: [asc(providerDocuments.createdAt)],
+  });
+
+  // Group by onboardingStepId
+  const grouped = docs.reduce((acc, doc) => {
+    const stepId = doc.onboardingStepId;
+    if (!acc[stepId]) acc[stepId] = [];
+    acc[stepId].push(doc);
+    return acc;
+  }, {} as Record<string, typeof docs>);
+
+  return c.json({ documents: grouped }, 200);
+});
+
+// GET /documents/:documentId/url — presigned download URL for provider's own document
+app.get("/documents/:documentId/url", requireProvider, async (c) => {
+  const { documentId } = c.req.param();
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({ where: eq(providers.userId, user.id) });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const doc = await db.query.providerDocuments.findFirst({
+    where: and(eq(providerDocuments.id, documentId), eq(providerDocuments.providerId, provider.id)),
+  });
+  if (!doc) return c.json({ error: "Document not found" }, 404);
+
+  const downloadUrl = await getPresignedUrl(doc.s3Key, PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER);
+  return c.json({ downloadUrl, expiresIn: PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER }, 200);
+});
+
+// POST /steps/:stepId/submit — submit documents for review
+app.post("/steps/:stepId/submit", requireProvider, async (c) => {
+  const { stepId } = c.req.param();
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({ where: eq(providers.userId, user.id) });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.id, stepId),
+      eq(onboardingSteps.providerId, provider.id),
+    ),
+  });
+  if (!step) return c.json({ error: "Step not found" }, 404);
+
+  // Only insurance and certifications steps can be submitted this way
+  if (step.stepType !== "insurance" && step.stepType !== "certifications") {
+    return c.json({ error: "This step does not support document submission" }, 400);
+  }
+
+  // Check valid transition: pending/draft → in_progress
+  if (!isValidStepTransition(step.status, "in_progress")) {
+    return c.json({ error: `Invalid step transition: ${step.status} -> in_progress` }, 400);
+  }
+
+  // Check minimum document count
+  const docs = await db.query.providerDocuments.findMany({
+    where: and(
+      eq(providerDocuments.onboardingStepId, stepId),
+      eq(providerDocuments.providerId, provider.id),
+    ),
+  });
+
+  // Map step type to document type for MIN_DOCUMENTS_PER_STEP lookup
+  const docTypeKey = step.stepType === "certifications" ? "certifications" : step.stepType;
+  const minDocs = MIN_DOCUMENTS_PER_STEP[docTypeKey] ?? 1;
+  if (docs.length < minDocs) {
+    return c.json({ error: `At least ${minDocs} document(s) required before submission` }, 400);
+  }
+
+  const [updated] = await db.update(onboardingSteps).set({
+    status: "in_progress",
+    updatedAt: new Date(),
+  }).where(eq(onboardingSteps.id, stepId)).returning();
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "onboarding.step_started",
+    userId: user.id,
+    resourceType: "onboarding_step",
+    resourceId: stepId,
+    details: { providerId: provider.id, stepType: step.stepType, trigger: "document_submission" },
+    ipAddress,
+    userAgent,
+  });
+
+  // Broadcast to admins
+  broadcastToAdmins({
+    type: "onboarding:new_submission",
+    data: { providerId: provider.id, providerName: provider.name, stepType: step.stepType },
+  });
+
+  return c.json(updated, 200);
+});
+
+// --- Stripe Connect endpoints ---
+
+// POST /stripe-link — create Connect Express account (if needed) and generate onboarding link
+app.post("/stripe-link", requireProvider, async (c) => {
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  // Find stripe_connect step
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "stripe_connect"),
+    ),
+  });
+  if (!step) return c.json({ error: "Stripe Connect step not found" }, 404);
+
+  let accountId = provider.stripeConnectAccountId;
+
+  try {
+    if (!accountId) {
+      // Create new Express account
+      const account = await stripe.accounts.create({
+        type: "express",
+        email: provider.email,
+        metadata: { providerId: provider.id },
+      });
+      accountId = account.id;
+
+      // Store account ID in providers table
+      await db
+        .update(providers)
+        .set({ stripeConnectAccountId: accountId, updatedAt: new Date() })
+        .where(eq(providers.id, provider.id));
+
+      // Update step metadata and transition pending → in_progress (TOCTOU guard)
+      if (isValidStepTransition(step.status, "in_progress")) {
+        await db
+          .update(onboardingSteps)
+          .set({
+            status: "in_progress",
+            metadata: { stripeConnectAccountId: accountId },
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(onboardingSteps.id, step.id),
+              eq(onboardingSteps.status, "pending"),
+            ),
+          );
+      }
+
+      logAudit({
+        action: "stripe_connect.account_created",
+        userId: user.id,
+        resourceType: "onboarding_step",
+        resourceId: step.id,
+        details: {
+          providerId: provider.id,
+          stripeConnectAccountId: accountId,
+        },
+        ipAddress,
+        userAgent,
+      });
+    }
+
+    // Generate onboarding link (works for both new and re-entry)
+    const link = await stripe.accountLinks.create({
+      account: accountId,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding?stripe=complete`,
+      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding?stripe=refresh`,
+      type: "account_onboarding",
+    });
+
+    logAudit({
+      action: "stripe_connect.link_generated",
+      userId: user.id,
+      resourceType: "onboarding_step",
+      resourceId: step.id,
+      details: { providerId: provider.id },
+      ipAddress,
+      userAgent,
+    });
+
+    return c.json({ url: link.url });
+  } catch (err) {
+    console.error("[Stripe Connect] Account creation/link generation failed:", err);
+    return c.json({ error: "Payment setup temporarily unavailable" }, 503);
+  }
+});
+
+// GET /stripe-status — check Connect account readiness
+app.get("/stripe-status", requireProvider, async (c) => {
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  if (!provider.stripeConnectAccountId) {
+    return c.json({ error: "No Connect account" }, 404);
+  }
+
+  try {
+    const account = await stripe.accounts.retrieve(provider.stripeConnectAccountId);
+
+    if (account.charges_enabled) {
+      // Find stripe_connect step
+      const step = await db.query.onboardingSteps.findFirst({
+        where: and(
+          eq(onboardingSteps.providerId, provider.id),
+          eq(onboardingSteps.stepType, "stripe_connect"),
+        ),
+      });
+
+      if (step && isValidStepTransition(step.status, "complete")) {
+        // Transition step to complete (TOCTOU guard)
+        const [updated] = await db
+          .update(onboardingSteps)
+          .set({
+            status: "complete",
+            completedAt: new Date(),
+            metadata: {
+              ...(step.metadata as Record<string, unknown> || {}),
+              chargesEnabledAt: new Date().toISOString(),
+            },
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(onboardingSteps.id, step.id),
+              eq(onboardingSteps.status, step.status),
+            ),
+          )
+          .returning();
+
+        if (updated) {
+          logAudit({
+            action: "stripe_connect.onboarding_completed",
+            userId: user.id,
+            resourceType: "onboarding_step",
+            resourceId: step.id,
+            details: {
+              providerId: provider.id,
+              source: "status_check",
+            },
+            ipAddress,
+            userAgent,
+          });
+
+          broadcastToUser(user.id, {
+            type: "onboarding:step_updated",
+            data: {
+              providerId: provider.id,
+              stepType: "stripe_connect",
+              newStatus: "complete",
+            },
+          });
+
+          // All-steps-complete auto-transition check
+          await checkAllStepsCompleteAndTransition(
+            provider.id, step.id, "stripe_status_check",
+            { userId: user.id, ipAddress, userAgent },
+            provider,
+          );
+        }
+      }
+
+      return c.json({
+        status: "complete",
+        charges_enabled: true,
+        details_submitted: account.details_submitted ?? true,
+      });
+    }
+
+    return c.json({
+      status: "pending",
+      charges_enabled: false,
+      details_submitted: account.details_submitted || false,
+    });
+  } catch (err) {
+    console.error("[Stripe Connect] Status check failed:", err);
+    return c.json({ error: "Payment status check temporarily unavailable" }, 503);
+  }
+});
+
+// GET /stripe-dashboard — generate Express Dashboard login link
+app.get("/stripe-dashboard", requireProvider, async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  if (!provider.stripeConnectAccountId) {
+    return c.json({ error: "No Connect account" }, 404);
+  }
+
+  // Only allow access when stripe_connect step is complete
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "stripe_connect"),
+    ),
+  });
+
+  if (!step || step.status !== "complete") {
+    return c.json({ error: "Stripe Connect setup not complete" }, 403);
+  }
+
+  try {
+    const loginLink = await stripe.accounts.createLoginLink(
+      provider.stripeConnectAccountId,
+    );
+    return c.json({ url: loginLink.url });
+  } catch (err) {
+    console.error("[Stripe Connect] Dashboard link generation failed:", err);
+    return c.json({ error: "Unable to generate dashboard link" }, 503);
+  }
 });
 
 export default app;

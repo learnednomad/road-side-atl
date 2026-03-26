@@ -108,6 +108,11 @@ export function Footer() {
                     Book Now
                   </Link>
                 </li>
+                <li>
+                  <Link href="/become-provider" className="hover:text-red-400">
+                    Become a Provider
+                  </Link>
+                </li>
               </ul>
             </div>
             <div>

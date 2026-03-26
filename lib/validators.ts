@@ -76,6 +76,7 @@ export const assignProviderSchema = z.object({
 
 export const markPayoutPaidSchema = z.object({
   payoutIds: z.array(z.string().uuid()),
+  override: z.boolean().optional(),
 });
 
 export const registerSchema = z.object({
@@ -398,6 +399,7 @@ export const providerApplicationSchema = z.object({
   email: z.email("Valid email is required"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   phone: z.string().min(10, "Phone number is required"),
+  dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date of birth must be YYYY-MM-DD").optional(),
   serviceArea: z.array(z.string().min(1)).min(1, "At least one service area is required"),
   specialties: z.array(z.string()).optional(),
   fcraConsent: z.literal(true, { message: "FCRA consent is required" }),
@@ -469,3 +471,36 @@ export const providerStepUpdateSchema = z.object({
   draftData: z.record(z.string(), z.unknown()).optional(),
 });
 export type ProviderStepUpdateInput = z.infer<typeof providerStepUpdateSchema>;
+
+// Document upload validators
+export const documentUploadUrlSchema = z.object({
+  documentType: z.enum(["insurance", "certification", "vehicle_doc"]),
+  mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+  fileName: z.string().min(1),
+});
+export type DocumentUploadUrlInput = z.infer<typeof documentUploadUrlSchema>;
+
+export const documentCreateSchema = z.object({
+  s3Key: z.string().min(1),
+  documentType: z.enum(["insurance", "certification", "vehicle_doc"]),
+  originalFileName: z.string().min(1),
+  fileSize: z.number().int().positive().max(10485760), // 10MB
+  mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+  onboardingStepId: z.string().min(1),
+});
+export type DocumentCreateInput = z.infer<typeof documentCreateSchema>;
+
+export const adjudicationRequestSchema = z.object({
+  decision: z.enum(["approve", "adverse_action"]),
+  reason: z.string().min(10, "Reason must be at least 10 characters").max(500, "Reason must be 500 characters or fewer"),
+});
+export type AdjudicationRequestInput = z.infer<typeof adjudicationRequestSchema>;
+
+export const adminDocumentReviewSchema = z.object({
+  status: z.enum(["approved", "rejected"]),
+  rejectionReason: z.string().min(1).optional(),
+}).refine(
+  (val) => val.status !== "rejected" || (val.rejectionReason !== undefined && val.rejectionReason.length > 0),
+  { message: "Rejection reason required when rejecting" },
+);
+export type AdminDocumentReviewInput = z.infer<typeof adminDocumentReviewSchema>;

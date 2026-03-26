@@ -1019,6 +1019,7 @@ app.get("/customers", async (c) => {
 // Audit logs endpoint
 app.get("/audit-logs", async (c) => {
   const action = c.req.query("action");
+  const actionPrefix = c.req.query("actionPrefix");
   const userId = c.req.query("userId");
   const resourceType = c.req.query("resourceType");
   const startDateStr = c.req.query("startDate");
@@ -1031,6 +1032,7 @@ app.get("/audit-logs", async (c) => {
     const { queryAuditLogs } = await import("../lib/audit-logger");
     const logs = await queryAuditLogs({
       action: action as AuditAction,
+      actionPrefix: actionPrefix || undefined,
       userId: userId || undefined,
       resourceType: resourceType || undefined,
       startDate: startDateStr ? new Date(startDateStr) : undefined,
