@@ -123,9 +123,9 @@ development_status:
   epic-12-retrospective: optional
 
   # Epic 13: Stripe Connect Express & Payout Transition
-  epic-13: in-progress
+  epic-13: done
   13-1-stripe-connect-express-onboarding-flow: done
-  13-2-payout-routing-abandonment-reminders-and-manual-deprecation: review
+  13-2-payout-routing-abandonment-reminders-and-manual-deprecation: done
   epic-13-retrospective: optional
 
   # Epic 14: Training, Activation & Onboarding Notifications
