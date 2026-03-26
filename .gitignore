@@ -31,14 +31,23 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env
-.env.local
+.env*
+!.env.example
+
+# screenshots (manual testing artifacts)
+*.png
 
 # IDE / tools
 .idea/
 .claude/
 .codex/
+.ai/
+.playwright-mcp/
 _bmad/
+
+# e2e test artifacts
+e2e-screenshots/
+e2e-tests/
 
 # vercel
 .vercel
