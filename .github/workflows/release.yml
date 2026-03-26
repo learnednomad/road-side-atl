@@ -13,8 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - name: Verify tag is annotated
         run: |
+          git fetch --tags --force
           TAG_TYPE=$(git cat-file -t ${{ github.ref_name }} 2>/dev/null || echo "unknown")
           if [ "$TAG_TYPE" != "tag" ]; then
             echo "::error::Tag ${{ github.ref_name }} is not an annotated tag. Use: git tag -a ${{ github.ref_name }} -m 'description'"
