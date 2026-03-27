@@ -80,8 +80,9 @@ function getActionLabel(status: string): string | null {
   }
 }
 
-// Step types that support document upload navigation
+// Step types that support navigation
 const DOCUMENT_STEP_TYPES = new Set(["insurance", "certifications"]);
+const NAVIGABLE_STEP_TYPES = new Set(["insurance", "certifications", "training"]);
 
 export function StepCard({ step }: { step: OnboardingStep }) {
   const router = useRouter();
@@ -95,11 +96,13 @@ export function StepCard({ step }: { step: OnboardingStep }) {
   const Icon = config.icon;
   const isComplete = step.status === "complete";
   const isDisabled = step.status === "blocked" || step.status === "pending_review";
-  const hasDocumentUpload = DOCUMENT_STEP_TYPES.has(step.stepType);
+  const isNavigable = NAVIGABLE_STEP_TYPES.has(step.stepType);
 
   const handleAction = () => {
-    if (hasDocumentUpload) {
+    if (DOCUMENT_STEP_TYPES.has(step.stepType)) {
       router.push(`/provider/onboarding/documents?stepId=${step.id}&type=${step.stepType}`);
+    } else if (step.stepType === "training") {
+      router.push("/provider/onboarding/training");
     }
   };
 
@@ -137,7 +140,7 @@ export function StepCard({ step }: { step: OnboardingStep }) {
             variant={step.status === "rejected" ? "destructive" : "outline"}
             size="sm"
             className="shrink-0"
-            disabled={!hasDocumentUpload}
+            disabled={!isNavigable}
             onClick={handleAction}
           >
             {actionLabel}
