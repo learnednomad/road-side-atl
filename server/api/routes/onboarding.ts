@@ -699,6 +699,151 @@ app.patch("/steps/:stepId", requireProvider, async (c) => {
   return c.json(updated, 200);
 });
 
+// ── Training Module Endpoints ─────────────────────────────────────
+
+// GET /training — get training cards with acknowledgment status
+app.get("/training", requireProvider, async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "training"),
+    ),
+  });
+  if (!step) return c.json({ error: "Training step not found" }, 404);
+
+  const { TRAINING_CARDS, TOTAL_TRAINING_CARDS } = await import("@/lib/training-content");
+
+  const acknowledgedCards = (step.draftData as { acknowledgedCards?: string[] } | null)
+    ?.acknowledgedCards || [];
+
+  return c.json({
+    stepId: step.id,
+    status: step.status,
+    totalCards: TOTAL_TRAINING_CARDS,
+    acknowledgedCount: acknowledgedCards.length,
+    acknowledgedCards,
+    cards: TRAINING_CARDS.map((card) => ({
+      ...card,
+      acknowledged: acknowledgedCards.includes(card.id),
+    })),
+  });
+});
+
+// POST /training/acknowledge/:cardId — acknowledge a single training card
+app.post("/training/acknowledge/:cardId", requireProvider, async (c) => {
+  const { cardId } = c.req.param();
+  const user = c.get("user");
+
+  const { TRAINING_CARDS, TOTAL_TRAINING_CARDS } = await import("@/lib/training-content");
+
+  const card = TRAINING_CARDS.find((tc) => tc.id === cardId);
+  if (!card) return c.json({ error: "Invalid training card ID" }, 400);
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "training"),
+    ),
+  });
+  if (!step) return c.json({ error: "Training step not found" }, 404);
+
+  if (step.status === "complete") {
+    return c.json({ error: "Training already completed" }, 400);
+  }
+
+  const draftData = (step.draftData as { acknowledgedCards?: string[] } | null) || {};
+  const acknowledgedCards = new Set(draftData.acknowledgedCards || []);
+  acknowledgedCards.add(cardId);
+  const acknowledgedArray = [...acknowledgedCards];
+
+  const isAllAcknowledged = acknowledgedArray.length >= TOTAL_TRAINING_CARDS;
+
+  const updateData: Record<string, unknown> = {
+    draftData: { acknowledgedCards: acknowledgedArray },
+    updatedAt: new Date(),
+  };
+
+  // Auto-transition when pending → draft (first card)
+  if (step.status === "pending") {
+    updateData.status = "draft";
+  }
+
+  // Auto-complete when all cards are acknowledged
+  if (isAllAcknowledged) {
+    updateData.status = "complete";
+    updateData.completedAt = new Date();
+  }
+
+  const [updated] = await db
+    .update(onboardingSteps)
+    .set(updateData)
+    .where(eq(onboardingSteps.id, step.id))
+    .returning();
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+
+  logAudit({
+    action: "training.card_acknowledged",
+    userId: user.id,
+    resourceType: "onboarding_step",
+    resourceId: step.id,
+    details: {
+      providerId: provider.id,
+      cardId,
+      cardTitle: card.title,
+      acknowledgedCount: acknowledgedArray.length,
+      totalCards: TOTAL_TRAINING_CARDS,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  if (isAllAcknowledged) {
+    logAudit({
+      action: "training.module_completed",
+      userId: user.id,
+      resourceType: "onboarding_step",
+      resourceId: step.id,
+      details: { providerId: provider.id, totalCards: TOTAL_TRAINING_CARDS },
+      ipAddress,
+      userAgent,
+    });
+
+    broadcastToUser(user.id, {
+      type: "onboarding:step_updated",
+      data: { providerId: provider.id, stepType: "training", newStatus: "complete" },
+    });
+
+    // Check if all steps are now complete
+    await checkAllStepsCompleteAndTransition(
+      provider.id,
+      step.id,
+      "training.all_cards_acknowledged",
+      { userId: user.id, ipAddress, userAgent },
+    );
+  }
+
+  return c.json({
+    stepId: step.id,
+    status: updated.status,
+    acknowledgedCount: acknowledgedArray.length,
+    totalCards: TOTAL_TRAINING_CARDS,
+    isComplete: isAllAcknowledged,
+  });
+});
+
 // POST /background-check/retry — retry Checkr initiation for failed initial call
 app.post("/background-check/retry", requireProvider, async (c) => {
   const user = c.get("user");

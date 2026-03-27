@@ -129,8 +129,8 @@ development_status:
   epic-13-retrospective: optional
 
   # Epic 14: Training, Activation & Onboarding Notifications
-  epic-14: backlog
-  14-1-training-module-v1-policy-acknowledgment-cards: backlog
+  epic-14: in-progress
+  14-1-training-module-v1-policy-acknowledgment-cards: done
   14-2-admin-activation-rejection-and-onboarding-notifications: backlog
   epic-14-retrospective: optional
 
