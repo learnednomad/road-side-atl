@@ -47,7 +47,9 @@ _bmad/_memory/
 
 # e2e test artifacts
 e2e-screenshots/
-e2e-tests/
+playwright-report/
+test-results/
+blob-report/
 
 # vercel
 .vercel

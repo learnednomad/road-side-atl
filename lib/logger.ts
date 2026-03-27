@@ -1,8 +1,10 @@
 /**
  * Structured logging utility
  * Provides consistent log format for production debugging and log aggregation
- * Integrates with Sentry when SENTRY_DSN is configured
+ * Captures errors to Sentry when SENTRY_DSN is configured
  */
+
+import * as Sentry from "@sentry/nextjs";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -49,6 +51,7 @@ export const logger = {
   warn(message: string, context?: LogContext) {
     if (shouldLog("warn")) {
       console.warn(formatLog("warn", message, context));
+      Sentry.captureMessage(message, { level: "warning", extra: context });
     }
   },
 
@@ -62,8 +65,12 @@ export const logger = {
         message: error.message,
         stack: error.stack,
       };
+      Sentry.captureException(error, { extra: { message, ...context } });
     } else if (error !== undefined) {
       errorContext.error = String(error);
+      Sentry.captureMessage(message, { level: "error", extra: { error: String(error), ...context } });
+    } else {
+      Sentry.captureMessage(message, { level: "error", extra: context });
     }
 
     console.error(formatLog("error", message, errorContext));
