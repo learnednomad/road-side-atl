@@ -1,0 +1,85 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dealer
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: roadside_atl
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build application
+        env:
+          DATABASE_URL: postgres://dealer:test_password@localhost:5432/roadside_atl
+          AUTH_SECRET: test-secret-for-ci-only
+          AUTH_TRUST_HOST: "true"
+          NEXT_PUBLIC_BUSINESS_NAME: "RoadSide ATL"
+          NEXT_PUBLIC_BUSINESS_PHONE: "555-0100"
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+          DISABLE_CRON: "true"
+        run: npm run build
+
+      - name: Run migrations and seed
+        env:
+          DATABASE_URL: postgres://dealer:test_password@localhost:5432/roadside_atl
+        run: npx drizzle-kit push
+
+      - name: Run E2E tests
+        env:
+          DATABASE_URL: postgres://dealer:test_password@localhost:5432/roadside_atl
+          AUTH_SECRET: test-secret-for-ci-only
+          AUTH_TRUST_HOST: "true"
+          NEXT_PUBLIC_BUSINESS_NAME: "RoadSide ATL"
+          NEXT_PUBLIC_BUSINESS_PHONE: "555-0100"
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+          DISABLE_CRON: "true"
+          E2E_BASE_URL: http://localhost:3000
+          CI: true
+        run: |
+          npm start &
+          npx wait-on http://localhost:3000 --timeout 30000
+          npx playwright test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
