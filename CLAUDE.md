@@ -44,6 +44,20 @@ Before tagging a release:
 - Feature branches → `development` → `main`
 - Hotfix branches → `main` directly (tag immediately after)
 
+## Mobile Parity Policy (MANDATORY)
+
+Every web feature MUST have a corresponding mobile implementation built at the same time.
+
+- **Mobile repo**: `~/WebstormProjects/roadside-atl-mobile` (GitHub: `learnednomad/roadside-atl-mobile`)
+- **Stack**: Expo SDK 54, React Native 0.81.5, TypeScript, NativeWind, React Query, Zustand, MMKV
+- **API client**: `src/lib/api/client.tsx` — axios with JWT auth, baseURL from `env.ts`
+- **Features**: `src/features/[name]/` with `api.ts` (React Query hooks) + screen files
+- **Routes**: `src/app/` (Expo Router file-based routing)
+
+When adding a new backend endpoint → add the React Query hook in mobile `api.ts`
+When adding a new web page → add the corresponding mobile screen
+When modifying an API response shape → update the mobile type + hook
+
 ## Code Conventions
 - All prices in cents (integer)
 - Commission rates in basis points (10000 = 100%)
