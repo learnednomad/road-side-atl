@@ -46,7 +46,7 @@ export default {
       ? [
           Resend({
             apiKey: process.env.AUTH_RESEND_KEY,
-            from: process.env.AUTH_RESEND_FROM || process.env.RESEND_FROM || "noreply@roadsideatl.com",
+            from: process.env.AUTH_RESEND_FROM || process.env.RESEND_FROM || "noreply@roadsidega.com",
           }),
         ]
       : []),

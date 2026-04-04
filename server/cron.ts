@@ -53,6 +53,22 @@ const jobs: CronJob[] = [
       return enforceStripeConnectDeadline();
     },
   },
+  {
+    name: "migration-reminders",
+    intervalMs: 6 * HOUR,
+    run: async () => {
+      const { checkMigrationReminders } = await import("./api/lib/reconciliation");
+      return checkMigrationReminders();
+    },
+  },
+  {
+    name: "migration-deadline",
+    intervalMs: 24 * HOUR,
+    run: async () => {
+      const { enforceMigrationDeadline } = await import("./api/lib/reconciliation");
+      return enforceMigrationDeadline();
+    },
+  },
 ];
 
 function runJob(job: CronJob) {

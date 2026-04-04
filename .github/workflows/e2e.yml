@@ -49,7 +49,7 @@ jobs:
           DATABASE_URL: postgres://dealer:test_password@localhost:5432/roadside_atl
           AUTH_SECRET: test-secret-for-ci-only
           AUTH_TRUST_HOST: "true"
-          NEXT_PUBLIC_BUSINESS_NAME: "RoadSide ATL"
+          NEXT_PUBLIC_BUSINESS_NAME: "RoadSide GA"
           NEXT_PUBLIC_BUSINESS_PHONE: "555-0100"
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
           DISABLE_CRON: "true"
@@ -65,7 +65,7 @@ jobs:
           DATABASE_URL: postgres://dealer:test_password@localhost:5432/roadside_atl
           AUTH_SECRET: test-secret-for-ci-only
           AUTH_TRUST_HOST: "true"
-          NEXT_PUBLIC_BUSINESS_NAME: "RoadSide ATL"
+          NEXT_PUBLIC_BUSINESS_NAME: "RoadSide GA"
           NEXT_PUBLIC_BUSINESS_PHONE: "555-0100"
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
           DISABLE_CRON: "true"

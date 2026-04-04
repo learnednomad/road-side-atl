@@ -1,16 +1,16 @@
-# Project Overview - RoadSide ATL
+# Project Overview - RoadSide GA
 
 > Generated: 2026-02-11 | Scan Level: Exhaustive
 
 ## Purpose
 
-RoadSide ATL is a 24/7 roadside assistance platform serving the Atlanta metro area. It connects customers experiencing vehicle emergencies (flat tires, dead batteries, lockouts, towing needs) with local service providers. The platform handles the full lifecycle: booking, dispatch, real-time tracking, payment processing, and provider management.
+RoadSide GA is a 24/7 roadside assistance platform serving the Atlanta metro area. It connects customers experiencing vehicle emergencies (flat tires, dead batteries, lockouts, towing needs) with local service providers. The platform handles the full lifecycle: booking, dispatch, real-time tracking, payment processing, and provider management.
 
 ## Quick Reference
 
 | Property | Value |
 |---|---|
-| **Project Name** | road-side-atl |
+| **Project Name** | road-side-ga |
 | **Version** | 0.1.0 |
 | **Repository Type** | Monolith |
 | **Primary Language** | TypeScript |

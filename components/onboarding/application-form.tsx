@@ -201,7 +201,7 @@ export function ApplicationForm() {
               <div className="space-y-1">
                 <span className="text-sm font-medium">Background Check Authorization (FCRA)</span>
                 <p className="text-xs text-muted-foreground">
-                  I authorize RoadSide ATL to obtain a consumer report and/or investigative consumer report
+                  I authorize RoadSide GA to obtain a consumer report and/or investigative consumer report
                   about me for employment purposes in compliance with the Fair Credit Reporting Act (FCRA).
                   I understand that this report may include information about my character, general reputation,
                   personal characteristics, and criminal history.

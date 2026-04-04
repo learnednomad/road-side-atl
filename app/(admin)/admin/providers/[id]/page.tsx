@@ -23,7 +23,7 @@ import { formatPrice } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Provider Detail | Admin | RoadSide ATL",
+  title: "Provider Detail | Admin | RoadSide GA",
 };
 
 export default async function ProviderDetailPage({

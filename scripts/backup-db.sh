@@ -8,7 +8,7 @@ set -euo pipefail
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR="/tmp/db-backups"
 BACKUP_FILE="roadside_atl_${TIMESTAMP}.sql.gz"
-S3_BUCKET="${S3_BACKUP_BUCKET:-roadside-atl-backups}"
+S3_BUCKET="${S3_BACKUP_BUCKET:-roadside-ga-backups}"
 S3_PREFIX="${S3_BACKUP_PREFIX:-backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 

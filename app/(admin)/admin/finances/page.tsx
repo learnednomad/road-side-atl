@@ -4,7 +4,7 @@ import { FinancesDashboard } from "@/components/admin/finances-dashboard";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Finances | Admin | RoadSide ATL",
+  title: "Finances | Admin | RoadSide GA",
 };
 
 export default function AdminFinancesPage() {

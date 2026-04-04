@@ -1,12 +1,12 @@
 ---
 title: Feature Guide
-description: Complete guide to RoadSide ATL platform features for customers, providers, and administrators
+description: Complete guide to RoadSide GA platform features for customers, providers, and administrators
 author: Paige (Tech Writer Agent)
 date: 2026-02-26
 audience: End Users
 ---
 
-# RoadSide ATL - Feature Guide
+# RoadSide GA - Feature Guide
 
 ## Table of Contents
 
@@ -49,7 +49,7 @@ audience: End Users
 
 ## Getting Started
 
-RoadSide ATL is a 24/7 roadside assistance platform serving the Atlanta metro area. You can book emergency services like jump starts, tire changes, and towing — or schedule a pre-purchase vehicle inspection with a branded PDF report.
+RoadSide GA is a 24/7 roadside assistance platform serving the Atlanta metro area. You can book emergency services like jump starts, tire changes, and towing — or schedule a pre-purchase vehicle inspection with a branded PDF report.
 
 ### Create Your Account
 
@@ -116,7 +116,7 @@ You also receive SMS and push notification updates at each stage.
 
 ### Pay for Your Service
 
-RoadSide ATL accepts multiple payment methods. The methods available to you depend on your **Trust Tier** (see below).
+RoadSide GA accepts multiple payment methods. The methods available to you depend on your **Trust Tier** (see below).
 
 **All Customers:**
 

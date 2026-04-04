@@ -1,4 +1,4 @@
-# RoadSide ATL - Project Documentation Index
+# RoadSide GA - Project Documentation Index
 
 > Generated: 2026-02-11 | Mode: Initial Scan | Scan Level: Exhaustive
 
@@ -59,8 +59,8 @@
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | admin@roadsideatl.com | admin123 |
-| Provider | marcus@roadsideatl.com | provider123 |
+| Admin | admin@roadsidega.com | admin123 |
+| Provider | marcus@roadsidega.com | provider123 |
 | Customer | jasmine.carter@gmail.com | customer123 |
 
 ### For Production

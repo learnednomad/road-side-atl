@@ -1,3 +1,4 @@
+import "@/lib/env"; // Validate env vars at startup
 import { Hono } from "hono";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";

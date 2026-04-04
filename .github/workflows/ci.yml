@@ -57,7 +57,7 @@ jobs:
       NEXT_PUBLIC_CASHAPP_TAG: placeholder
       NEXT_PUBLIC_ZELLE_INFO: placeholder
       NEXT_PUBLIC_BUSINESS_PHONE: "555-000-0000"
-      NEXT_PUBLIC_BUSINESS_NAME: RoadSide ATL
+      NEXT_PUBLIC_BUSINESS_NAME: RoadSide GA
       NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: placeholder
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +86,7 @@ jobs:
             --build-arg NEXT_PUBLIC_CASHAPP_TAG=placeholder \
             --build-arg NEXT_PUBLIC_ZELLE_INFO=placeholder \
             --build-arg NEXT_PUBLIC_BUSINESS_PHONE=555-000-0000 \
-            --build-arg NEXT_PUBLIC_BUSINESS_NAME="RoadSide ATL" \
+            --build-arg NEXT_PUBLIC_BUSINESS_NAME="RoadSide GA" \
             --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=placeholder \
-            -t roadside-atl:${{ github.sha }} \
+            -t road-side-ga:${{ github.sha }} \
             .

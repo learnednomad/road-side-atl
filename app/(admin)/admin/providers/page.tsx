@@ -9,7 +9,7 @@ import { desc } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Providers | Admin | RoadSide ATL",
+  title: "Providers | Admin | RoadSide GA",
 };
 
 type Provider = typeof providers.$inferSelect;

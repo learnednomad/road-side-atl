@@ -1,12 +1,12 @@
 import { Metadata } from "next";
 
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://roadsideatl.com";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://roadsidega.com";
 
 export const SEO = {
-  siteName: "RoadSide ATL",
+  siteName: "RoadSide GA",
   locale: "en_US",
   type: "website",
-  twitterHandle: "@RoadSideATL",
+  twitterHandle: "@RoadSideGA",
   geoRegion: "US-GA",
   geoPlacename: "Atlanta, Georgia",
   geoPosition: "33.749;-84.388",

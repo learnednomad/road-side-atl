@@ -8,7 +8,7 @@ function getResend(): Resend | null {
   return new Resend(key);
 }
 
-const FROM = process.env.RESEND_FROM || "noreply@roadsideatl.com";
+const FROM = process.env.RESEND_FROM || "noreply@roadsidega.com";
 
 // Generic email sender for verification/password reset emails
 export async function sendEmail(opts: { to: string; subject: string; html: string }) {
@@ -48,7 +48,7 @@ export async function sendBookingConfirmation(booking: BookingInfo) {
   await resend.emails.send({
     from: FROM,
     to: booking.contactEmail,
-    subject: `Booking Confirmed - RoadSide ATL #${booking.id.slice(0, 8)}`,
+    subject: `Booking Confirmed - RoadSide GA #${booking.id.slice(0, 8)}`,
     html: `
       <h2>Your booking has been received!</h2>
       <p>Hi ${escapeHtml(booking.contactName)},</p>
@@ -59,8 +59,8 @@ export async function sendBookingConfirmation(booking: BookingInfo) {
         <li><strong>Estimated Price:</strong> ${formatPrice(booking.estimatedPrice)}</li>
       </ul>
       <p>We'll assign a provider shortly and keep you updated.</p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -85,8 +85,8 @@ export async function sendProviderAssignment(booking: BookingInfo, provider: Pro
         ${estimatedPayout ? `<li><strong>Your Estimated Payout:</strong> ${formatPrice(estimatedPayout)}</li>` : ""}
       </ul>
       <p>Please log in to your provider portal to accept or manage this job.</p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -100,8 +100,8 @@ export async function sendStatusUpdate(booking: BookingInfo, newStatus: string, 
     dispatched: "A provider has been dispatched to your location.",
     in_progress: "Your service is now in progress.",
     completed: amountPaid
-      ? `Your service has been completed. Amount paid: ${formatPrice(amountPaid)}. Thank you for choosing RoadSide ATL!`
-      : "Your service has been completed. Thank you for choosing RoadSide ATL!",
+      ? `Your service has been completed. Amount paid: ${formatPrice(amountPaid)}. Thank you for choosing RoadSide GA!`
+      : "Your service has been completed. Thank you for choosing RoadSide GA!",
     cancelled: "Your booking has been cancelled.",
   };
 
@@ -116,8 +116,8 @@ export async function sendStatusUpdate(booking: BookingInfo, newStatus: string, 
       <p>Hi ${escapeHtml(booking.contactName)},</p>
       <p>${message}</p>
       <p>Booking ID: ${booking.id.slice(0, 8)}</p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -129,16 +129,16 @@ export async function sendObservationFollowUpEmail(email: string, customerName: 
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: "Vehicle Observation - RoadSide ATL",
+    subject: "Vehicle Observation - RoadSide GA",
     html: `
       <h2>Vehicle Observation Report</h2>
       <p>Hi ${escapeHtml(customerName)},</p>
       <p>During your recent service, our provider noticed some items that may need attention:</p>
       <p>${escapeHtml(findings)}</p>
       <p>We recommend booking a diagnostic inspection for a thorough assessment.</p>
-      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/book">Book an Inspection</a></p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/book">Book an Inspection</a></p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -156,15 +156,15 @@ export async function sendPreServiceConfirmationEmail(
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `Your Inspector ${inspectorName} Is On the Way - RoadSide ATL`,
+    subject: `Your Inspector ${inspectorName} Is On the Way - RoadSide GA`,
     html: `
       <h2>Pre-Service Confirmation</h2>
       <p>Hi ${escapeHtml(customerName)},</p>
       <p>Your <strong>${escapeHtml(serviceName)}</strong> has been assigned to inspector <strong>${escapeHtml(inspectorName)}</strong>.</p>
       <p>Estimated arrival: <strong>${eta}</strong></p>
       <p>Please ensure the vehicle is accessible at the specified location.</p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -176,15 +176,15 @@ export async function sendReferralCreditEmail(email: string, name: string, amoun
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: "You Earned a Referral Credit! - RoadSide ATL",
+    subject: "You Earned a Referral Credit! - RoadSide GA",
     html: `
       <h2>Referral Credit Earned!</h2>
       <p>Hi ${escapeHtml(name)},</p>
-      <p>You just earned a <strong>${formatPrice(amount)}</strong> referral credit on RoadSide ATL!</p>
+      <p>You just earned a <strong>${formatPrice(amount)}</strong> referral credit on RoadSide GA!</p>
       <p>This credit will be automatically available to apply on your next booking.</p>
-      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/dashboard/referrals">View Your Referrals</a></p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/dashboard/referrals">View Your Referrals</a></p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -196,15 +196,15 @@ export async function sendTierPromotionEmail(email: string, name: string) {
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: "Card Payments Unlocked! - RoadSide ATL",
+    subject: "Card Payments Unlocked! - RoadSide GA",
     html: `
       <h2>Congratulations, ${escapeHtml(name)}!</h2>
-      <p>You've earned Trusted Customer status on RoadSide ATL.</p>
+      <p>You've earned Trusted Customer status on RoadSide GA.</p>
       <p>You can now pay with <strong>credit and debit cards</strong> in addition to Cash, CashApp, and Zelle.</p>
       <p>Thank you for being a loyal customer!</p>
-      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/book">Book Your Next Service</a></p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/book">Book Your Next Service</a></p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -223,7 +223,7 @@ export async function sendInspectionReportEmail(
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `Vehicle Inspection Report - RoadSide ATL #${bookingId.slice(0, 8)}`,
+    subject: `Vehicle Inspection Report - RoadSide GA #${bookingId.slice(0, 8)}`,
     html: `
       <h2>Your Vehicle Inspection Report</h2>
       <p>Hi ${escapeHtml(customerName)},</p>
@@ -231,8 +231,8 @@ export async function sendInspectionReportEmail(
       <p>Inspection Date: ${inspectionDate}</p>
       <p><a href="${reportUrl}" style="display: inline-block; padding: 12px 24px; background-color: #1a1a2e; color: white; text-decoration: none; border-radius: 6px;">View Report</a></p>
       <p>You can also download the PDF version from the link above.</p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -250,14 +250,14 @@ export async function sendB2bServiceDispatchedEmail(
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `Service Dispatched on Your Behalf - RoadSide ATL`,
+    subject: `Service Dispatched on Your Behalf - RoadSide GA`,
     html: `
       <h2>Service Dispatched</h2>
       <p>Hi ${escapeHtml(customerName)},</p>
       <p><strong>${escapeHtml(companyName)}</strong> has requested <strong>${escapeHtml(serviceName)}</strong> for your vehicle at <strong>${escapeHtml(locationAddress)}</strong>.</p>
       <p>A provider will be dispatched to your location shortly. We'll keep you updated on the status.</p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
@@ -295,7 +295,7 @@ export async function sendB2bInvoiceEmail(
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `Invoice ${invoiceNumber} from RoadSide ATL`,
+    subject: `Invoice ${invoiceNumber} from RoadSide GA`,
     html: `
       <h2>Invoice ${escapeHtml(invoiceNumber)}</h2>
       <p>Hi ${escapeHtml(contactName)},</p>
@@ -319,9 +319,9 @@ export async function sendB2bInvoiceEmail(
           </tr>
         </tfoot>
       </table>
-      <p>For payment inquiries, please contact us at support@roadsideatl.com.</p>
-      <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">RoadSide ATL, Atlanta, GA | <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">Unsubscribe</a></p>
+      <p>For payment inquiries, please contact us at support@roadsidega.com.</p>
+      <p>— RoadSide GA</p>
+      <p style="font-size: 12px; color: #666;">RoadSide GA, Atlanta, GA | <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">Unsubscribe</a></p>
     `,
   });
 }
@@ -350,14 +350,14 @@ export async function sendPaymentReceiptEmail(
   const resend = getResend();
   if (!resend) return;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
   const receiptUrl = `${appUrl}/api/receipts/${bookingId}`;
   const displayMethod = formatPaymentMethod(paymentMethod);
 
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `Payment Receipt - RoadSide ATL #${bookingId.slice(0, 8)}`,
+    subject: `Payment Receipt - RoadSide GA #${bookingId.slice(0, 8)}`,
     html: `
       <h2>Payment Receipt</h2>
       <p>Hi ${escapeHtml(customerName)},</p>
@@ -371,7 +371,7 @@ export async function sendPaymentReceiptEmail(
         ${providerName ? `<li><strong>Provider:</strong> ${escapeHtml(providerName)}</li>` : ""}
       </ul>
       <p><a href="${receiptUrl}" style="display: inline-block; padding: 12px 24px; background-color: #1a1a2e; color: white; text-decoration: none; border-radius: 6px;">View Full Receipt</a></p>
-      <p>— RoadSide ATL</p>
+      <p>— RoadSide GA</p>
       <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${appUrl}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });

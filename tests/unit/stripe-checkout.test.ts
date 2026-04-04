@@ -185,7 +185,7 @@ describe("POST /stripe/checkout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Restore AUTH_URL for the majority of tests
-    process.env.AUTH_URL = "https://roadsideatl.com";
+    process.env.AUTH_URL = "https://roadsidega.com";
   });
 
   // -----------------------------------------------------------------------
@@ -521,17 +521,17 @@ describe("POST /stripe/checkout", () => {
     });
 
     it("sets correct success_url and cancel_url using AUTH_URL", async () => {
-      process.env.AUTH_URL = "https://roadsideatl.com";
+      process.env.AUTH_URL = "https://roadsidega.com";
       setupSuccessfulCheckoutMocks();
 
       await postCheckout({ bookingId: VALID_UUID });
 
       const createArg = mockSessionCreate.mock.calls[0][0];
       expect(createArg.success_url).toBe(
-        `https://roadsideatl.com/book/confirmation?bookingId=${VALID_UUID}&paid=true`
+        `https://roadsidega.com/book/confirmation?bookingId=${VALID_UUID}&paid=true`
       );
       expect(createArg.cancel_url).toBe(
-        `https://roadsideatl.com/book/confirmation?bookingId=${VALID_UUID}`
+        `https://roadsidega.com/book/confirmation?bookingId=${VALID_UUID}`
       );
     });
 
@@ -542,7 +542,7 @@ describe("POST /stripe/checkout", () => {
 
       const createArg = mockSessionCreate.mock.calls[0][0];
       expect(createArg.mode).toBe("payment");
-      expect(createArg.payment_method_types).toEqual(["card"]);
+      expect(createArg.payment_method_types).toEqual(["us_bank_account", "cashapp", "card"]);
     });
 
     it("passes Stripe customer ID to the checkout session", async () => {

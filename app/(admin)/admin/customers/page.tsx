@@ -7,7 +7,7 @@ import { eq, desc, count, sql, and } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Customers | Admin | RoadSide ATL",
+  title: "Customers | Admin | RoadSide GA",
 };
 
 const PAGE_SIZE = 20;

@@ -1,12 +1,12 @@
 ---
 title: Technical Feature Catalog
-description: Complete inventory of RoadSide ATL platform features with architecture, schemas, APIs, and implementation details
+description: Complete inventory of RoadSide GA platform features with architecture, schemas, APIs, and implementation details
 author: Paige (Tech Writer Agent)
 date: 2026-02-26
 audience: Developers
 ---
 
-# Technical Feature Catalog - RoadSide ATL
+# Technical Feature Catalog - RoadSide GA
 
 ## Table of Contents
 
@@ -818,7 +818,7 @@ Generates professional PDF inspection reports for diagnostic services. Reports i
 
 Generates branded PDF with:
 
-- Company header with RoadSide ATL branding
+- Company header with RoadSide GA branding
 - Vehicle information (year, make, model)
 - Inspector details (name, date)
 - Categorized findings table with color-coded conditions

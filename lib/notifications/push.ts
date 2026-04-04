@@ -9,7 +9,7 @@ const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
 if (vapidPublicKey && vapidPrivateKey) {
   webpush.setVapidDetails(
-    `mailto:${process.env.VAPID_CONTACT_EMAIL || "support@roadsideatl.com"}`,
+    `mailto:${process.env.VAPID_CONTACT_EMAIL || "support@roadsidega.com"}`,
     vapidPublicKey,
     vapidPrivateKey
   );
@@ -101,7 +101,7 @@ export async function notifyBookingStatusPush(
     },
     completed: {
       title: "Service Complete",
-      body: "Your service has been completed. Thank you for choosing RoadSide ATL!",
+      body: "Your service has been completed. Thank you for choosing RoadSide GA!",
     },
     cancelled: {
       title: "Booking Cancelled",

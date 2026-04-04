@@ -123,6 +123,11 @@ vi.mock("@/server/websocket/broadcast", () => ({
 vi.mock("@/lib/notifications", () => ({
   notifyBackgroundCheckResult: vi.fn().mockResolvedValue(undefined),
   notifyStripeConnectReminder: vi.fn().mockResolvedValue(undefined),
+  notifyStripeConnectCompleted: vi.fn().mockResolvedValue(undefined),
+  notifyApplicationReceived: vi.fn().mockResolvedValue(undefined),
+  notifyTrainingCompleted: vi.fn().mockResolvedValue(undefined),
+  notifyAdminProviderReadyForReview: vi.fn().mockResolvedValue(undefined),
+  notifyAdminNewDocumentSubmitted: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/s3", () => ({
