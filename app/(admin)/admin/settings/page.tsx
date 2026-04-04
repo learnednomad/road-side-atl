@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { BusinessSettingsForm } from "@/components/admin/business-settings-form";
 
 export const metadata: Metadata = {
-  title: "Settings | Admin | RoadSide ATL",
+  title: "Settings | Admin | RoadSide GA",
 };
 
 export default function AdminSettingsPage() {

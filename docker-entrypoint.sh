@@ -2,7 +2,7 @@
 set -e
 
 echo "========================================"
-echo "RoadSide ATL - Docker Startup"
+echo "RoadSide GA - Docker Startup"
 echo "========================================"
 
 # Short delay to ensure database is fully ready

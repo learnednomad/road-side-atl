@@ -1,11 +1,11 @@
 ---
 title: System Architecture Diagram
-description: Full RoadSide ATL platform architecture with all features and connections
+description: Full RoadSide GA platform architecture with all features and connections
 author: Paige (Tech Writer Agent)
 date: 2026-02-26
 ---
 
-# System Architecture - RoadSide ATL
+# System Architecture - RoadSide GA
 
 ## Full Platform Architecture
 

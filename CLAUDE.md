@@ -1,4 +1,4 @@
-# RoadSide ATL - Project Instructions
+# RoadSide GA - Project Instructions
 
 ## Git Tagging Policy (MANDATORY)
 

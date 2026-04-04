@@ -11,7 +11,7 @@ beforeAll(() => {
 describe("encryption", () => {
   it("encrypts and decrypts a string roundtrip", async () => {
     const { encrypt, decrypt } = await import("@/server/api/lib/encryption");
-    const plaintext = "Hello, RoadSide ATL!";
+    const plaintext = "Hello, RoadSide GA!";
     const encrypted = encrypt(plaintext);
     const decrypted = decrypt(encrypted);
     expect(decrypted).toBe(plaintext);

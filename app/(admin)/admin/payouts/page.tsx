@@ -7,7 +7,7 @@ import { eq, desc, sql } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Payouts | Admin | RoadSide ATL",
+  title: "Payouts | Admin | RoadSide GA",
 };
 
 export default async function AdminPayoutsPage() {

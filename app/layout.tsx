@@ -26,15 +26,15 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default:
-      "RoadSide ATL | 24/7 Roadside Assistance Atlanta GA - Towing, Jump Start, Lockout",
-    template: "%s | RoadSide ATL - Atlanta Roadside Assistance",
+      "RoadSide GA | 24/7 Roadside Assistance Atlanta GA - Towing, Jump Start, Lockout",
+    template: "%s | RoadSide GA - Atlanta Roadside Assistance",
   },
   description:
     "24/7 emergency roadside assistance in Atlanta GA. Fast towing, jump starts, lockout service, flat tire changes, fuel delivery & car diagnostics. Serving Buckhead, Midtown, Decatur, Marietta & all metro Atlanta. Call now!",
   keywords: ALL_KEYWORDS.slice(0, 30),
-  authors: [{ name: "RoadSide ATL" }],
-  creator: "RoadSide ATL",
-  publisher: "RoadSide ATL",
+  authors: [{ name: "RoadSide GA" }],
+  creator: "RoadSide GA",
+  publisher: "RoadSide GA",
   formatDetection: { telephone: true, email: true, address: true },
   alternates: { canonical: SITE_URL },
   openGraph: {
@@ -42,14 +42,14 @@ export const metadata: Metadata = {
     locale: SEO.locale,
     url: SITE_URL,
     siteName: SEO.siteName,
-    title: "RoadSide ATL | 24/7 Roadside Assistance Atlanta GA",
+    title: "RoadSide GA | 24/7 Roadside Assistance Atlanta GA",
     description:
       "24/7 emergency roadside assistance in Atlanta. Fast towing, jump starts, lockout service, tire changes, fuel delivery & diagnostics. Serving all metro Atlanta.",
   },
   twitter: {
     card: "summary_large_image",
     site: SEO.twitterHandle,
-    title: "RoadSide ATL | 24/7 Roadside Assistance Atlanta GA",
+    title: "RoadSide GA | 24/7 Roadside Assistance Atlanta GA",
     description:
       "24/7 emergency roadside assistance in Atlanta. Fast towing, jump starts, lockout service, tire changes, fuel delivery & diagnostics.",
   },

@@ -125,7 +125,7 @@ export function InspectionPreview({
 
       {/* Footer */}
       <div className="mt-8 border-t pt-4 text-center text-xs text-gray-400">
-        <p>RoadSide ATL — Vehicle Inspection Report</p>
+        <p>RoadSide GA — Vehicle Inspection Report</p>
       </div>
     </div>
   );

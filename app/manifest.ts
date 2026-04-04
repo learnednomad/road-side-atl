@@ -2,8 +2,8 @@ import { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "RoadSide ATL - 24/7 Roadside Assistance Atlanta",
-    short_name: "RoadSide ATL",
+    name: "RoadSide GA - 24/7 Roadside Assistance Atlanta",
+    short_name: "RoadSide GA",
     description:
       "24/7 emergency roadside assistance in Atlanta GA. Towing, jump starts, lockout service, tire changes, fuel delivery & car diagnostics.",
     start_url: "/",

@@ -159,6 +159,9 @@ vi.mock("@/lib/notifications/email", () => ({
 
 vi.mock("@/lib/notifications", () => ({
   notifyDocumentReviewed: vi.fn().mockResolvedValue(undefined),
+  notifyAdjudicationResult: vi.fn().mockResolvedValue(undefined),
+  notifyProviderRejected: vi.fn().mockResolvedValue(undefined),
+  notifyAdminProviderReadyForReview: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/server/api/lib/audit-logger", () => ({

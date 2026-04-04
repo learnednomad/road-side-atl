@@ -1,4 +1,4 @@
-# RoadSide ATL — Growth Plan & Targets
+# RoadSide GA — Growth Plan & Targets
 
 ## Phase 1: Launch & Validate (Months 1-3)
 **Goal: Prove the model works in Atlanta**

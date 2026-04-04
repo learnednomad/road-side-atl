@@ -50,6 +50,10 @@ vi.mock("@/server/websocket/broadcast", () => ({
   broadcastToAdmins: vi.fn(),
 }));
 
+vi.mock("@/lib/notifications", () => ({
+  notifyAdminProviderReadyForReview: vi.fn().mockResolvedValue(undefined),
+}));
+
 // ── Imports ──────────────────────────────────────────────────────
 
 import { db } from "@/db";

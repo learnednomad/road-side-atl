@@ -158,7 +158,7 @@ function ResetPasswordContent() {
           <Car className="h-6 w-6 text-primary" />
         </div>
         <Link href="/" className="text-xl font-bold">
-          RoadSide ATL
+          RoadSide GA
         </Link>
         <CardTitle>Reset Password</CardTitle>
         <p className="text-sm text-muted-foreground">

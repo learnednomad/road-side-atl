@@ -1,8 +1,8 @@
-# RoadSide ATL - Testing Kit
+# RoadSide GA - Testing Kit
 
 Welcome to beta testing! This guide gives you everything you need to explore the app and report issues.
 
-**Live URL:** https://roadsideatl.learnednomad.com
+**Live URL:** https://roadsidega.learnednomad.com
 
 ---
 
@@ -14,18 +14,18 @@ All accounts below are pre-seeded with demo data. Pick the role you want to test
 
 | Email | Password | Notes |
 |---|---|---|
-| `admin@roadsideatl.com` | `admin123` | Primary admin (Sani Nabil) |
-| `ops@roadsideatl.com` | `admin123` | Operations manager |
+| `admin@roadsidega.com` | `admin123` | Primary admin (Sani Nabil) |
+| `ops@roadsidega.com` | `admin123` | Operations manager |
 
 ### Provider (Technician) Accounts
 
 | Email | Password | Status | Notes |
 |---|---|---|---|
-| `marcus@roadsideatl.com` | `provider123` | Active | Has completed jobs, active dispatch |
-| `terrence@roadsideatl.com` | `provider123` | Active | Has completed jobs, dispatched lockout |
-| `deandre@roadsideatl.com` | `provider123` | Active | Offline (unavailable) |
-| `carlos@roadsideatl.com` | `provider123` | Active | Flat-fee commission model |
-| `jamal@roadsideatl.com` | `provider123` | Pending | Not yet approved - onboarding flow |
+| `marcus@roadsidega.com` | `provider123` | Active | Has completed jobs, active dispatch |
+| `terrence@roadsidega.com` | `provider123` | Active | Has completed jobs, dispatched lockout |
+| `deandre@roadsidega.com` | `provider123` | Active | Offline (unavailable) |
+| `carlos@roadsidega.com` | `provider123` | Active | Flat-fee commission model |
+| `jamal@roadsidega.com` | `provider123` | Pending | Not yet approved - onboarding flow |
 
 ### Customer Accounts
 
@@ -77,7 +77,7 @@ All accounts below are pre-seeded with demo data. Pick the role you want to test
 
 ### As a Provider (Technician)
 
-1. **Provider dashboard** - Log in as `marcus@roadsideatl.com`
+1. **Provider dashboard** - Log in as `marcus@roadsidega.com`
    - View the main dashboard at `/provider`
    - Check active jobs, earnings summary, and quick stats
 
@@ -91,7 +91,7 @@ All accounts below are pre-seeded with demo data. Pick the role you want to test
 4. **Invoices** - `/provider/invoices`
    - View and create invoices
 
-5. **Onboarding flow** - Log in as `jamal@roadsideatl.com` (pending provider)
+5. **Onboarding flow** - Log in as `jamal@roadsidega.com` (pending provider)
    - See the onboarding dashboard at `/provider/onboarding`
    - Note: dispatch-gated pages (jobs, earnings, invoices) should be locked
 
@@ -101,7 +101,7 @@ All accounts below are pre-seeded with demo data. Pick the role you want to test
 
 ### As an Admin
 
-1. **Admin dashboard** - Log in as `admin@roadsideatl.com`
+1. **Admin dashboard** - Log in as `admin@roadsidega.com`
    - View the main dashboard at `/admin`
    - Check overview stats, recent bookings, revenue
 
@@ -189,13 +189,13 @@ When you find a bug, please include:
 
 Send reports to: **Sani** (however you normally reach me)
 
-Or create an issue at: https://github.com/learnednomad/road-side-atl/issues
+Or create an issue at: https://github.com/learnednomad/road-side-ga/issues
 
 ---
 
 ## Quick Start (TL;DR)
 
-1. Go to **https://roadsideatl.learnednomad.com**
+1. Go to **https://roadsidega.learnednomad.com**
 2. Click **Login** (top right)
 3. Use any account from the tables above
 4. Explore the pages listed for that role

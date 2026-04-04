@@ -171,12 +171,12 @@ export async function sendProviderInviteEmail(
     <body>
       <div class="container">
         <div class="header">
-          <h1>RoadSide ATL</h1>
+          <h1>RoadSide GA</h1>
         </div>
         <div class="content">
           <h2>You're Invited!</h2>
           <p>Hi ${name || "there"},</p>
-          <p>You've been invited to join RoadSide ATL as a service provider. Click the button below to set up your account:</p>
+          <p>You've been invited to join RoadSide GA as a service provider. Click the button below to set up your account:</p>
           <p style="text-align: center;">
             <a href="${inviteUrl}" class="button">Complete Registration</a>
           </p>
@@ -186,7 +186,7 @@ export async function sendProviderInviteEmail(
           <p>If you weren't expecting this invitation, you can safely ignore this email.</p>
         </div>
         <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} RoadSide ATL. All rights reserved.</p>
+          <p>&copy; ${new Date().getFullYear()} RoadSide GA. All rights reserved.</p>
         </div>
       </div>
     </body>
@@ -195,7 +195,7 @@ export async function sendProviderInviteEmail(
 
   await sendEmail({
     to: email,
-    subject: "You're invited to join RoadSide ATL as a provider",
+    subject: "You're invited to join RoadSide GA as a provider",
     html,
   });
 }

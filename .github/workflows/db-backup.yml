@@ -34,7 +34,7 @@ jobs:
       - name: Run database backup
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          S3_BACKUP_BUCKET: ${{ vars.S3_BACKUP_BUCKET || 'roadside-atl-backups' }}
+          S3_BACKUP_BUCKET: ${{ vars.S3_BACKUP_BUCKET || 'roadside-ga-backups' }}
           S3_BACKUP_PREFIX: ${{ vars.S3_BACKUP_PREFIX || 'backups' }}
           BACKUP_RETENTION_DAYS: "30"
         run: |

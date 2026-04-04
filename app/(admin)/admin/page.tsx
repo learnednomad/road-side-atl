@@ -7,7 +7,7 @@ import { eq, desc, gte, count, sql, and } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Admin Dashboard | RoadSide ATL",
+  title: "Admin Dashboard | RoadSide GA",
 };
 
 export default async function AdminOverviewPage() {

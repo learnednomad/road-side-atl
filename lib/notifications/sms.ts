@@ -87,7 +87,7 @@ export async function sendBookingConfirmationSMS(phone: string, booking: Booking
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Booking #${booking.id.slice(0, 8)} received! Location: ${booking.location.address}. Est: ${formatPrice(booking.estimatedPrice)}. We'll assign a provider shortly.`,
+    `RoadSide GA: Booking #${booking.id.slice(0, 8)} received! Location: ${booking.location.address}. Est: ${formatPrice(booking.estimatedPrice)}. We'll assign a provider shortly.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -99,7 +99,7 @@ export async function sendProviderAssignmentSMS(phone: string, booking: BookingI
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: New job assigned! Booking #${booking.id.slice(0, 8)}. Customer: ${booking.contactName}. Location: ${booking.location.address}.${payoutInfo} Log in to accept.`,
+    `RoadSide GA: New job assigned! Booking #${booking.id.slice(0, 8)}. Customer: ${booking.contactName}. Location: ${booking.location.address}.${payoutInfo} Log in to accept.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -120,7 +120,7 @@ export async function sendStatusUpdateSMS(phone: string, booking: BookingInfo, s
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Booking #${booking.id.slice(0, 8)} is now ${msg}.`,
+    `RoadSide GA: Booking #${booking.id.slice(0, 8)} is now ${msg}.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -129,7 +129,7 @@ export async function sendDelayNotificationSMS(phone: string, providerName: stri
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Your provider ${providerName} is running a bit late. Updated ETA: ~${etaMinutes} min. Track live: ${trackingUrl}`,
+    `RoadSide GA: Your provider ${providerName} is running a bit late. Updated ETA: ~${etaMinutes} min. Track live: ${trackingUrl}`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -138,7 +138,7 @@ export async function sendObservationFollowUpSMS(phone: string, findings: string
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Our provider noticed some issues with your vehicle: ${findings}. Book a diagnostic inspection to learn more! Reply STOP to opt out.`,
+    `RoadSide GA: Our provider noticed some issues with your vehicle: ${findings}. Book a diagnostic inspection to learn more! Reply STOP to opt out.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -151,7 +151,7 @@ export async function sendPreServiceConfirmationSMS(
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Your vehicle inspector ${inspectorName} is on the way! Estimated arrival: ${eta}. Reply STOP to opt out.`,
+    `RoadSide GA: Your vehicle inspector ${inspectorName} is on the way! Estimated arrival: ${eta}. Reply STOP to opt out.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -160,7 +160,7 @@ export async function sendReferralSMS(phone: string, referralLink: string) {
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Thanks for using our service! Share your referral link and earn $10 credit: ${referralLink} Reply STOP to opt out.`,
+    `RoadSide GA: Thanks for using our service! Share your referral link and earn $10 credit: ${referralLink} Reply STOP to opt out.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -169,7 +169,7 @@ export async function sendReferralCreditSMS(phone: string, amount: number) {
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: You earned a ${formatPrice(amount)} referral credit! It will be applied to your next booking. Reply STOP to opt out.`,
+    `RoadSide GA: You earned a ${formatPrice(amount)} referral credit! It will be applied to your next booking. Reply STOP to opt out.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -178,7 +178,7 @@ export async function sendTierPromotionSMS(phone: string) {
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: Congratulations! You've unlocked card payments. You can now pay with credit/debit cards on your next booking. Reply STOP to opt out.`,
+    `RoadSide GA: Congratulations! You've unlocked card payments. You can now pay with credit/debit cards on your next booking. Reply STOP to opt out.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -187,7 +187,7 @@ export async function sendB2bServiceDispatchedSMS(phone: string, companyName: st
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide ATL: ${companyName} has requested ${serviceName} for your vehicle. A provider will be dispatched shortly. Reply STOP to opt out.`,
+    `RoadSide GA: ${companyName} has requested ${serviceName} for your vehicle. A provider will be dispatched shortly. Reply STOP to opt out.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }
@@ -203,6 +203,6 @@ export async function sendPaymentReceiptSMS(phone: string, bookingId: string, am
   const displayMethod = PAYMENT_METHOD_DISPLAY[paymentMethod] || paymentMethod;
   await sendSMS(
     phone,
-    `RoadSide ATL: Payment confirmed for booking #${bookingId.slice(0, 8)}. ${formatPrice(amount)} via ${displayMethod}. Thank you! Reply STOP to opt out.`
+    `RoadSide GA: Payment confirmed for booking #${bookingId.slice(0, 8)}. ${formatPrice(amount)} via ${displayMethod}. Thank you! Reply STOP to opt out.`
   );
 }
