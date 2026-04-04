@@ -542,7 +542,7 @@ describe("POST /stripe/checkout", () => {
 
       const createArg = mockSessionCreate.mock.calls[0][0];
       expect(createArg.mode).toBe("payment");
-      expect(createArg.payment_method_types).toEqual(["card"]);
+      expect(createArg.payment_method_types).toEqual(["us_bank_account", "cashapp", "card"]);
     });
 
     it("passes Stripe customer ID to the checkout session", async () => {
