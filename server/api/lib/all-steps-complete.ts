@@ -10,6 +10,7 @@ import { providers } from "@/db/schema/providers";
 import { eq, and } from "drizzle-orm";
 import { logAudit } from "./audit-logger";
 import { broadcastToAdmins } from "@/server/websocket/broadcast";
+import { notifyAdminProviderReadyForReview } from "@/lib/notifications";
 
 /**
  * Check if all onboarding steps are complete for a provider,
@@ -33,7 +34,44 @@ export async function checkAllStepsCompleteAndTransition(
     where: eq(providers.id, providerId),
   });
 
-  if (!provider || provider.status !== "onboarding") return false;
+  if (!provider) return false;
+
+  // Handle migrating providers: active with migrationBypassExpiresAt
+  if (provider.status === "active") {
+    // Need full provider record for migrationBypassExpiresAt (not in existingProvider type)
+    const fullProvider = await db.query.providers.findFirst({ where: eq(providers.id, providerId) });
+    if (fullProvider?.migrationBypassExpiresAt) {
+      // Migrating provider — check if all steps complete
+      const allSteps = await db.query.onboardingSteps.findMany({
+        where: eq(onboardingSteps.providerId, providerId),
+      });
+      const allComplete = allSteps.every((s) =>
+        s.id === completedStepId ? true : s.status === "complete",
+      );
+      if (allComplete) {
+        // Migration complete — clear bypass, provider stays active
+        await db
+          .update(providers)
+          .set({ migrationBypassExpiresAt: null, updatedAt: new Date() })
+          .where(eq(providers.id, providerId));
+
+        logAudit({
+          action: "migration.completed",
+          userId: auditContext?.userId,
+          resourceType: "provider",
+          resourceId: providerId,
+          details: { trigger },
+          ipAddress: auditContext?.ipAddress,
+          userAgent: auditContext?.userAgent,
+        });
+
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (provider.status !== "onboarding") return false;
 
   const allSteps = await db.query.onboardingSteps.findMany({
     where: eq(onboardingSteps.providerId, providerId),
@@ -63,6 +101,10 @@ export async function checkAllStepsCompleteAndTransition(
         providerId,
         providerName: provider.name || "",
       },
+    });
+
+    notifyAdminProviderReadyForReview(providerId, provider.name || "").catch((err) => {
+      console.error("[Notifications] Failed:", err);
     });
 
     logAudit({
