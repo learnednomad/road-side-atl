@@ -18,6 +18,7 @@ import { getPresignedUploadUrl, getPresignedUrl } from "@/lib/s3";
 import { createCandidate, createInvitation, CheckrApiError } from "../lib/checkr";
 import { stripe } from "@/lib/stripe";
 import { checkAllStepsCompleteAndTransition } from "../lib/all-steps-complete";
+import { notifyApplicationReceived, notifyTrainingCompleted, notifyStripeConnectCompleted, notifyAdminProviderReadyForReview, notifyAdminNewDocumentSubmitted } from "@/lib/notifications";
 
 const app = new Hono();
 
@@ -96,6 +97,12 @@ app.get("/dashboard", requireProvider, async (c) => {
           newStatus: "pending_review",
         },
       });
+
+      // Admin notification is handled by checkAllStepsCompleteAndTransition in step-completion endpoints.
+      // Dashboard GET is a fallback transition — only fires if no step endpoint triggered it first.
+      notifyAdminProviderReadyForReview(provider.id, provider.name || "").catch((err) => {
+        console.error("[Notifications] Failed:", err);
+      });
     }
 
     return c.json({
@@ -105,9 +112,13 @@ app.get("/dashboard", requireProvider, async (c) => {
         name: provider.name,
         completedStepsCount,
         totalSteps,
+        migrationBypassExpiresAt: provider.migrationBypassExpiresAt?.toISOString() ?? null,
+        isMigrating: false,
       },
     });
   }
+
+  const isMigrating = provider.status === "active" && !!provider.migrationBypassExpiresAt;
 
   return c.json({
     steps: safeSteps,
@@ -116,6 +127,8 @@ app.get("/dashboard", requireProvider, async (c) => {
       name: provider.name,
       completedStepsCount,
       totalSteps,
+      migrationBypassExpiresAt: provider.migrationBypassExpiresAt?.toISOString() ?? null,
+      isMigrating,
     },
   });
 });
@@ -370,6 +383,11 @@ app.post("/apply", async (c) => {
     });
   }
 
+  // FR55: Application received notification
+  notifyApplicationReceived(result.user.id, name, email, phone).catch((err) => {
+    console.error("[Notifications] Failed:", err);
+  });
+
   return c.json(
     {
       provider: { ...result.provider, status: "onboarding" },
@@ -525,6 +543,11 @@ app.post("/invite-accept", async (c) => {
       console.error("[Checkr] Background check initiation failed:", err);
     });
   }
+
+  // FR55: Application received notification
+  notifyApplicationReceived(result.user.id, invite.name, invite.email, phone).catch((err) => {
+    console.error("[Notifications] Failed:", err);
+  });
 
   return c.json(
     {
@@ -826,6 +849,10 @@ app.post("/training/acknowledge/:cardId", requireProvider, async (c) => {
       data: { providerId: provider.id, stepType: "training", newStatus: "complete" },
     });
 
+    notifyTrainingCompleted(provider.id).catch((err) => {
+      console.error("[Notifications] Failed:", err);
+    });
+
     // Check if all steps are now complete
     await checkAllStepsCompleteAndTransition(
       provider.id,
@@ -1076,6 +1103,10 @@ app.post("/steps/:stepId/submit", requireProvider, async (c) => {
     data: { providerId: provider.id, providerName: provider.name, stepType: step.stepType },
   });
 
+  notifyAdminNewDocumentSubmitted(provider.id, provider.name, step.stepType).catch((err) => {
+    console.error("[Notifications] Failed:", err);
+  });
+
   return c.json(updated, 200);
 });
 
@@ -1242,6 +1273,10 @@ app.get("/stripe-status", requireProvider, async (c) => {
               stepType: "stripe_connect",
               newStatus: "complete",
             },
+          });
+
+          notifyStripeConnectCompleted(provider.id).catch((err) => {
+            console.error("[Notifications] Failed:", err);
           });
 
           // All-steps-complete auto-transition check

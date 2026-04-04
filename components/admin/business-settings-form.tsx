@@ -165,7 +165,7 @@ export function BusinessSettingsForm() {
                 id="companyName"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="RoadSide ATL"
+                placeholder="RoadSide GA"
                 required
               />
             </div>
@@ -179,7 +179,7 @@ export function BusinessSettingsForm() {
                 type="email"
                 value={companyEmail}
                 onChange={(e) => setCompanyEmail(e.target.value)}
-                placeholder="hello@roadsideatl.com"
+                placeholder="hello@roadsidega.com"
               />
             </div>
             <div className="space-y-2">

@@ -101,7 +101,7 @@ export const TRAINING_CARDS: TrainingCard[] = [
     title: "Code of Conduct",
     category: "policy",
     content:
-      "As a RoadSide ATL provider, you represent our brand. Zero tolerance applies to: working under the influence of drugs or alcohol, discriminatory behavior based on race, gender, religion, orientation, or any protected class, theft or damage to customer property, sharing customer personal information, and performing services outside your scope (mechanical repairs, towing without proper equipment/licensing). Violations result in immediate deactivation and may be reported to law enforcement.",
+      "As a RoadSide GA provider, you represent our brand. Zero tolerance applies to: working under the influence of drugs or alcohol, discriminatory behavior based on race, gender, religion, orientation, or any protected class, theft or damage to customer property, sharing customer personal information, and performing services outside your scope (mechanical repairs, towing without proper equipment/licensing). Violations result in immediate deactivation and may be reported to law enforcement.",
     keyPoints: [
       "Zero tolerance for impairment on the job",
       "Zero tolerance for discrimination",
@@ -114,7 +114,7 @@ export const TRAINING_CARDS: TrainingCard[] = [
     title: "Insurance & Liability",
     category: "policy",
     content:
-      "You must maintain valid personal auto insurance at minimum throughout your time as a provider. Commercial auto insurance is recommended but not required for non-towing services. You are responsible for any damage to customer vehicles caused by your negligence. Report all incidents immediately through the app — late reporting may void coverage. RoadSide ATL carries general liability insurance, but this does not cover provider negligence or intentional damage.",
+      "You must maintain valid personal auto insurance at minimum throughout your time as a provider. Commercial auto insurance is recommended but not required for non-towing services. You are responsible for any damage to customer vehicles caused by your negligence. Report all incidents immediately through the app — late reporting may void coverage. RoadSide GA carries general liability insurance, but this does not cover provider negligence or intentional damage.",
     keyPoints: [
       "Maintain valid auto insurance at all times",
       "Report all incidents immediately through the app",

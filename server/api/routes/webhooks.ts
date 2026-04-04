@@ -11,7 +11,7 @@ import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { logAudit } from "../lib/audit-logger";
 import { isValidStepTransition } from "../lib/onboarding-state-machine";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
-import { notifyBackgroundCheckResult } from "@/lib/notifications";
+import { notifyBackgroundCheckResult, notifyStripeConnectCompleted } from "@/lib/notifications";
 import { checkAllStepsCompleteAndTransition, onStripeConnectStepComplete } from "../lib/all-steps-complete";
 
 const app = new Hono();
@@ -404,6 +404,10 @@ app.post("/stripe", async (c) => {
               },
             });
           }
+
+          notifyStripeConnectCompleted(connectedProvider.id).catch((err) => {
+            console.error("[Notifications] Failed:", err);
+          });
 
           // All-steps-complete auto-transition check
           await checkAllStepsCompleteAndTransition(

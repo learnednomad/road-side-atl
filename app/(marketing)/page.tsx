@@ -19,9 +19,9 @@ import { eq } from "drizzle-orm";
 
 export const metadata: Metadata = buildMetadata({
   title:
-    "RoadSide ATL | 24/7 Roadside Assistance Atlanta GA - Towing, Jump Start, Lockout",
+    "RoadSide GA | 24/7 Roadside Assistance Atlanta GA - Towing, Jump Start, Lockout",
   description:
-    "Need roadside help in Atlanta? RoadSide ATL provides 24/7 emergency towing, jump starts, lockout service, flat tire changes, fuel delivery & car diagnostics across metro Atlanta. Fast response, affordable prices. Call now!",
+    "Need roadside help in Atlanta? RoadSide GA provides 24/7 emergency towing, jump starts, lockout service, flat tire changes, fuel delivery & car diagnostics across metro Atlanta. Fast response, affordable prices. Call now!",
   path: "",
   keywords: [
     "roadside assistance Atlanta",
@@ -61,7 +61,7 @@ const HOMEPAGE_FAQS = [
   {
     question: "Do you offer 24/7 emergency roadside assistance?",
     answer:
-      "Yes! RoadSide ATL provides 24/7 emergency roadside assistance across the entire Atlanta metro area. Whether it's day or night, weekday or weekend, we're here to help.",
+      "Yes! RoadSide GA provides 24/7 emergency roadside assistance across the entire Atlanta metro area. Whether it's day or night, weekday or weekend, we're here to help.",
   },
   {
     question: "What roadside services do you offer in Atlanta?",

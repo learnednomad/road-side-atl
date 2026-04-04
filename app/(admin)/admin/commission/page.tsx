@@ -4,7 +4,7 @@ import { CommissionConfigTable } from "@/components/admin/commission-config-tabl
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Commission | Admin | RoadSide ATL",
+  title: "Commission | Admin | RoadSide GA",
 };
 
 export default function AdminCommissionPage() {

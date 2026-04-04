@@ -14,7 +14,7 @@ import { providerDocuments } from "@/db/schema/provider-documents";
 import { isValidProviderTransition, isValidStepTransition } from "../lib/onboarding-state-machine";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { getPresignedUrl } from "@/lib/s3";
-import { notifyDocumentReviewed, notifyAdjudicationResult } from "@/lib/notifications";
+import { notifyDocumentReviewed, notifyAdjudicationResult, notifyProviderRejected, notifyAdminProviderReadyForReview } from "@/lib/notifications";
 import { createAdverseAction, CheckrApiError } from "../lib/checkr";
 import { geocodeAddress } from "@/lib/geocoding";
 import {
@@ -698,16 +698,16 @@ app.post("/invites", async (c) => {
   const inviteUrl = `${baseUrl}/become-provider?invite=${token}`;
   sendEmail({
     to: email,
-    subject: "You're invited to join RoadSide ATL as a provider",
+    subject: "You're invited to join RoadSide GA as a provider",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #18181b; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">RoadSide ATL</h1>
+          <h1 style="margin: 0;">RoadSide GA</h1>
         </div>
         <div style="padding: 30px 20px; background: #f9f9f9;">
           <h2>You're Invited!</h2>
           <p>Hi ${name},</p>
-          <p>You've been invited to apply as a roadside assistance provider with RoadSide ATL.</p>
+          <p>You've been invited to apply as a roadside assistance provider with RoadSide GA.</p>
           <p style="text-align: center;">
             <a href="${inviteUrl}" style="display: inline-block; background: #18181b; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px;">Complete Application</a>
           </p>
@@ -715,7 +715,7 @@ app.post("/invites", async (c) => {
           <p>This link expires in ${ONBOARDING_INVITE_EXPIRY_HOURS} hours.</p>
         </div>
         <div style="padding: 20px; text-align: center; font-size: 12px; color: #666;">
-          <p>&copy; ${new Date().getFullYear()} RoadSide ATL</p>
+          <p>&copy; ${new Date().getFullYear()} RoadSide GA</p>
         </div>
       </div>
     `,
@@ -785,7 +785,7 @@ app.post("/:id/activate", async (c) => {
     // Fire-and-forget activation notification
     sendEmail({
       to: provider.email,
-      subject: "Welcome to RoadSide ATL — You're Approved!",
+      subject: "Welcome to RoadSide GA — You're Approved!",
       html: `<p>Hi ${provider.name},</p><p>Your provider application has been approved. You can now accept jobs on the platform.</p>`,
     }).catch((err) => {
       console.error("[Notifications] Failed:", err);
@@ -836,6 +836,17 @@ app.post("/:id/reject", async (c) => {
     ipAddress,
     userAgent,
   });
+
+  if (provider.userId) {
+    broadcastToUser(provider.userId, {
+      type: "onboarding:step_updated",
+      data: { providerId: id, stepType: "all", newStatus: "rejected" },
+    });
+
+    notifyProviderRejected(id, parsed.data.reason).catch((err) => {
+      console.error("[Notifications] Failed:", err);
+    });
+  }
 
   return c.json(updated, 200);
 });
@@ -1220,29 +1231,35 @@ app.patch("/:id/documents/:documentId", async (c) => {
             s.id === doc.onboardingStepId ? true : s.status === "complete"
           );
           if (allComplete) {
-            await db.update(providers).set({
+            const [transitioned] = await db.update(providers).set({
               status: "pending_review",
               updatedAt: new Date(),
-            }).where(and(eq(providers.id, id), eq(providers.status, "onboarding")));
+            }).where(and(eq(providers.id, id), eq(providers.status, "onboarding"))).returning();
 
-            broadcastToAdmins({
-              type: "onboarding:ready_for_review",
-              data: { providerId: id, providerName: provider.name },
-            });
+            if (transitioned) {
+              broadcastToAdmins({
+                type: "onboarding:ready_for_review",
+                data: { providerId: id, providerName: provider.name },
+              });
 
-            logAudit({
-              action: "onboarding.status_changed",
-              userId: user.id,
-              resourceType: "provider",
-              resourceId: id,
-              details: {
-                previousStatus: "onboarding",
-                newStatus: "pending_review",
-                trigger: "all_steps_complete",
-              },
+              notifyAdminProviderReadyForReview(id, provider.name || "").catch((err) => {
+                console.error("[Notifications] Failed:", err);
+              });
+
+              logAudit({
+                action: "onboarding.status_changed",
+                userId: user.id,
+                resourceType: "provider",
+                resourceId: id,
+                details: {
+                  previousStatus: "onboarding",
+                  newStatus: "pending_review",
+                  trigger: "all_steps_complete",
+                },
               ipAddress,
               userAgent,
             });
+            }
           }
         }
       }
@@ -1358,6 +1375,10 @@ app.post("/:id/adjudicate", async (c) => {
           broadcastToAdmins({
             type: "onboarding:ready_for_review",
             data: { providerId, providerName: provider.name },
+          });
+
+          notifyAdminProviderReadyForReview(providerId, provider.name || "").catch((err) => {
+            console.error("[Notifications] Failed:", err);
           });
 
           logAudit({
@@ -1494,6 +1515,149 @@ app.post("/reconcile/stripe-reminders", async (c) => {
 app.post("/reconcile/stripe-deadline", async (c) => {
   const { enforceStripeConnectDeadline } = await import("../lib/reconciliation");
   const result = await enforceStripeConnectDeadline();
+  return c.json(result, 200);
+});
+
+// --- Migration endpoints ---
+
+// POST /migrate — initiate migration for existing active providers
+app.post("/migrate", async (c) => {
+  const user = c.get("user");
+  const body = await c.req.json().catch(() => ({}));
+  const providerIds: string[] | undefined = body.providerIds;
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+
+  const graceDays = 30;
+  const bypassExpiry = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000);
+  const deadlineDate = bypassExpiry.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+  // Find eligible providers: active, no onboarding steps yet
+  let eligibleQuery = db
+    .select({ provider: providers })
+    .from(providers)
+    .where(
+      and(
+        eq(providers.status, "active"),
+        isNull(providers.migrationBypassExpiresAt),
+      ),
+    )
+    .$dynamic();
+
+  if (providerIds && providerIds.length > 0) {
+    eligibleQuery = eligibleQuery.where(inArray(providers.id, providerIds));
+  }
+
+  const eligible = await eligibleQuery;
+
+  // Filter out providers that already have onboarding steps
+  const providerIdsToCheck = eligible.map((r) => r.provider.id);
+  let existingStepProviderIds = new Set<string>();
+  if (providerIdsToCheck.length > 0) {
+    const existingSteps = await db
+      .select({ providerId: onboardingSteps.providerId })
+      .from(onboardingSteps)
+      .where(inArray(onboardingSteps.providerId, providerIdsToCheck));
+    existingStepProviderIds = new Set(existingSteps.map((s) => s.providerId));
+  }
+
+  const toMigrate = eligible.filter((r) => !existingStepProviderIds.has(r.provider.id));
+
+  if (toMigrate.length === 0) {
+    return c.json({ migrated: 0, message: "No eligible providers to migrate" }, 200);
+  }
+
+  const stepTypes = ["background_check", "insurance", "certifications", "training", "stripe_connect"] as const;
+  let migrated = 0;
+
+  for (const { provider: prov } of toMigrate) {
+    // Create 5 onboarding step rows, all pending
+    const stepRows = stepTypes.map((stepType) => ({
+      providerId: prov.id,
+      stepType,
+      status: "pending" as const,
+    }));
+
+    await db.insert(onboardingSteps).values(stepRows);
+
+    // Set migration bypass expiry — provider stays active
+    await db
+      .update(providers)
+      .set({
+        migrationBypassExpiresAt: bypassExpiry,
+        updatedAt: new Date(),
+      })
+      .where(eq(providers.id, prov.id));
+
+    logAudit({
+      action: "migration.initiated",
+      userId: user.id,
+      resourceType: "provider",
+      resourceId: prov.id,
+      details: {
+        bypassExpiresAt: bypassExpiry.toISOString(),
+        graceDays,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    // Day 0 notification (fire-and-forget)
+    const { notifyMigrationDay0 } = await import("@/lib/notifications");
+    notifyMigrationDay0(prov.id, deadlineDate).catch((err) => {
+      console.error("[Notifications] Failed:", err);
+    });
+
+    migrated++;
+  }
+
+  return c.json({ migrated, bypassExpiresAt: bypassExpiry.toISOString() }, 200);
+});
+
+// GET /migration-status — migration counts for admin dashboard
+app.get("/migration-status", async (c) => {
+  const allActive = await db
+    .select({ id: providers.id, migrationBypassExpiresAt: providers.migrationBypassExpiresAt })
+    .from(providers)
+    .where(eq(providers.status, "active"));
+
+  const withoutSteps = allActive.filter((p) => !p.migrationBypassExpiresAt);
+  const migrating = allActive.filter(
+    (p) => p.migrationBypassExpiresAt && p.migrationBypassExpiresAt > new Date(),
+  );
+  const completedMigration = allActive.filter(
+    (p) => !p.migrationBypassExpiresAt,
+  );
+
+  // Count suspended due to migration deadline
+  const suspendedMigration = await db
+    .select({ id: providers.id })
+    .from(providers)
+    .where(
+      and(
+        eq(providers.status, "suspended"),
+        eq(providers.suspendedReason, "migration_deadline_expired"),
+      ),
+    );
+
+  return c.json({
+    notStarted: withoutSteps.length,
+    migrating: migrating.length,
+    completed: completedMigration.length,
+    suspendedDueToDeadline: suspendedMigration.length,
+  }, 200);
+});
+
+// POST /reconcile/migration-reminders — check and send migration reminders
+app.post("/reconcile/migration-reminders", async (c) => {
+  const { checkMigrationReminders } = await import("../lib/reconciliation");
+  const result = await checkMigrationReminders();
+  return c.json(result, 200);
+});
+
+// POST /reconcile/migration-deadline — enforce migration deadline
+app.post("/reconcile/migration-deadline", async (c) => {
+  const { enforceMigrationDeadline } = await import("../lib/reconciliation");
+  const result = await enforceMigrationDeadline();
   return c.json(result, 200);
 });
 

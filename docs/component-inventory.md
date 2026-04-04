@@ -1,4 +1,4 @@
-# Component Inventory - RoadSide ATL
+# Component Inventory - RoadSide GA
 
 > Generated: 2026-02-11 | Scan Level: Exhaustive | Total: 59 components
 

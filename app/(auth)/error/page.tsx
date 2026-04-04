@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Car, AlertCircle } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Error | RoadSide ATL",
+  title: "Error | RoadSide GA",
 };
 
 export default function AuthErrorPage() {
@@ -17,7 +17,7 @@ export default function AuthErrorPage() {
             <AlertCircle aria-hidden="true" className="h-6 w-6 text-destructive" />
           </div>
           <Link href="/" className="text-xl font-bold">
-            RoadSide ATL
+            RoadSide GA
           </Link>
           <CardTitle>Authentication Error</CardTitle>
         </CardHeader>

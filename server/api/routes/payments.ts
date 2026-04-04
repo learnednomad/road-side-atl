@@ -128,8 +128,13 @@ app.post("/stripe/checkout", async (c) => {
     quantity: 1,
   };
 
+  const stripePaymentMethods: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] =
+    dbUser.trustTier >= 2
+      ? ["us_bank_account", "cashapp", "card"]
+      : ["us_bank_account", "cashapp"];
+
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    payment_method_types: stripePaymentMethods,
     line_items: [lineItem],
     mode: "payment",
     customer: stripeCustomerId,

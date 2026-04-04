@@ -137,6 +137,8 @@ vi.mock("@/server/websocket/broadcast", () => ({
 vi.mock("@/lib/notifications", () => ({
   notifyDocumentReviewed: vi.fn().mockResolvedValue(undefined),
   notifyAdjudicationResult: vi.fn().mockResolvedValue(undefined),
+  notifyProviderRejected: vi.fn().mockResolvedValue(undefined),
+  notifyAdminProviderReadyForReview: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/server/api/lib/checkr", () => ({

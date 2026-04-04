@@ -455,3 +455,179 @@ export async function enforceStripeConnectDeadline(): Promise<DeadlineEnforcemen
 
   return { checked: nonCompliantProviders.length, suspended, errors };
 }
+
+// ── Migration Reminder Notifications ─────────────────────────────
+
+export interface MigrationReminderResult {
+  checked: number;
+  reminded: number;
+  errors: number;
+}
+
+export async function checkMigrationReminders(): Promise<MigrationReminderResult> {
+  // Find active providers with migrationBypassExpiresAt set (migrating)
+  const { isNotNull } = await import("drizzle-orm");
+  const migratingProviders = await db
+    .select()
+    .from(providers)
+    .where(
+      and(
+        eq(providers.status, "active"),
+        isNotNull(providers.migrationBypassExpiresAt),
+      ),
+    );
+
+  let reminded = 0;
+  let errors = 0;
+  const now = new Date();
+
+  for (const provider of migratingProviders) {
+    if (!provider.migrationBypassExpiresAt) continue;
+
+    // Calculate days since migration started (bypass is 30 days from start)
+    const migrationStartMs = provider.migrationBypassExpiresAt.getTime() - (30 * 24 * 60 * 60 * 1000);
+    const daysSinceStart = Math.floor((now.getTime() - migrationStartMs) / (24 * 60 * 60 * 1000));
+
+    // Determine which reminder to send based on day ranges
+    // Use window-based approach: send Day 14 on days 14-24, Day 25 on days 25-29
+    // Cron runs every 6h, so the window ensures at most 1 send per provider
+    // Dedup: we only send if the provider's updatedAt hasn't been touched for migration reminders recently
+    let reminderDay: number | null = null;
+    if (daysSinceStart >= 25 && daysSinceStart < 30) {
+      reminderDay = 25;
+    } else if (daysSinceStart >= 14 && daysSinceStart < 25) {
+      reminderDay = 14;
+    }
+
+    if (!reminderDay) continue;
+
+    // Simple dedup: check if we already sent this exact day reminder
+    // by looking at audit log via raw SQL (audit_events is write-optimized, not in relational queries)
+    const { sql } = await import("drizzle-orm");
+    const existing = await db.execute(
+      sql`SELECT 1 FROM audit_events WHERE action = 'migration.reminder_sent' AND resource_id = ${provider.id} AND details->>'day' = ${String(reminderDay)} LIMIT 1`,
+    );
+    if (existing.length > 0) continue;
+
+    try {
+      if (reminderDay === 14) {
+        const { notifyMigrationDay14 } = await import("@/lib/notifications");
+        await notifyMigrationDay14(provider.id);
+      } else if (reminderDay === 25) {
+        const { notifyMigrationDay25 } = await import("@/lib/notifications");
+        await notifyMigrationDay25(provider.id);
+      }
+
+      logAudit({
+        action: "migration.reminder_sent",
+        resourceType: "provider",
+        resourceId: provider.id,
+        details: { day: reminderDay, daysSinceStart },
+      });
+
+      reminded++;
+    } catch (err) {
+      errors++;
+      console.error(`[Reconciliation] Migration reminder failed for provider ${provider.id}:`, err);
+    }
+  }
+
+  logAudit({
+    action: "migration.reminder_check_run",
+    details: { checked: migratingProviders.length, reminded, errors },
+  });
+
+  return { checked: migratingProviders.length, reminded, errors };
+}
+
+// ── Migration Deadline Enforcement ───────────────────────────────
+
+export interface MigrationDeadlineResult {
+  checked: number;
+  suspended: number;
+  errors: number;
+}
+
+export async function enforceMigrationDeadline(): Promise<MigrationDeadlineResult> {
+  const now = new Date();
+
+  // Find active providers whose migration bypass has expired
+  const expiredProviders = await db
+    .select()
+    .from(providers)
+    .where(
+      and(
+        eq(providers.status, "active"),
+        lt(providers.migrationBypassExpiresAt, now),
+      ),
+    );
+
+  // Filter to only those with incomplete onboarding steps
+  let suspended = 0;
+  let errors = 0;
+
+  for (const provider of expiredProviders) {
+    const steps = await db.query.onboardingSteps.findMany({
+      where: eq(onboardingSteps.providerId, provider.id),
+    });
+
+    // If no steps exist or all complete, skip (migration completed, just bypass not cleared)
+    if (steps.length === 0) continue;
+    const allComplete = steps.every((s) => s.status === "complete");
+    if (allComplete) {
+      // Migration completed but bypass wasn't cleared — clean up
+      await db
+        .update(providers)
+        .set({ migrationBypassExpiresAt: null, updatedAt: new Date() })
+        .where(eq(providers.id, provider.id));
+      continue;
+    }
+
+    try {
+      const [updated] = await db
+        .update(providers)
+        .set({
+          status: "suspended",
+          suspendedAt: now,
+          suspendedReason: "migration_deadline_expired",
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(providers.id, provider.id),
+            eq(providers.status, "active"),
+          ),
+        )
+        .returning();
+
+      if (updated) {
+        logAudit({
+          action: "migration.suspended_deadline",
+          resourceType: "provider",
+          resourceId: provider.id,
+          details: {
+            reason: "migration_deadline_expired",
+            bypassExpiredAt: provider.migrationBypassExpiresAt?.toISOString(),
+          },
+        });
+
+        const { notifyMigrationSuspended } = await import("@/lib/notifications");
+        notifyMigrationSuspended(provider.id).catch((err) => {
+          console.error("[Reconciliation] Migration suspension notification failed:", err);
+        });
+
+        suspended++;
+      }
+    } catch (err) {
+      errors++;
+      console.error(`[Reconciliation] Migration deadline enforcement failed for provider ${provider.id}:`, err);
+    }
+  }
+
+  logAudit({
+    action: "migration.deadline_enforcement_run",
+    details: { checked: expiredProviders.length, suspended, errors },
+  });
+
+  return { checked: expiredProviders.length, suspended, errors };
+}

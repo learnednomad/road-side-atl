@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { StepCard, type OnboardingStep } from "./step-card";
+import { MigrationBanner } from "./migration-banner";
 import { useWS } from "@/components/providers/websocket-provider";
 
 interface ProviderSummary {
@@ -12,6 +13,8 @@ interface ProviderSummary {
   name: string;
   completedStepsCount: number;
   totalSteps: number;
+  migrationBypassExpiresAt: string | null;
+  isMigrating: boolean;
 }
 
 interface DashboardData {
@@ -88,8 +91,8 @@ export function OnboardingDashboard() {
 
   const { steps, provider } = data;
 
-  // Active provider — show success state
-  if (provider.status === "active") {
+  // Active provider — check if migrating or fully onboarded
+  if (provider.status === "active" && !provider.isMigrating) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-12">
@@ -139,17 +142,53 @@ export function OnboardingDashboard() {
     );
   }
 
-  // Onboarding / applied — show steps
-  const progressPercent =
-    provider.totalSteps > 0
-      ? Math.round((provider.completedStepsCount / provider.totalSteps) * 100)
-      : 0;
-
   // Order steps by step type to ensure consistent display
   const stepOrder = ["background_check", "insurance", "certifications", "training", "stripe_connect"];
   const orderedSteps = [...steps].sort(
     (a, b) => stepOrder.indexOf(a.stepType) - stepOrder.indexOf(b.stepType),
   );
+
+  // Migration mode: show only incomplete steps with deadline banner
+  if (provider.isMigrating && provider.migrationBypassExpiresAt) {
+    const incompleteSteps = orderedSteps.filter((s) => s.status !== "complete");
+    const completedSteps = orderedSteps.filter((s) => s.status === "complete");
+
+    return (
+      <div className="space-y-6">
+        <MigrationBanner
+          deadlineIso={provider.migrationBypassExpiresAt}
+          completedSteps={provider.completedStepsCount}
+          totalSteps={provider.totalSteps}
+        />
+
+        {/* Incomplete steps — action needed */}
+        {incompleteSteps.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground">Steps to Complete</h3>
+            {incompleteSteps.map((step) => (
+              <StepCard key={step.id} step={step} />
+            ))}
+          </div>
+        )}
+
+        {/* Completed steps — collapsed context */}
+        {completedSteps.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground">Completed</h3>
+            {completedSteps.map((step) => (
+              <StepCard key={step.id} step={step} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Regular onboarding / applied — show all steps
+  const progressPercent =
+    provider.totalSteps > 0
+      ? Math.round((provider.completedStepsCount / provider.totalSteps) * 100)
+      : 0;
 
   return (
     <div className="space-y-6">

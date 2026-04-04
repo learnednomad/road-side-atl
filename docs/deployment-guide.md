@@ -1,4 +1,4 @@
-# Deployment Guide - RoadSide ATL
+# Deployment Guide - RoadSide GA
 
 > Generated: 2026-02-11 | Scan Level: Exhaustive
 
@@ -56,7 +56,7 @@ services:
 | Image | postgres:16-alpine |
 | User | dealer |
 | Password | dealer_pass |
-| Database | roadside_atl |
+| Database | roadside_ga |
 | Volume | pgdata (persistent) |
 
 ### Health Check

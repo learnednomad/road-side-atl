@@ -1,0 +1,69 @@
+name: Deploy
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: "!contains(github.ref, '-')"
+    environment: production
+    steps:
+      - name: Trigger Coolify deployment
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.COOLIFY_API_URL }}/api/v1/applications/${{ secrets.COOLIFY_APP_UUID }}/restart" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
+            -H "Content-Type: application/json")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "Response: $BODY"
+          echo "HTTP Code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::Coolify deploy failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "Deployment triggered successfully for ${{ github.ref_name }}"
+
+      - name: Verify deployment health
+        run: |
+          echo "Waiting 120s for deployment to start..."
+          sleep 120
+
+          for i in $(seq 1 10); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://roadsidega.learnednomad.com/api/health" \
+              --connect-timeout 10 --max-time 15)
+
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "Health check returned $STATUS (attempt $i/10), retrying in 30s..."
+            sleep 30
+          done
+
+          echo "::warning::Health check did not return 200 after deployment. Check Coolify logs."
+          exit 1
+
+  deploy-staging:
+    name: Deploy to Staging (Pre-release)
+    runs-on: ubuntu-latest
+    if: "contains(github.ref, '-')"
+    environment: staging
+    steps:
+      - name: Log pre-release tag
+        run: |
+          echo "Pre-release tag ${{ github.ref_name }} detected."
+          echo "Staging deployment requires a separate Coolify application."
+          echo "Configure COOLIFY_STAGING_APP_UUID secret when staging is set up."

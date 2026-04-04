@@ -2,9 +2,9 @@ import { Metadata } from "next";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Sign In | RoadSide ATL",
+  title: "Sign In | RoadSide GA",
   description:
-    "Sign in to your RoadSide ATL account to manage bookings, track service requests, and access your dashboard.",
+    "Sign in to your RoadSide GA account to manage bookings, track service requests, and access your dashboard.",
   path: "/login",
   noindex: true,
 });
