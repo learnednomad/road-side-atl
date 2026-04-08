@@ -1,0 +1,325 @@
+# Dependency Manifest — Sprint Orchestrator
+# Generated: 2026-04-07
+# Scope: Epics 16, 17, 18, 19
+# Source: epics.md + story file analysis
+
+generated: "2026-04-07"
+epic_scope: [16, 17, 18, 19]
+total_stories: 26
+
+# Epic-level dependencies
+epic_dependencies:
+  16: []           # Foundational — no dependencies
+  17: [16]         # Depends on Epic 16 (schema + services + beta)
+  18: [16, 17]     # Depends on Epic 16 (schema) + Epic 17 (booking flow)
+  19: [16, 17, 18] # Depends on all prior epics
+
+# Story-level dependency graph
+stories:
+
+  # ════════════════════════════════════════════
+  # Epic 16: Mechanics Service Category + Beta Foundation
+  # ════════════════════════════════════════════
+
+  16-1-extend-service-category-enum-and-scheduling-mode:
+    depends_on: []
+    epic: 16
+    repo: web
+    touches_schema: true
+    files:
+      - db/schema/services.ts
+      - db/schema/index.ts
+    overlap_with: []
+
+  16-2-create-beta-users-table:
+    depends_on: []
+    epic: 16
+    repo: web
+    touches_schema: true
+    files:
+      - db/schema/beta-users.ts        # new
+      - db/schema/index.ts
+    overlap_with: [16-1-extend-service-category-enum-and-scheduling-mode]
+    # overlap on db/schema/index.ts — but only adding export lines, low conflict risk
+    # DECISION: Allow parallel — index.ts changes are additive (different export lines)
+
+  16-3-seed-mechanic-services-and-beta-config:
+    depends_on:
+      - 16-1-extend-service-category-enum-and-scheduling-mode   # needs mechanics enum + schedulingMode column
+      - 16-2-create-beta-users-table                             # seeds platform_settings used by beta
+    epic: 16
+    repo: web
+    touches_schema: false
+    files:
+      - db/seed.ts
+    overlap_with: []
+
+  16-4-create-beta-helper-and-trust-tier-bypass:
+    depends_on:
+      - 16-3-seed-mechanic-services-and-beta-config   # needs platform_settings rows for isBetaActive()
+    epic: 16
+    repo: web
+    touches_schema: false
+    files:
+      - server/api/lib/beta.ts          # new
+      - server/api/lib/trust-tier.ts
+    overlap_with: []
+
+  16-5-add-category-filter-to-services-api:
+    depends_on:
+      - 16-1-extend-service-category-enum-and-scheduling-mode   # needs mechanics category + schedulingMode column
+    epic: 16
+    repo: web
+    touches_schema: false
+    files:
+      - server/api/routes/services.ts
+    overlap_with: []
+
+  16-6-beta-status-endpoint-and-auto-enrollment:
+    depends_on:
+      - 16-2-create-beta-users-table                  # needs beta_users table
+      - 16-3-seed-mechanic-services-and-beta-config    # needs platform_settings beta rows
+    epic: 16
+    repo: web
+    touches_schema: false
+    files:
+      - server/api/routes/bookings.ts    # auto-enrollment on booking
+      - server/api/routes/beta.ts        # new route file
+    overlap_with: []
+
+  16-7-admin-beta-toggle:
+    depends_on:
+      - 16-4-create-beta-helper-and-trust-tier-bypass  # needs clearBetaCache() import
+      - 16-6-beta-status-endpoint-and-auto-enrollment  # needs beta endpoints working
+    epic: 16
+    repo: web
+    touches_schema: false
+    files:
+      - components/admin/beta-settings.tsx   # new or existing admin component
+      - components/admin/dashboard.tsx       # add beta stats
+    overlap_with: []
+
+  # ════════════════════════════════════════════
+  # Epic 17: Mechanic Booking + Dispatch
+  # Depends on: Epic 16 (all stories)
+  # ════════════════════════════════════════════
+
+  17-1-enforce-scheduled-at-for-mechanic-bookings:
+    depends_on:
+      - 16-1-extend-service-category-enum-and-scheduling-mode   # needs schedulingMode column
+      - 16-3-seed-mechanic-services-and-beta-config              # needs mechanic services seeded
+    epic: 17
+    repo: web
+    touches_schema: false
+    files:
+      - server/api/routes/bookings.ts
+    overlap_with: [16-6-beta-status-endpoint-and-auto-enrollment]
+    # both touch bookings.ts — but 16-6 adds auto-enrollment, 17-1 adds validation
+    # SERIALIZE: 16-6 must complete first (it's in an earlier wave by deps anyway)
+
+  17-2-mechanic-pre-dispatch-cron-job:
+    depends_on:
+      - 17-1-enforce-scheduled-at-for-mechanic-bookings   # needs mechanic bookings to exist
+    epic: 17
+    repo: web
+    touches_schema: false
+    files:
+      - server/cron.ts
+    overlap_with: []
+
+  17-3-observation-to-mechanic-upsell:
+    depends_on:
+      - 16-3-seed-mechanic-services-and-beta-config   # needs mechanic service slugs for mapping
+    epic: 17
+    repo: web
+    touches_schema: false
+    files:
+      - server/api/lib/observation-upsell.ts   # new
+      - server/api/routes/observations.ts
+    overlap_with: []
+
+  17-4-web-mechanic-booking-ui:
+    depends_on:
+      - 16-5-add-category-filter-to-services-api       # needs ?category= filter
+      - 17-1-enforce-scheduled-at-for-mechanic-bookings # needs backend validation working
+    epic: 17
+    repo: web
+    touches_schema: false
+    files:
+      - components/booking/booking-form.tsx
+    overlap_with: []
+
+  # ════════════════════════════════════════════
+  # Epic 18: Push Notifications + Mobile Parity Provider
+  # Depends on: Epic 16 (schema), Epic 17 (booking flow)
+  # ════════════════════════════════════════════
+
+  18-1-device-token-table-and-registration-endpoints:
+    depends_on: []
+    # NOTE: No actual dep on Epic 16/17 — device tokens are independent infrastructure
+    # Epic-level dep is for the mobile features that USE push, not the push infra itself
+    epic: 18
+    repo: web
+    touches_schema: true
+    files:
+      - db/schema/device-tokens.ts   # new
+      - db/schema/index.ts
+      - server/api/routes/push.ts
+    overlap_with: []
+
+  18-2-dual-channel-push-notification-dispatch:
+    depends_on:
+      - 18-1-device-token-table-and-registration-endpoints   # needs device_tokens table
+    epic: 18
+    repo: web
+    touches_schema: false
+    files:
+      - lib/notifications/push.ts
+    overlap_with: []
+
+  18-3-mobile-push-notification-setup-expo:
+    depends_on:
+      - 18-1-device-token-table-and-registration-endpoints   # needs POST /api/push/register-device
+    epic: 18
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/lib/push.ts               # new
+      - src/app/_layout.tsx            # register on app launch
+    overlap_with: []
+
+  18-4-provider-job-management-mobile:
+    depends_on:
+      - 17-1-enforce-scheduled-at-for-mechanic-bookings   # needs mechanic booking flow working
+    epic: 18
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/features/provider/dashboard-screen.tsx
+      - src/features/provider/api.ts
+    overlap_with: [18-5-provider-gps-tracking-mobile]
+    # both touch provider dashboard — SERIALIZE
+
+  18-5-provider-gps-tracking-mobile:
+    depends_on:
+      - 18-4-provider-job-management-mobile   # GPS tracking wired to job lifecycle
+    epic: 18
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/features/provider/dashboard-screen.tsx
+      - src/features/provider/api.ts
+    overlap_with: [18-4-provider-job-management-mobile]
+
+  18-6-provider-observations-mobile:
+    depends_on: []
+    # Backend already exists — this is mobile UI only, no web deps
+    epic: 18
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/features/provider/observations-screen.tsx   # new
+      - src/features/provider/api.ts
+    overlap_with: [18-4-provider-job-management-mobile, 18-5-provider-gps-tracking-mobile]
+    # shares api.ts — but adding new hooks (additive), manageable overlap
+
+  18-7-provider-inspection-reports-mobile:
+    depends_on: []
+    # Backend already exists — this is mobile UI only
+    epic: 18
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/features/provider/inspection-report-screen.tsx   # new
+      - src/features/provider/api.ts
+    overlap_with: [18-4-provider-job-management-mobile, 18-6-provider-observations-mobile]
+
+  # ════════════════════════════════════════════
+  # Epic 19: Mobile Parity Customer + Polish
+  # Depends on: Epic 16, 17, 18
+  # ════════════════════════════════════════════
+
+  19-1-service-category-tabs-mobile:
+    depends_on:
+      - 16-5-add-category-filter-to-services-api   # needs ?category= API filter
+    epic: 19
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/features/services/services-screen.tsx
+    overlap_with: []
+
+  19-2-mechanic-booking-flow-mobile:
+    depends_on:
+      - 19-1-service-category-tabs-mobile              # needs Service type with schedulingMode
+      - 17-1-enforce-scheduled-at-for-mechanic-bookings # needs backend validation
+    epic: 19
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/app/book.tsx
+      - src/features/bookings/api.ts
+    overlap_with: []
+
+  19-3-real-time-tracking-map-mobile:
+    depends_on:
+      - 18-5-provider-gps-tracking-mobile   # needs provider location updates flowing
+    epic: 19
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/components/tracking-map.tsx   # new
+      - src/features/bookings/booking-detail-screen.tsx
+    overlap_with: []
+
+  19-4-referral-system-mobile:
+    depends_on: []
+    # Backend already exists — mobile UI only, independent feature
+    epic: 19
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/features/referrals/referrals-screen.tsx   # new
+      - src/features/referrals/api.ts                 # new
+    overlap_with: []
+
+  19-5-reviews-end-to-end-verification-mobile:
+    depends_on:
+      - 18-3-mobile-push-notification-setup-expo   # push-to-review navigation depends on push setup
+    epic: 19
+    repo: mobile
+    touches_schema: false
+    files:
+      - src/app/review.tsx
+      - src/features/bookings/api.ts
+    overlap_with: [19-2-mechanic-booking-flow-mobile]
+    # shares bookings/api.ts — additive hooks, low risk
+
+  19-6-beta-analytics-dashboard-admin:
+    depends_on:
+      - 16-6-beta-status-endpoint-and-auto-enrollment   # needs beta data populated
+      - 16-7-admin-beta-toggle                           # needs admin beta UI foundation
+    epic: 19
+    repo: web
+    touches_schema: false
+    files:
+      - components/admin/dashboard.tsx
+      - server/api/routes/beta.ts       # add analytics endpoint
+    overlap_with: [16-7-admin-beta-toggle]
+    # shares admin dashboard — but 16-7 must complete first (dependency)
+
+  19-7-bug-fixes-and-performance:
+    depends_on:
+      # Depends on everything — this is the polish story
+      - 19-1-service-category-tabs-mobile
+      - 19-2-mechanic-booking-flow-mobile
+      - 19-3-real-time-tracking-map-mobile
+      - 19-4-referral-system-mobile
+      - 19-5-reviews-end-to-end-verification-mobile
+      - 19-6-beta-analytics-dashboard-admin
+    epic: 19
+    repo: both
+    touches_schema: false
+    files:
+      - various   # bug fixes span both repos
+    overlap_with: []

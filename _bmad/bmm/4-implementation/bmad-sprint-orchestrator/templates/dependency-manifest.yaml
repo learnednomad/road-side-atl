@@ -1,0 +1,34 @@
+# Dependency Manifest — Sprint Orchestrator
+# Generated: {date}
+# Scope: Epics {epic_scope}
+# Source: epics.md + story file analysis
+#
+# This file is the source of truth for story dependencies.
+# Edit this file to override auto-detected dependencies before execution.
+#
+# Fields:
+#   depends_on: list of story keys that must be done before this story starts
+#   epic: the epic number this story belongs to
+#   repo: web | mobile | both
+#   touches_schema: true if the story modifies db/schema/ files or creates migrations
+#   files: list of files this story will create or modify
+#   overlap_with: stories that touch the same files (auto-detected)
+
+generated: "{date}"
+epic_scope: []
+total_stories: 0
+
+# Epic-level dependencies
+# All stories in a child epic depend on ALL stories in parent epics being done
+epic_dependencies:
+  # epic_num: [depends_on_epic_nums]
+
+# Story-level dependency graph
+stories:
+  # {story-key}:
+  #   depends_on: []
+  #   epic: {n}
+  #   repo: web
+  #   touches_schema: false
+  #   files: []
+  #   overlap_with: []

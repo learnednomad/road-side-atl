@@ -1,0 +1,51 @@
+# Sprint Execution Plan — Sprint Orchestrator
+# Generated: {date}
+# Project: {project_name}
+#
+# This file tracks the orchestrator's execution state.
+# It enables resumability — if the session ends mid-sprint,
+# re-running the orchestrator will detect this file and resume.
+#
+# Story statuses:
+#   pending: not yet attempted
+#   in-progress: agent currently working
+#   done: implemented, reviewed, and merged
+#   failed: agent error, review rejection, or merge conflict
+#   blocked-upstream: blocked by a failed dependency
+#
+# Wave statuses:
+#   pending: not yet started
+#   in-progress: agents running
+#   done: all stories merged
+#   partial: some stories merged, some failed
+#   failed: all stories failed
+
+generated: "{date}"
+base_branch: development
+epics_in_scope: []
+max_parallelism: 3
+total_waves: 0
+total_stories: 0
+
+waves: []
+  # - id: 1
+  #   status: pending
+  #   stories:
+  #     - key: "{story-key}"
+  #       repo: web
+  #       branch: "sprint/{story-key}"
+  #       status: pending
+  #       failure_reason: null
+  #       agent_result: null
+  #       review_result: null
+  #       merge_result: null
+
+execution_log: []
+  # - timestamp: "{datetime}"
+  #   event: "wave-1-started"
+  #   details: "Launched 2 parallel agents"
+
+blocked_stories: []
+  # - key: "{story-key}"
+  #   blocked_by: "{blocker-key}"
+  #   reason: "upstream story failed"

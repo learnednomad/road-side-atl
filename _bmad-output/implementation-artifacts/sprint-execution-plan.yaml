@@ -1,0 +1,86 @@
+# Sprint Execution Plan — Sprint Orchestrator
+# Generated: 2026-04-07
+# Project: road-side-atl
+
+generated: "2026-04-07"
+base_branch: development
+epics_in_scope: [16]
+max_parallelism: 3
+total_waves: 4
+total_stories: 7
+
+waves:
+  - id: 1
+    status: pending
+    stories:
+      - key: 16-1-extend-service-category-enum-and-scheduling-mode
+        repo: web
+        branch: sprint/16-1-extend-service-category-enum-and-scheduling-mode
+        status: pending
+        failure_reason: null
+        agent_result: null
+        review_result: null
+        merge_result: null
+      - key: 16-2-create-beta-users-table
+        repo: web
+        branch: sprint/16-2-create-beta-users-table
+        status: pending
+        failure_reason: null
+        agent_result: null
+        review_result: null
+        merge_result: null
+
+  - id: 2
+    status: pending
+    stories:
+      - key: 16-3-seed-mechanic-services-and-beta-config
+        repo: web
+        branch: sprint/16-3-seed-mechanic-services-and-beta-config
+        status: pending
+        failure_reason: null
+        agent_result: null
+        review_result: null
+        merge_result: null
+      - key: 16-5-add-category-filter-to-services-api
+        repo: web
+        branch: sprint/16-5-add-category-filter-to-services-api
+        status: pending
+        failure_reason: null
+        agent_result: null
+        review_result: null
+        merge_result: null
+
+  - id: 3
+    status: pending
+    stories:
+      - key: 16-4-create-beta-helper-and-trust-tier-bypass
+        repo: web
+        branch: sprint/16-4-create-beta-helper-and-trust-tier-bypass
+        status: pending
+        failure_reason: null
+        agent_result: null
+        review_result: null
+        merge_result: null
+      - key: 16-6-beta-status-endpoint-and-auto-enrollment
+        repo: web
+        branch: sprint/16-6-beta-status-endpoint-and-auto-enrollment
+        status: pending
+        failure_reason: null
+        agent_result: null
+        review_result: null
+        merge_result: null
+
+  - id: 4
+    status: pending
+    stories:
+      - key: 16-7-admin-beta-toggle
+        repo: web
+        branch: sprint/16-7-admin-beta-toggle
+        status: pending
+        failure_reason: null
+        agent_result: null
+        review_result: null
+        merge_result: null
+
+execution_log: []
+blocked_stories: []
