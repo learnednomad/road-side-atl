@@ -17,3 +17,4 @@ export * from "./referrals";
 export * from "./inspection-reports";
 export * from "./time-block-configs";
 export * from "./b2b-accounts";
+export * from "./beta-users";

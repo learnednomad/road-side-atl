@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, payments } from "@/db/schema";
+import { bookings, services, payments, betaUsers } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { requireAuth } from "../middleware/auth";
@@ -16,6 +16,7 @@ import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast
 import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
+import { isBetaActive } from "../lib/beta";
 
 const app = new Hono();
 
@@ -38,6 +39,11 @@ app.post("/", async (c) => {
   });
   if (!service) {
     return c.json({ error: "Service not found" }, 404);
+  }
+
+  // Enforce scheduled-only for mechanic services (FR-1.4)
+  if (service.schedulingMode === "scheduled" && !data.scheduledAt) {
+    return c.json({ error: "Mechanic services require a scheduled date" }, 400);
   }
 
   // Calculate price via centralized pricing engine
@@ -122,6 +128,22 @@ app.post("/", async (c) => {
   let dispatchResult = null;
   if (!booking.scheduledAt && process.env.AUTO_DISPATCH_ENABLED === "true") {
     dispatchResult = await autoDispatchBooking(booking.id).catch(() => null);
+  }
+
+  // Beta user auto-enrollment (fire-and-forget)
+  if (userId) {
+    isBetaActive().then((active) => {
+      if (active) {
+        db.insert(betaUsers)
+          .values({ userId, source: "booking" })
+          .onConflictDoNothing()
+          .catch((err) => {
+            console.error("[Beta] Enrollment failed:", err);
+          });
+      }
+    }).catch((err) => {
+      console.error("[Beta] Enrollment failed:", err);
+    });
   }
 
   return c.json({

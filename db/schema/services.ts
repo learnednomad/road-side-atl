@@ -14,6 +14,12 @@ export const serviceCategoryEnum = pgEnum("service_category", [
   "diagnostics",
 ]);
 
+export const schedulingModeEnum = pgEnum("scheduling_mode", [
+  "immediate",
+  "scheduled",
+  "both",
+]);
+
 export const services = pgTable("services", {
   id: text("id")
     .primaryKey()
@@ -26,6 +32,7 @@ export const services = pgTable("services", {
   category: serviceCategoryEnum("category").notNull(),
   active: boolean("active").default(true).notNull(),
   checklistConfig: jsonb("checklistConfig").$type<{ category: string; items: string[] }[]>(),
+  schedulingMode: schedulingModeEnum("schedulingMode").notNull().default("both"),
   commissionRate: integer("commissionRate").notNull().default(2500), // basis points: 2500 = 25% platform cut
   tenantId: text("tenantId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
