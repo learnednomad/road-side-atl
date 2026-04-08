@@ -1,12 +1,17 @@
 ---
 stepsCompleted: ['step-01-init', 'step-02-context', 'step-03-starter', 'step-04-decisions', 'step-05-patterns', 'step-06-structure', 'step-07-validation', 'step-08-complete']
-status: 'extending'
+status: 'extending-v2'
 completedAt: '2026-02-12'
 extensionStarted: '2026-03-03'
 extensionFeature: 'Provider Onboarding'
 extensionStepsCompleted: ['step-02-context', 'step-03-starter', 'step-04-decisions', 'step-05-patterns', 'step-06-structure', 'step-07-validation', 'step-08-complete']
 extensionStatus: 'complete'
 extensionCompletedAt: '2026-03-03'
+extension2Started: '2026-04-07'
+extension2Feature: 'Mobile Mechanics + Beta + Mobile Parity'
+extension2StepsCompleted: ['context', 'decisions', 'patterns', 'structure', 'validation', 'complete']
+extension2Status: 'complete'
+extension2CompletedAt: '2026-04-07'
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/prd-validation-report.md
@@ -1701,3 +1706,341 @@ Payout Routing (modified):
 5. Export new schemas from `db/schema/index.ts`
 6. Run `npm run db:generate` + `npm run db:migrate`
 7. Implement `server/api/middleware/onboarding.ts` (`requireOnboardingComplete`)
+
+---
+
+## Mobile Mechanics + Beta + Mobile Parity — Extension
+
+_This section extends the architecture document with decisions specific to the Mobile Mechanics service category, 2-month open beta (Apr 7 – Jun 7, 2026), and mobile app parity initiative (PRD: `prd-mobile-mechanics-beta.md`, 41 FRs, 13 NFRs). All existing architectural decisions above remain in effect._
+
+## Mobile Mechanics — Project Context Analysis
+
+### Requirements Overview
+
+**Functional Requirements:**
+41 FRs across 6 capability areas: Mechanics Service Category (FR-1), Beta Mode (FR-2), Mechanic Dispatch (FR-3), Observation Upsell (FR-4), Push Notifications (FR-5), Mobile App Parity (FR-6). The mechanics dispatch cron and beta trust-tier bypass are the most architecturally significant — they introduce time-based dispatch (vs. event-driven) and a conditional override to the Trust Tier security model.
+
+**Non-Functional Requirements:**
+13 NFRs. The idempotency requirement for mechanic dispatch cron (NFR-9) is the most architecturally constraining — the cron must be safe to re-run without double-dispatching.
+
+**Scale & Complexity:**
+
+- Primary domain: Brownfield feature expansion + cross-platform mobile
+- Complexity level: Medium
+- New external services: 1 (Expo Push API)
+- New schema entities: 2 tables (`beta_users`, `device_tokens`), 1 enum value, 1 column
+- New route modules: 1 (`beta.ts`)
+- Modified route modules: 3 (`services.ts`, `bookings.ts`, `push.ts`)
+
+### Technical Constraints & Dependencies
+
+**New external service dependency:**
+- **Expo Push API** — Push notification delivery to iOS/Android via Expo push tokens. Stateless HTTP API, no webhook. Batch sends supported (up to 100 tokens per request). Token format: `ExponentPushToken[...]`.
+
+**No new locked dependencies.** Everything builds on existing stack:
+- Cron: existing `server/cron.ts` pattern (node-cron)
+- Enum migration: Drizzle-kit `ALTER TYPE ADD VALUE` (non-destructive)
+- Config storage: existing `platform_settings` key-value table
+- Notification dispatch: existing `lib/notifications/` pattern
+
+**Critical architectural constraint:** The Trust Tier bypass for beta mode must NOT create a permanent security hole. The bypass is a runtime check (`isBetaActive()`), not a schema change. When beta ends, the original trust-tier logic resumes with zero code changes — just a `platform_settings` row update.
+
+### Cross-Cutting Concerns
+
+| Concern | Resolution |
+|---|---|
+| Beta trust-tier bypass audit trail | Log `beta_trust_bypass` action in audit logger when beta path taken |
+| Mechanic dispatch idempotency | Cron checks `status = confirmed AND providerId IS NULL AND scheduledAt within 2hr window` — already-dispatched bookings are excluded |
+| Push notification dual-channel | Notification dispatch checks token type (Expo vs VAPID) and routes accordingly |
+| Observation upsell matching | Category-to-service mapping table or hardcoded map — keep simple for beta |
+
+## Mobile Mechanics — Core Architectural Decisions
+
+### Decision 1: Service Category Enum Extension
+
+**Decision:** Add `"mechanics"` to existing `service_category` PostgreSQL enum.
+
+**Why not a separate table?** The category is a simple classifier, not a rich entity. Enum aligns with existing `roadside` and `diagnostics` pattern. Adding a value is non-destructive — existing rows unaffected.
+
+**Migration:** `ALTER TYPE service_category ADD VALUE 'mechanics'` via Drizzle-kit generated migration.
+
+**Impact:** All queries filtering by category automatically include mechanics. No application code changes needed for existing category-based logic.
+
+### Decision 2: Scheduling Mode Column
+
+**Decision:** Add `schedulingMode` text column to `services` table with values `"immediate"` | `"scheduled"` | `"both"`, defaulting to `"both"`.
+
+**Why text, not enum?** Three values that may expand. Enum migration for adding values is annoying in Postgres. Text with application-level validation (Zod) is sufficient. Existing services get `"both"` (backward compatible). Mechanic services get `"scheduled"`.
+
+**Enforcement:** `POST /api/bookings` validates: if service `schedulingMode === "scheduled"` and `scheduledAt` is null, return 400.
+
+### Decision 3: Beta Mode via Platform Settings
+
+**Decision:** Use existing `platform_settings` key-value table for beta configuration. Three rows: `beta_mode_active`, `beta_start_date`, `beta_end_date`.
+
+**Why not a dedicated table or config file?** The platform already has a `platform_settings` table used for trust tier config. Adding 3 rows is zero migration, zero schema change. Admin can toggle via existing settings UI pattern.
+
+**Helper:** `server/api/lib/beta.ts` exports `isBetaActive(): Promise<boolean>` that reads `platform_settings`. Cached for 60 seconds to avoid per-request DB hits.
+
+```typescript
+// server/api/lib/beta.ts
+let cachedBetaActive: boolean | null = null;
+let cacheExpiry = 0;
+
+export async function isBetaActive(): Promise<boolean> {
+  if (cachedBetaActive !== null && Date.now() < cacheExpiry) return cachedBetaActive;
+  const setting = await db.query.platformSettings.findFirst({
+    where: eq(platformSettings.key, "beta_mode_active"),
+  });
+  cachedBetaActive = setting?.value === "true";
+  cacheExpiry = Date.now() + 60_000;
+  return cachedBetaActive;
+}
+```
+
+### Decision 4: Trust Tier Beta Bypass
+
+**Decision:** Modify `getAllowedPaymentMethods()` in `server/api/lib/trust-tier.ts` to check `isBetaActive()` before applying tier logic.
+
+**Pattern:**
+```typescript
+export async function getAllowedPaymentMethodsWithBeta(trustTier: number): Promise<readonly string[]> {
+  if (await isBetaActive()) {
+    return TIER_2_ALLOWED_METHODS; // All methods during beta
+  }
+  return trustTier >= 2 ? TIER_2_ALLOWED_METHODS : TIER_1_ALLOWED_METHODS;
+}
+```
+
+**Audit:** When beta bypass is used, log `{ action: "beta_trust_bypass", userId }` via `logAudit()`.
+
+**Rollback:** Set `beta_mode_active` to `"false"` in platform_settings. Function reverts to original tier logic. No code deployment needed.
+
+### Decision 5: Mechanic Dispatch — Cron-Based Pre-Dispatch
+
+**Decision:** Mechanic bookings are dispatched via cron job, not on booking confirmation.
+
+**Why?** Mechanic bookings are always scheduled (could be days or weeks out). Immediate dispatch on confirm makes no sense — the provider needs to be matched close to the appointment time. A 2-hour pre-dispatch window gives providers time to prepare while ensuring availability.
+
+**Cron pattern:** Every 15 minutes, query for bookings where:
+- `status = 'confirmed'`
+- `providerId IS NULL` (not yet dispatched)
+- `scheduledAt` is within next 2 hours
+- Service category is `mechanics`
+
+Trigger existing `autoDispatchBooking()` for each match. The existing dispatch function already handles specialty matching via the `specialties` JSONB array.
+
+**Idempotency:** Once dispatched, `providerId` is set and `status` changes to `dispatched`. The cron query excludes these automatically.
+
+**Add to `server/cron.ts`:**
+```typescript
+// Mechanic pre-dispatch: every 15 minutes
+cron.schedule("*/15 * * * *", async () => {
+  const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const now = new Date();
+  const pendingMechanicBookings = await db.query.bookings.findMany({
+    where: and(
+      eq(bookings.status, "confirmed"),
+      isNull(bookings.providerId),
+      gte(bookings.scheduledAt, now),
+      lte(bookings.scheduledAt, twoHoursFromNow),
+    ),
+    with: { service: true },
+  });
+  for (const booking of pendingMechanicBookings.filter(b => b.service?.category === "mechanics")) {
+    await autoDispatchBooking(booking.id).catch(err =>
+      console.error(`[Mechanic Dispatch] Failed for booking ${booking.id}:`, err)
+    );
+  }
+});
+```
+
+### Decision 6: Push Notification Dual-Channel Architecture
+
+**Decision:** Extend notification dispatch to support both web-push (VAPID) and Expo Push API, routing by token type.
+
+**Schema approach:** Add `tokenType` discriminator to `push_subscriptions` table OR create a new `device_tokens` table. Recommended: **new `device_tokens` table** — cleaner separation, different payload shapes (Expo token is a string, web-push subscription is a JSON object with endpoint + keys).
+
+**`db/schema/device-tokens.ts`:**
+```typescript
+export const deviceTokens = pgTable("device_tokens", {
+  id: text("id").primaryKey().$defaultFn(() => createId()),
+  userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expoPushToken: text("expoPushToken").notNull(),
+  platform: text("platform").notNull(), // "ios" | "android"
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
+});
+```
+
+**Dispatch logic in `lib/notifications/push.ts`:**
+```typescript
+export async function sendPushNotification(userId: string, payload: PushPayload) {
+  // Web push (existing)
+  const webSubs = await getWebPushSubscriptions(userId);
+  for (const sub of webSubs) {
+    webpush.sendNotification(sub, JSON.stringify(payload))
+      .catch(err => console.error("[Push] Web push failed:", err));
+  }
+  // Expo push (new)
+  const deviceTokens = await getDeviceTokens(userId);
+  if (deviceTokens.length > 0) {
+    await sendExpoPush(deviceTokens.map(t => t.expoPushToken), payload)
+      .catch(err => console.error("[Push] Expo push failed:", err));
+  }
+}
+```
+
+**Expo Push API call pattern:** HTTP POST to `https://exp.host/--/api/v2/push/send` with batch of messages. Fire-and-forget with error logging — consistent with existing notification patterns.
+
+### Decision 7: Observation → Mechanic Upsell Mapping
+
+**Decision:** Hardcoded category-to-service mapping for beta. No new table.
+
+**Why hardcoded?** Only ~6 mechanic services and ~8 observation categories. A mapping table adds migration overhead for a lookup that changes rarely. Revisit post-beta if the catalog grows.
+
+**Map in `server/api/lib/observation-upsell.ts`:**
+```typescript
+const OBSERVATION_TO_MECHANIC_SERVICE: Record<string, string> = {
+  "Brakes": "brake-service",
+  "Battery": "battery-replace",
+  "Belts": "belt-replacement",
+  "AC/Cooling": "ac-repair",
+  "Engine": "general-maintenance",
+  "Fluids": "oil-change",
+};
+```
+
+**Integration point:** In `POST /api/observations` handler, after saving observation, check for medium/high severity items. For each matching category, include a deep link to the booking form with `serviceSlug` and `vehicleInfo` query params in the follow-up SMS/email.
+
+## Mobile Mechanics — Implementation Patterns
+
+### Naming Patterns
+
+| Entity | Convention | Example |
+|---|---|---|
+| Mechanic services | Kebab-case slugs | `oil-change`, `brake-service` |
+| Beta settings keys | Snake_case | `beta_mode_active` |
+| Cron job comments | `[Category] Description` | `[Mechanic Dispatch]` |
+| Push notification types | `entity:action` | `booking:dispatched`, `provider:job_assigned` |
+| Device token platform | Lowercase | `"ios"`, `"android"` |
+
+### Structure Patterns
+
+**New files follow existing directory hierarchy:**
+
+| File | Location | Purpose |
+|---|---|---|
+| `beta.ts` | `server/api/lib/` | Beta mode helper |
+| `observation-upsell.ts` | `server/api/lib/` | Category-to-service mapping |
+| `beta-users.ts` | `db/schema/` | Beta user tracking table |
+| `device-tokens.ts` | `db/schema/` | Expo push token storage |
+
+**No new top-level directories.** No new middleware files. No new route group folders.
+
+### Process Patterns
+
+**Mechanic booking validation chain:**
+1. Parse request body (Zod)
+2. Fetch service → check `schedulingMode`
+3. If `scheduled` and no `scheduledAt` → 400
+4. If `scheduledAt` in the past → 400
+5. Calculate price via existing `calculateBookingPrice()`
+6. Create booking (existing flow)
+7. If `isBetaActive()` → auto-enroll in `beta_users` (fire-and-forget)
+8. Notify admin (existing flow)
+
+**Beta enrollment pattern:**
+```typescript
+if (await isBetaActive()) {
+  db.insert(betaUsers).values({
+    userId: booking.userId,
+    source: "booking",
+  }).onConflictDoNothing() // Idempotent — same user booking twice doesn't duplicate
+    .catch(err => console.error("[Beta] Enrollment failed:", err));
+}
+```
+
+## Mobile Mechanics — Project Structure
+
+### New Files Summary
+
+| Category | New Files | Modified Files |
+|---|---|---|
+| Schema | 2 (`beta-users.ts`, `device-tokens.ts`) | 2 (`services.ts`, `index.ts`) |
+| Server libs | 2 (`beta.ts`, `observation-upsell.ts`) | 1 (`trust-tier.ts`) |
+| Route modules | 0 | 3 (`services.ts`, `bookings.ts`, `push.ts`) |
+| Cron | 0 | 1 (`cron.ts`) |
+| Notifications | 0 | 1 (`push.ts`) |
+| Seed | 0 | 1 (`seed.ts`) |
+| **Backend Total** | **4 new files** | **9 modified files** |
+
+### Mobile App New Files (Expo/React Native)
+
+| Category | New Files | Modified Files |
+|---|---|---|
+| Lib | 1 (`push.ts`) | 1 (`types.ts`) |
+| Services feature | 0 | 1 (`services-screen.tsx`) |
+| Bookings feature | 0 | 2 (`book-screen.tsx`, `api.ts`) |
+| Provider feature | 2 (`observations-screen.tsx`, `inspection-report-screen.tsx`) | 1 (`api.ts`) |
+| Referrals feature | 2 (`referrals-screen.tsx`, `api.ts`) | 0 |
+| Components | 1 (`tracking-map.tsx`) | 0 |
+| **Mobile Total** | **6 new files** | **5 modified files** |
+
+### Integration Points
+
+| System | File | Change |
+|---|---|---|
+| Trust tier | `server/api/lib/trust-tier.ts` | Add `isBetaActive()` check in payment method resolution |
+| Auto-dispatch | `server/api/lib/auto-dispatch.ts` | No change — existing specialty matching works |
+| Cron | `server/cron.ts` | Add mechanic pre-dispatch job (every 15 min) |
+| Notifications | `lib/notifications/push.ts` | Add Expo push delivery alongside web-push |
+| Observations | `server/api/routes/observations.ts` | Add upsell link generation in follow-up handler |
+| Seed | `db/seed.ts` | Add 6 mechanic services + beta platform_settings rows |
+
+## Mobile Mechanics — Architecture Validation
+
+### Coherence Validation
+
+**Decision compatibility:** All 7 decisions are compatible with existing architecture. No new dependencies except Expo Push API (stateless HTTP). Enum extension is non-destructive. Beta bypass is runtime-only with audit logging.
+
+**Pattern consistency:** New files follow existing directory structure. Naming conventions match established patterns. Fire-and-forget notification pattern reused for push delivery.
+
+**Security model integrity:** Trust tier bypass is explicitly scoped to beta period via `platform_settings` check with audit trail. No permanent security changes. Rollback is a single DB row update.
+
+### Requirements Coverage
+
+**FR Coverage: 41/41 (100%)**
+- FR-1 (Mechanics category): Decisions 1, 2 + seed data
+- FR-2 (Beta mode): Decisions 3, 4 + beta_users table
+- FR-3 (Mechanic dispatch): Decision 5
+- FR-4 (Observation upsell): Decision 7
+- FR-5 (Push notifications): Decision 6
+- FR-6 (Mobile parity): Mobile app file structure
+
+**NFR Coverage: 13/13 (100%)**
+- Performance: Cron <5s (simple query), push <3s (async), beta check cached 60s
+- Security: Expo tokens tied to userId, beta bypass audited, JWT required for device registration
+- Reliability: Cron idempotent, beta toggle atomic, push fire-and-forget
+- Data: Beta users retained, enum migration non-destructive
+
+### Implementation Handoff
+
+**AI Agent Guidelines:**
+1. Read full architecture document (original + Provider Onboarding + this extension) before writing any code
+2. Follow implementation sequence: schema → beta helpers → cron → push → seed → mobile
+3. Every beta bypass gets `logAudit()` — no exceptions
+4. Mechanic dispatch cron must be idempotent — test by running twice
+5. Expo push tokens: validate format (`ExponentPushToken[...]`) on registration
+6. `schedulingMode` validation in bookings route — Zod schema, not middleware
+7. Observation upsell mapping is hardcoded — do NOT create a DB table for it
+
+**First Implementation Step:**
+1. Add `"mechanics"` to `serviceCategoryEnum` in `db/schema/services.ts`
+2. Add `schedulingMode` column to `services` table
+3. Create `db/schema/beta-users.ts`
+4. Create `db/schema/device-tokens.ts`
+5. Export new schemas from `db/schema/index.ts`
+6. Run `npm run db:generate` + `npm run db:push`
+7. Create `server/api/lib/beta.ts` with cached `isBetaActive()`
+8. Seed mechanic services and beta config rows

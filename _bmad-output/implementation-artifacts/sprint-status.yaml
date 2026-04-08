@@ -1,4 +1,5 @@
-# generated: 2026-03-03
+# generated: 2026-04-07
+# last_updated: 2026-04-07
 # project: road-side-atl
 # project_key: NOKEY
 # tracking_system: file-system
@@ -33,7 +34,8 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-03-03
+generated: 2026-04-07
+last_updated: 2026-04-07
 project: road-side-atl
 project_key: NOKEY
 tracking_system: file-system
@@ -138,3 +140,49 @@ development_status:
   epic-15: in-progress
   15-1-existing-provider-migration-and-deadline-enforcement: review
   epic-15-retrospective: optional
+
+  # ============================================================
+  # Mobile Mechanics + Beta + Mobile Parity (Apr 7 – Jun 7, 2026)
+  # PRD: prd-mobile-mechanics-beta.md
+  # ============================================================
+
+  # Epic 16: Mechanics Service Category + Beta Foundation (Sprint 1: Apr 7–20)
+  epic-16: backlog
+  16-1-extend-service-category-enum-and-scheduling-mode: ready-for-dev
+  16-2-create-beta-users-table: ready-for-dev
+  16-3-seed-mechanic-services-and-beta-config: ready-for-dev
+  16-4-create-beta-helper-and-trust-tier-bypass: ready-for-dev
+  16-5-add-category-filter-to-services-api: ready-for-dev
+  16-6-beta-status-endpoint-and-auto-enrollment: ready-for-dev
+  16-7-admin-beta-toggle: ready-for-dev
+  epic-16-retrospective: optional
+
+  # Epic 17: Mechanic Booking + Dispatch (Sprint 2: Apr 21 – May 4)
+  epic-17: backlog
+  17-1-enforce-scheduled-at-for-mechanic-bookings: ready-for-dev
+  17-2-mechanic-pre-dispatch-cron-job: ready-for-dev
+  17-3-observation-to-mechanic-upsell: ready-for-dev
+  17-4-web-mechanic-booking-ui: ready-for-dev
+  epic-17-retrospective: optional
+
+  # Epic 18: Push Notifications + Mobile Parity Provider (Sprint 2–3: Apr 21 – May 18)
+  epic-18: in-progress
+  18-1-device-token-table-and-registration-endpoints: ready-for-dev
+  18-2-dual-channel-push-notification-dispatch: ready-for-dev
+  18-3-mobile-push-notification-setup-expo: ready-for-dev
+  18-4-provider-job-management-mobile: in-progress  # ~40% — missing en_route/arrived/confirmed handling, filter tabs, useUpdateJobStatus
+  18-5-provider-gps-tracking-mobile: in-progress  # ~45% — module exists but not wired to job lifecycle, interval 15s vs 30s spec
+  18-6-provider-observations-mobile: ready-for-dev
+  18-7-provider-inspection-reports-mobile: ready-for-dev
+  epic-18-retrospective: optional
+
+  # Epic 19: Mobile Parity Customer + Polish (Sprint 3–4: May 5 – Jun 7)
+  epic-19: in-progress
+  19-1-service-category-tabs-mobile: ready-for-dev
+  19-2-mechanic-booking-flow-mobile: ready-for-dev
+  19-3-real-time-tracking-map-mobile: ready-for-dev
+  19-4-referral-system-mobile: ready-for-dev
+  19-5-reviews-end-to-end-verification-mobile: in-progress  # ~85% — core flow works, missing push-to-review nav (depends on 18.3)
+  19-6-beta-analytics-dashboard-admin: ready-for-dev
+  19-7-bug-fixes-and-performance: ready-for-dev
+  epic-19-retrospective: optional

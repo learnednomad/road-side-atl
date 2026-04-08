@@ -2,14 +2,20 @@
 stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics']
 inputDocuments:
   - _bmad-output/planning-artifacts/prd-provider-onboarding.md
+  - _bmad-output/planning-artifacts/prd-mobile-mechanics-beta.md
   - _bmad-output/planning-artifacts/architecture.md
 ---
 
-# road-side-atl - Epic Breakdown
+# road-side-atl - Unified Epic Breakdown
 
 ## Overview
 
-This document provides the complete epic and story breakdown for road-side-atl, decomposing the requirements from the PRD (Provider Onboarding) and Architecture into implementable stories.
+This document provides the complete epic and story breakdown for road-side-atl, decomposing requirements from all PRDs and Architecture into implementable stories.
+
+| Initiative | PRD | Epics | Status |
+|---|---|---|---|
+| Provider Onboarding | `prd-provider-onboarding.md` | 1–8 (sprint-status: 10–15) | In progress |
+| Mobile Mechanics + Beta + Mobile Parity | `prd-mobile-mechanics-beta.md` | 16–19 | In progress |
 
 ## Requirements Inventory
 
@@ -278,3 +284,300 @@ Existing active providers see a streamlined migration dashboard showing only mis
 ### Epic 8: Onboarding Notifications & Communication
 Providers receive notifications (email, SMS, push) when their application is received, when step statuses change, and when admin action is required. Admin receives notifications when providers are ready for review or submit documents.
 **FRs covered:** FR55, FR56, FR57, FR58, FR59
+
+---
+
+## Mobile Mechanics + Beta + Mobile Parity (PRD: `prd-mobile-mechanics-beta.md`)
+
+### Requirements Inventory
+
+**FR-1: Mechanics Service Category**
+- FR-1.1: Add `"mechanics"` to `service_category` PostgreSQL enum
+- FR-1.2: Add `schedulingMode` column to `services` table (`"immediate"` / `"scheduled"` / `"both"`)
+- FR-1.3: Seed 6 mechanic services with `schedulingMode = "scheduled"`
+- FR-1.4: `POST /api/bookings` returns 400 if `scheduledAt` missing for scheduled-only services
+- FR-1.5: `GET /api/services` accepts `?category=` query parameter
+- FR-1.6: `GET /api/services` response includes `schedulingMode` field
+- FR-1.7: `GET /api/services/categories` endpoint returns categories with counts
+- FR-1.8: Each mechanic service has `checklistConfig` JSONB with service-specific items
+
+**FR-2: Beta Mode**
+- FR-2.1: Beta config stored in `platform_settings`: `beta_mode_active`, `beta_start_date`, `beta_end_date`
+- FR-2.2: `server/api/lib/beta.ts` exports `isBetaActive()` helper
+- FR-2.3: `getAllowedPaymentMethods()` returns all methods when beta active
+- FR-2.4: New `beta_users` table: `id`, `userId`, `enrolledAt`, `source`, `convertedAt`
+- FR-2.5: Auto-enroll user in `beta_users` on any booking during beta
+- FR-2.6: `GET /api/beta/status` returns beta state and enrollment
+- FR-2.7: Admin can toggle `beta_mode_active` via settings UI
+- FR-2.8: Admin dashboard shows beta user count and mechanic stats
+
+**FR-3: Mechanic Dispatch (Cron-Based)**
+- FR-3.1: Cron runs every 15 min checking mechanic bookings with `scheduledAt` within 2 hours
+- FR-3.2: Cron triggers `autoDispatchBooking()` for eligible bookings
+- FR-3.3: Dispatch matches providers with `"mechanics"` in specialties
+- FR-3.4: Failed dispatch notifies admin
+
+**FR-4: Observation → Mechanic Upsell**
+- FR-4.1: Match medium/high severity observation category to mechanic service slug
+- FR-4.2: Follow-up SMS/email includes deep link to booking with service pre-selected
+- FR-4.3: Deep link includes `serviceId` and `vehicleInfo` from original booking
+
+**FR-5: Push Notifications (Mobile)**
+- FR-5.1: `POST /api/push/register-device` stores Expo push token
+- FR-5.2: `DELETE /api/push/unregister-device` removes token
+- FR-5.3: Notification dispatch sends via Expo Push API for mobile, web-push for browser
+- FR-5.4: Push on: booking created, provider dispatched, arrived, completed, cancelled
+- FR-5.5: Push to provider on: job assigned, job cancelled
+
+**FR-6: Mobile App Parity**
+- FR-6.1: Services screen shows category tabs: Roadside / Diagnostics / Mechanics
+- FR-6.2: Booking flow enforces date picker for mechanic services
+- FR-6.3: Provider accept/reject jobs with full details
+- FR-6.4: Provider status updates through lifecycle
+- FR-6.5: Provider GPS tracking (30s intervals)
+- FR-6.6: Customer real-time tracking map
+- FR-6.7: Provider observation form with photo capture
+- FR-6.8: Provider inspection report form
+- FR-6.9: Referral sharing via native Share API
+- FR-6.10: Referral credit balance display
+- FR-6.11: Review submission after completed booking
+- FR-6.12: Push notification permission request on first launch
+- FR-6.13: Notification tap navigates to relevant booking detail
+
+### Epic List (Continued)
+
+### Epic 16: Mechanics Service Category + Beta Foundation
+Add the `mechanics` service category with 6 scheduled-only services, beta mode config via `platform_settings`, trust tier bypass during beta, and beta user tracking. This is the schema + data + config foundation that everything else builds on.
+**FRs covered:** FR-1.1, FR-1.2, FR-1.3, FR-1.5, FR-1.6, FR-1.7, FR-1.8, FR-2.1, FR-2.2, FR-2.3, FR-2.4, FR-2.5, FR-2.6, FR-2.7
+**Sprint:** 1 (Apr 7–20)
+**Dependencies:** None — foundational
+
+#### Stories
+
+**Story 16.1: Extend service_category enum and add schedulingMode column**
+- Add `"mechanics"` to `serviceCategoryEnum` in `db/schema/services.ts`
+- Add `schedulingMode` text column (default `"both"`) to services table
+- Generate and run Drizzle migration
+- Export from `db/schema/index.ts`
+- **Acceptance:** `npm run db:generate` succeeds, migration applies cleanly, existing services unaffected
+- **Files:** `db/schema/services.ts`, `db/schema/index.ts`
+
+**Story 16.2: Create beta_users table**
+- Create `db/schema/beta-users.ts` with `id`, `userId`, `enrolledAt`, `source`, `convertedAt`
+- Add unique constraint on `userId` for idempotent enrollment
+- Export from `db/schema/index.ts`
+- Generate and run migration
+- **Acceptance:** Table created, insert + `onConflictDoNothing` works
+- **Files:** `db/schema/beta-users.ts`, `db/schema/index.ts`
+
+**Story 16.3: Seed mechanic services and beta config**
+- Add 6 mechanic services to `db/seed.ts` (oil-change, brake-service, battery-replace, general-maintenance, ac-repair, belt-replacement) all with `category: "mechanics"`, `schedulingMode: "scheduled"`
+- Add `checklistConfig` JSONB for each service
+- Insert `platform_settings` rows: `beta_mode_active=true`, `beta_start_date=2026-04-07`, `beta_end_date=2026-06-07`
+- **Acceptance:** `GET /api/services` returns 12 services (6 existing + 6 new), all mechanics services have `schedulingMode: "scheduled"`
+- **Files:** `db/seed.ts`
+
+**Story 16.4: Create beta helper and trust tier bypass**
+- Create `server/api/lib/beta.ts` with `isBetaActive()` (60s cache)
+- Modify `getAllowedPaymentMethods()` in `server/api/lib/trust-tier.ts` to return tier 2 methods when beta active
+- Add audit log entry `beta_trust_bypass` when bypass triggers
+- **Acceptance:** During beta, tier 1 users see all payment methods. After setting `beta_mode_active=false`, tier 1 users see only cash/cashapp/zelle
+- **Files:** `server/api/lib/beta.ts` (new), `server/api/lib/trust-tier.ts`
+
+**Story 16.5: Add category filter to services API**
+- Add `?category=` query param to `GET /api/services` in `server/api/routes/services.ts`
+- Include `schedulingMode` in response
+- Add `GET /api/services/categories` returning `[{ category, count }]`
+- **Acceptance:** `GET /api/services?category=mechanics` returns only mechanic services
+- **Files:** `server/api/routes/services.ts`
+
+**Story 16.6: Beta status endpoint and auto-enrollment**
+- Add `GET /api/beta/status` returning `{ active, startDate, endDate, enrolled }`
+- Modify `POST /api/bookings` to auto-enroll user in `beta_users` during beta (fire-and-forget, `onConflictDoNothing`)
+- **Acceptance:** Booking during beta creates beta_users row; `GET /api/beta/status` shows enrolled
+- **Files:** `server/api/routes/bookings.ts`, new route or add to existing
+
+**Story 16.7: Admin beta toggle**
+- Add beta mode toggle to admin business settings UI
+- Show beta user count and mechanic booking count on admin dashboard
+- **Acceptance:** Admin can flip beta on/off; dashboard shows beta stats
+- **Files:** Admin settings component, admin dashboard component
+
+---
+
+### Epic 17: Mechanic Booking + Dispatch
+Mechanic booking flow enforces scheduled-only booking, and a cron-based pre-dispatch fires 2 hours before appointment time. Includes observation → mechanic upsell pipeline.
+**FRs covered:** FR-1.4, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-4.1, FR-4.2, FR-4.3
+**Sprint:** 2 (Apr 21 – May 4)
+**Dependencies:** Epic 16 (schema + services + beta)
+
+#### Stories
+
+**Story 17.1: Enforce scheduledAt for mechanic bookings**
+- In `POST /api/bookings`, fetch service and check `schedulingMode`
+- If `schedulingMode === "scheduled"` and `scheduledAt` is null → return 400: "Mechanic services require a scheduled date"
+- If `scheduledAt` is in the past → return 400
+- **Acceptance:** Booking oil-change without scheduledAt returns 400; with valid future date succeeds
+- **Files:** `server/api/routes/bookings.ts`
+
+**Story 17.2: Mechanic pre-dispatch cron job**
+- Add cron to `server/cron.ts`: every 15 minutes, query confirmed mechanic bookings with `scheduledAt` within 2 hours and no provider assigned
+- Call existing `autoDispatchBooking()` for each match
+- Log dispatch attempts and failures
+- **Acceptance:** Mechanic booking confirmed for 10:00 AM gets dispatched between 8:00–8:15 AM; running cron twice doesn't double-dispatch
+- **Files:** `server/cron.ts`
+
+**Story 17.3: Observation → mechanic upsell**
+- Create `server/api/lib/observation-upsell.ts` with hardcoded category-to-service slug map
+- In `POST /api/observations`, after saving medium/high severity items, generate deep link to booking with matching mechanic service pre-selected
+- Include deep link in follow-up SMS/email notification
+- **Acceptance:** Provider logs "Brakes — medium" observation → customer receives SMS with link to brake-service booking
+- **Files:** `server/api/lib/observation-upsell.ts` (new), `server/api/routes/observations.ts`
+
+**Story 17.4: Web mechanic booking UI**
+- Update booking form to show mechanic services with "Scheduled Service" badge
+- Hide "ASAP" toggle when mechanic service selected
+- Show date/time picker (required) for mechanic bookings
+- **Acceptance:** Selecting "Oil Change" forces date picker, hides ASAP option
+- **Files:** `components/booking/booking-form.tsx`
+
+---
+
+### Epic 18: Push Notifications + Mobile Parity (Provider)
+Expo push notification infrastructure. Provider mobile features: job management, GPS tracking, observations, inspection reports.
+**FRs covered:** FR-5.1, FR-5.2, FR-5.3, FR-5.4, FR-5.5, FR-6.3, FR-6.4, FR-6.5, FR-6.7, FR-6.8, FR-6.12
+**Sprint:** 2–3 (Apr 21 – May 18)
+**Dependencies:** Epic 16 (schema), Epic 17 (booking flow)
+
+#### Stories
+
+**Story 18.1: Device token table and registration endpoints**
+- Create `db/schema/device-tokens.ts` with `id`, `userId`, `expoPushToken`, `platform`, timestamps
+- Add `POST /api/push/register-device` and `DELETE /api/push/unregister-device`
+- Validate Expo token format on registration
+- **Acceptance:** Mobile app registers token on login; token stored in DB; unregister removes it
+- **Files:** `db/schema/device-tokens.ts` (new), `server/api/routes/push.ts`
+
+**Story 18.2: Dual-channel push notification dispatch**
+- Extend `lib/notifications/push.ts` to query both `push_subscriptions` (web) and `device_tokens` (mobile)
+- For mobile tokens: send via Expo Push API (`https://exp.host/--/api/v2/push/send`)
+- Fire-and-forget with error logging
+- **Acceptance:** Status change on booking triggers push to both web (if subscribed) and mobile (if token registered)
+- **Files:** `lib/notifications/push.ts`
+
+**Story 18.3: Mobile push notification setup (Expo)**
+- Create `src/lib/push.ts` in mobile repo — `expo-notifications` setup, permission request, token registration
+- Register token with backend on login, unregister on logout
+- Handle notification tap → navigate to booking detail screen
+- **Acceptance:** App requests permission on first launch; receiving push while app backgrounded shows notification; tapping navigates to booking
+- **Files:** Mobile: `src/lib/push.ts` (new)
+
+**Story 18.4: Provider job management (mobile)**
+- Ensure provider dashboard shows assigned jobs with full details
+- Accept/reject buttons functional with API hooks
+- Status update flow: en_route → arrived → in_progress → completed
+- **Acceptance:** Provider can accept a mechanic job and update through all statuses from mobile
+- **Files:** Mobile: `src/features/provider/dashboard-screen.tsx`, `src/features/provider/api.ts`
+
+**Story 18.5: Provider GPS tracking (mobile)**
+- Implement 30-second GPS update posting to `POST /api/provider/location`
+- Toggle tracking on/off with availability status
+- **Acceptance:** Provider location updates visible in admin dashboard and customer tracking map
+- **Files:** Mobile: `src/features/provider/dashboard-screen.tsx` or new component
+
+**Story 18.6: Provider observations (mobile)**
+- Create `src/features/provider/observations-screen.tsx`
+- Checklist-based form with category, description, severity, photo capture via `expo-image-picker`
+- POST to `/api/observations`
+- Add React Query hooks to `src/features/provider/api.ts`
+- **Acceptance:** Provider submits observation with photo from mobile; observation visible in admin
+- **Files:** Mobile: `src/features/provider/observations-screen.tsx` (new), `api.ts`
+
+**Story 18.7: Provider inspection reports (mobile)**
+- Create `src/features/provider/inspection-report-screen.tsx`
+- Structured findings form: category, component, condition, description, OBD code, photo
+- POST to `/api/inspection-reports`
+- **Acceptance:** Provider submits inspection report from mobile; PDF generation triggers
+- **Files:** Mobile: `src/features/provider/inspection-report-screen.tsx` (new), `api.ts`
+
+---
+
+### Epic 19: Mobile Parity (Customer) + Polish
+Customer-facing mobile features: service categories, mechanic booking flow, real-time tracking, referrals, reviews. Beta analytics in admin. Bug fixes.
+**FRs covered:** FR-6.1, FR-6.2, FR-6.6, FR-6.9, FR-6.10, FR-6.11, FR-6.13, FR-2.8
+**Sprint:** 3–4 (May 5 – Jun 7)
+**Dependencies:** Epic 16, 17, 18
+
+#### Stories
+
+**Story 19.1: Service category tabs (mobile)**
+- Update services screen to show Roadside / Diagnostics / Mechanics tabs
+- Use `GET /api/services?category=` for filtered fetching
+- Mechanic services show "Scheduled" badge
+- **Acceptance:** Three tabs visible; selecting Mechanics shows only mechanic services
+- **Files:** Mobile: `src/features/services/services-screen.tsx`
+
+**Story 19.2: Mechanic booking flow (mobile)**
+- Update booking flow to enforce date/time picker when mechanic service selected
+- Hide "ASAP" option for mechanic services
+- Show location as "Where should the mechanic come?"
+- **Acceptance:** Booking oil change on mobile requires date selection; booking submits successfully
+- **Files:** Mobile: `src/app/book.tsx`, `src/features/bookings/api.ts`
+
+**Story 19.3: Real-time tracking map (mobile)**
+- Create tracking map component using `react-native-maps`
+- Show provider location marker with updates (poll `/api/provider/location` or WebSocket)
+- Accessible from booking detail when status is `dispatched` or `in_progress`
+- **Acceptance:** Customer sees provider moving on map during active service
+- **Files:** Mobile: new `src/components/tracking-map.tsx`, booking detail screen
+
+**Story 19.4: Referral system (mobile)**
+- Create `src/features/referrals/` with screen and `api.ts`
+- Show referral code, share via `Share.share()`, display credit balance
+- Hook into `GET /api/referrals/me` and `GET /api/referrals/me/balance`
+- **Acceptance:** User can share referral code via native share sheet; balance displays correctly
+- **Files:** Mobile: `src/features/referrals/referrals-screen.tsx` (new), `api.ts` (new)
+
+**Story 19.5: Reviews end-to-end verification (mobile)**
+- Verify existing `src/app/review.tsx` works with current API
+- Fix any broken hooks or navigation
+- Ensure review prompt appears after booking completion
+- **Acceptance:** Customer can submit star rating + comment after service from mobile
+- **Files:** Mobile: `src/app/review.tsx`, `src/features/bookings/api.ts`
+
+**Story 19.6: Beta analytics dashboard (admin)**
+- Add beta section to admin dashboard: total beta users, mechanic bookings count, conversion funnel
+- Show mechanic service breakdown (bookings per service type)
+- **Acceptance:** Admin sees beta stats; counts match `beta_users` and mechanic bookings tables
+- **Files:** Admin dashboard components
+
+**Story 19.7: Bug fixes and performance (all)**
+- Address issues surfaced during beta testing
+- Performance optimization based on real usage patterns
+- Mobile app crash fixes, API edge cases
+- **Acceptance:** No P0 bugs open; app crash rate <1%
+- **Files:** Various
+
+---
+
+## Cross-Initiative Dependency Map
+
+```
+Epic 16 (Foundation)
+  ├── Epic 17 (Booking + Dispatch) ── depends on schema + services
+  ├── Epic 18 (Push + Provider Mobile) ── depends on schema + device tokens
+  │     └── Epic 19 (Customer Mobile + Polish) ── depends on push + provider features
+  └── Epic 19 also depends on Epic 16 directly (categories, beta config)
+```
+
+## FR Coverage Matrix (Mobile Mechanics + Beta)
+
+| FR Group | Epic 16 | Epic 17 | Epic 18 | Epic 19 | Covered |
+|---|---|---|---|---|---|
+| FR-1 (Mechanics) | 1.1–1.3, 1.5–1.8 | 1.4 | | | 8/8 |
+| FR-2 (Beta) | 2.1–2.7 | | | 2.8 | 8/8 |
+| FR-3 (Dispatch) | | 3.1–3.4 | | | 4/4 |
+| FR-4 (Upsell) | | 4.1–4.3 | | | 3/3 |
+| FR-5 (Push) | | | 5.1–5.5 | | 5/5 |
+| FR-6 (Mobile) | | | 6.3–6.5, 6.7–6.8, 6.12 | 6.1–6.2, 6.6, 6.9–6.11, 6.13 | 13/13 |
+| **Total** | | | | | **41/41** |
