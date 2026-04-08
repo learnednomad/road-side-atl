@@ -10,4 +10,5 @@ export type WSEvent =
   | { type: "booking:price_override"; data: { bookingId: string } }
   | { type: "service:commission_updated"; data: { serviceId: string; commissionRate: number } }
   | { type: "payout:batch_paid"; data: { payoutIds: string[]; count: number } }
-  | { type: "payment:refunded"; data: { paymentId: string; bookingId: string; refundType: string; refundAmount: number } };
+  | { type: "payment:refunded"; data: { paymentId: string; bookingId: string; refundType: string; refundAmount: number } }
+  | { type: "booking:dispatch_failed"; data: { bookingId: string; reason?: string } };

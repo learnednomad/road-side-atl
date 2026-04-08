@@ -12,6 +12,7 @@ import { createId } from "./utils";
 export const serviceCategoryEnum = pgEnum("service_category", [
   "roadside",
   "diagnostics",
+  "mechanics",
 ]);
 
 export const schedulingModeEnum = pgEnum("scheduling_mode", [
