@@ -61,10 +61,14 @@ export async function notifyStatusChange(booking: BookingInfo, newStatus: string
   await Promise.allSettled(tasks);
 }
 
-export async function notifyObservationFollowUp(customer: { name: string; email: string; phone: string }, findings: string) {
+export async function notifyObservationFollowUp(
+  customer: { name: string; email: string; phone: string },
+  findings: string,
+  upsellLinks?: { category: string; serviceSlug: string; deepLink: string }[]
+) {
   await Promise.allSettled([
-    sendObservationFollowUpEmail(customer.email, customer.name, findings),
-    sendObservationFollowUpSMS(customer.phone, findings),
+    sendObservationFollowUpEmail(customer.email, customer.name, findings, upsellLinks),
+    sendObservationFollowUpSMS(customer.phone, findings, upsellLinks),
   ]);
 }
 

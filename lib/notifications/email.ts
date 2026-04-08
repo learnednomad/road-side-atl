@@ -125,9 +125,30 @@ export async function sendStatusUpdate(booking: BookingInfo, newStatus: string, 
   });
 }
 
-export async function sendObservationFollowUpEmail(email: string, customerName: string, findings: string) {
+export async function sendObservationFollowUpEmail(
+  email: string,
+  customerName: string,
+  findings: string,
+  upsellLinks?: { category: string; serviceSlug: string; deepLink: string }[]
+) {
   const resend = getResend();
   if (!resend) return;
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com";
+
+  let upsellHtml = "";
+  if (upsellLinks && upsellLinks.length > 0) {
+    const linkItems = upsellLinks
+      .map(
+        (link) =>
+          `<li><a href="${escapeHtml(link.deepLink)}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;">Book ${escapeHtml(link.category)} Service</a></li>`
+      )
+      .join("");
+    upsellHtml = `
+      <p><strong>Recommended services based on the findings:</strong></p>
+      <ul style="list-style:none;padding:0;">${linkItems}</ul>
+    `;
+  }
 
   await resend.emails.send({
     from: FROM,
@@ -137,11 +158,11 @@ export async function sendObservationFollowUpEmail(email: string, customerName: 
       <h2>Vehicle Observation Report</h2>
       <p>Hi ${customerName},</p>
       <p>During your recent service, our provider noticed some items that may need attention:</p>
-      <p>${findings}</p>
-      <p>We recommend booking a diagnostic inspection for a thorough assessment.</p>
-      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/book">Book an Inspection</a></p>
+      <p>${escapeHtml(findings)}</p>
+      ${upsellHtml || `<p>We recommend booking a diagnostic inspection for a thorough assessment.</p>
+      <p><a href="${appUrl}/book">Book an Inspection</a></p>`}
       <p>— RoadSide ATL</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com"}/unsubscribe">unsubscribe here</a>.</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${appUrl}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
