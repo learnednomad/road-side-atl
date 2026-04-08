@@ -35,6 +35,7 @@ import pricingConfigRoutes from "./routes/pricing-config";
 import pricingEstimateRoutes from "./routes/pricing-estimate";
 import financialReportsRoutes from "./routes/financial-reports";
 import b2bAccountsRoutes from "./routes/b2b-accounts";
+import betaRoutes from "./routes/beta";
 
 const app = new Hono().basePath("/api");
 
@@ -127,5 +128,6 @@ app.route("/admin/pricing", pricingConfigRoutes);
 app.route("/pricing-estimate", pricingEstimateRoutes);
 app.route("/admin/financial-reports", financialReportsRoutes);
 app.route("/admin/b2b-accounts", b2bAccountsRoutes);
+app.route("/beta", betaRoutes);
 
 export default app;

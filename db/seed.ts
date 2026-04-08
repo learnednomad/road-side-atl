@@ -11,6 +11,7 @@ import {
   providerPayouts,
   dispatchLogs,
   timeBlockConfigs,
+  platformSettings,
 } from "./schema";
 import { sql } from "drizzle-orm";
 
@@ -133,6 +134,81 @@ async function seed() {
     .returning();
 
   console.log("Services seeded.");
+
+  // ── MECHANIC SERVICES (Beta) ──────────────────────────────
+  console.log("Seeding mechanic services...");
+  await db.insert(services).values([
+    {
+      name: "Oil Change",
+      slug: "oil-change",
+      description: "Full synthetic oil change with filter replacement. Mobile mechanic comes to your location.",
+      basePrice: 8500,
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 3000, // 30% platform cut (mechanics beta)
+      checklistConfig: [{ category: "Oil Change", items: ["Oil Level", "Filter Condition", "Drain Plug", "Oil Type Verification"] }],
+    },
+    {
+      name: "Brake Service",
+      slug: "brake-service",
+      description: "Brake pad inspection and replacement. Includes rotor check and brake fluid level assessment.",
+      basePrice: 18000,
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 3000,
+      checklistConfig: [{ category: "Brake Service", items: ["Pad Thickness", "Rotor Condition", "Brake Fluid", "Caliper Function", "Brake Lines"] }],
+    },
+    {
+      name: "Battery Replacement",
+      slug: "battery-replace",
+      description: "Mobile battery replacement service. Includes testing, removal, and installation of new battery.",
+      basePrice: 15000,
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 3000,
+      checklistConfig: [{ category: "Battery Replace", items: ["Terminal Condition", "Voltage Test", "Alternator Output", "Cable Integrity"] }],
+    },
+    {
+      name: "Belt Replacement",
+      slug: "belt-replacement",
+      description: "Serpentine belt or timing belt replacement. Includes tensioner inspection.",
+      basePrice: 22000,
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 3000,
+      checklistConfig: [{ category: "Belt Replacement", items: ["Belt Condition", "Tensioner Check", "Pulley Alignment", "Routing Verification"] }],
+    },
+    {
+      name: "AC Repair",
+      slug: "ac-repair",
+      description: "Air conditioning diagnosis and repair. Includes refrigerant recharge and leak detection.",
+      basePrice: 25000,
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 3000,
+      checklistConfig: [{ category: "AC Repair", items: ["Refrigerant Level", "Compressor Function", "Condenser Check", "Leak Detection"] }],
+    },
+    {
+      name: "General Maintenance",
+      slug: "general-maintenance",
+      description: "General vehicle maintenance including fluid top-offs, filter checks, and multi-point inspection.",
+      basePrice: 12000,
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 3000,
+      checklistConfig: [{ category: "General Maintenance", items: ["Fluid Levels", "Filter Status", "Tire Pressure", "Light Check", "Wiper Condition"] }],
+    },
+  ]);
+  console.log("Mechanic services seeded.");
+
+  // ── BETA CONFIGURATION ──────────────────────────────────────
+  console.log("Seeding beta configuration...");
+  await db.insert(platformSettings).values([
+    { key: "beta_active", value: "false" },
+    { key: "beta_start_date", value: "2026-04-07" },
+    { key: "beta_end_date", value: "2026-06-07" },
+  ]).onConflictDoNothing();
+  console.log("Beta configuration seeded.");
 
   // ── TIME-BLOCK PRICING CONFIGS ──────────────────────────────
   console.log("Seeding time-block pricing configs...");

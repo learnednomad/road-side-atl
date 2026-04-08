@@ -3,6 +3,7 @@ import type { Socket } from "net";
 import { parse } from "url";
 import next from "next";
 import { createWebSocketServer, handleUpgrade } from "./server/websocket/server";
+import { startCronJobs } from "./server/cron";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "0.0.0.0";
@@ -13,6 +14,7 @@ const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
   createWebSocketServer();
+  startCronJobs();
 
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url!, true);

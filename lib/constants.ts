@@ -8,8 +8,13 @@ export const BUSINESS = {
   tagline: "Atlanta's Premium Roadside Assistance",
 } as const;
 
-export const SERVICE_CATEGORIES = ["roadside", "diagnostics"] as const;
+export const SERVICE_CATEGORIES = ["roadside", "diagnostics", "mechanics"] as const;
 export type ServiceCategory = (typeof SERVICE_CATEGORIES)[number];
+
+export const SCHEDULING_MODES = ["immediate", "scheduled", "both"] as const;
+export type SchedulingMode = (typeof SCHEDULING_MODES)[number];
+
+export const COMMISSION_RATE_MECHANICS_BP = 3000; // 30% platform commission (mechanics beta)
 
 export const BOOKING_STATUSES = [
   "pending",

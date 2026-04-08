@@ -102,3 +102,22 @@ development_status:
   9-1-b2b-account-and-contract-management: done
   9-2-b2b-invoicing-and-billing: done
   epic-9-retrospective: done
+
+  # Epic 16: Mechanics Service Category + Beta Foundation (Sprint 1: Apr 7–20)
+  epic-16: done
+  16-1-extend-service-category-enum-and-scheduling-mode: done
+  16-2-create-beta-users-table: done
+  16-3-seed-mechanic-services-and-beta-config: done
+  16-4-create-beta-helper-and-trust-tier-bypass: done
+  16-5-add-category-filter-to-services-api: done
+  16-6-beta-status-endpoint-and-auto-enrollment: done
+  16-7-admin-beta-toggle: done
+  epic-16-retrospective: optional
+
+  # Epic 17: Mechanic Booking + Dispatch (Sprint 2: Apr 21 – May 4)
+  epic-17: done
+  17-1-enforce-scheduled-at-for-mechanic-bookings: done
+  17-2-mechanic-pre-dispatch-cron-job: done
+  17-3-observation-to-mechanic-upsell: done
+  17-4-web-mechanic-booking-ui: done
+  epic-17-retrospective: optional

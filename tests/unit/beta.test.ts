@@ -9,13 +9,14 @@ vi.mock("@/db", () => ({
 }));
 
 import { db } from "@/db";
-import { isBetaActive } from "@/server/api/lib/beta";
+import { isBetaActive, clearBetaCache } from "@/server/api/lib/beta";
 
 const mockFindFirst = db.query.platformSettings.findFirst as ReturnType<typeof vi.fn>;
 
 describe("isBetaActive", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearBetaCache(); // Clear the 60s cache between tests
   });
 
   it("returns true when beta_active setting is 'true'", async () => {
