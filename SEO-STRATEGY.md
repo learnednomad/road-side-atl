@@ -1,4 +1,4 @@
-# RoadSide ATL - SEO Strategy & Implementation Guide
+# RoadSide GA - SEO Strategy & Implementation Guide
 
 ## Table of Contents
 
@@ -71,7 +71,7 @@
 
 | File | What Changed |
 |------|-------------|
-| `app/layout.tsx` | Added: `metadataBase`, title template system (`%s | RoadSide ATL`), Open Graph, Twitter Cards, 30 keywords, GoogleBot directives (`max-image-preview: large`, `max-snippet: -1`), geo-meta tags, `formatDetection`, viewport `themeColor`, `category` |
+| `app/layout.tsx` | Added: `metadataBase`, title template system (`%s | RoadSide GA`), Open Graph, Twitter Cards, 30 keywords, GoogleBot directives (`max-image-preview: large`, `max-snippet: -1`), geo-meta tags, `formatDetection`, viewport `themeColor`, `category` |
 | `app/(marketing)/page.tsx` | Added: `buildMetadata()` with 10 primary keywords, `LocalBusinessJsonLd`, `WebSiteJsonLd`, `FAQJsonLd` (6 Q&As), `BreadcrumbJsonLd`, FAQ accordion section, keyword-rich headings, expanded service area text mentioning 10 neighborhoods + 4 interstates, `aria-labelledby` on all sections |
 | `app/(marketing)/services/page.tsx` | Added: `buildMetadata()` with 12 service keywords, `BreadcrumbJsonLd`, keyword-rich H1 ("Roadside Assistance & Vehicle Diagnostic Services in Atlanta"), anchor IDs on section headings |
 | `app/(marketing)/about/page.tsx` | Added: `buildMetadata()` with 6 brand keywords, `LocalBusinessJsonLd`, `BreadcrumbJsonLd`, keyword-enriched H1 and content, location mentions (I-285, Buckhead, Midtown) |
@@ -170,7 +170,7 @@ how much does roadside assistance cost in Atlanta
 
 ### Must Do Before Launch (Priority Order)
 
-- [ ] **Set `NEXT_PUBLIC_SITE_URL` environment variable** to your actual domain (e.g., `https://roadsideatl.com`). Currently defaults to `https://roadsideatl.com` in `lib/seo.ts`.
+- [ ] **Set `NEXT_PUBLIC_SITE_URL` environment variable** to your actual domain (e.g., `https://roadsidega.com`). Currently defaults to `https://roadsidega.com` in `lib/seo.ts`.
 
 - [ ] **Set up Google Search Console**
   1. Go to https://search.google.com/search-console
@@ -216,7 +216,7 @@ how much does roadside assistance cost in Atlanta
         url: "/images/og-homepage.jpg",
         width: 1200,
         height: 630,
-        alt: "RoadSide ATL - 24/7 Roadside Assistance Atlanta",
+        alt: "RoadSide GA - 24/7 Roadside Assistance Atlanta",
       }],
     },
     ```
@@ -240,18 +240,18 @@ how much does roadside assistance cost in Atlanta
 
 1. Go to https://business.google.com
 2. Click "Manage now" and sign in with Google account
-3. Search for "RoadSide ATL" or click "Add your business"
+3. Search for "RoadSide GA" or click "Add your business"
 
 ### Profile Configuration
 
 | Field | Value |
 |-------|-------|
-| **Business Name** | RoadSide ATL |
+| **Business Name** | RoadSide GA |
 | **Primary Category** | Towing Service |
 | **Secondary Categories** | Roadside Assistance, Auto Wrecker Service, Vehicle Lockout Service |
 | **Business Type** | Service Area Business (hide address) |
 | **Phone** | Your actual business phone |
-| **Website** | https://roadsideatl.com |
+| **Website** | https://roadsidega.com |
 | **Hours** | Open 24 hours, 7 days a week |
 
 ### Service Areas to Add
@@ -259,7 +259,7 @@ Atlanta, Buckhead, Midtown, Downtown Atlanta, Decatur, Marietta, Sandy Springs, 
 
 ### GBP Description (750 characters max)
 ```
-RoadSide ATL provides fast 24/7 emergency roadside assistance and towing across the
+RoadSide GA provides fast 24/7 emergency roadside assistance and towing across the
 Atlanta metro area. Services include jump starts, local towing, car lockout help,
 flat tire changes, fuel delivery, and comprehensive pre-purchase vehicle diagnostics
 with OBD2 scanning. We serve both Inside the Perimeter (ITP) and Outside the Perimeter
@@ -294,7 +294,7 @@ online or call for immediate help!
 |------|-----------|---------|
 | Week 1 | Promotion | "$10 off all Atlanta towing this week! Call now." |
 | Week 2 | Service Highlight | "Did you know we offer pre-purchase car diagnostics? Get an OBD2 scan before you buy." |
-| Week 3 | Local Alert | "Heavy traffic on I-285 today. Stranded? Call RoadSide ATL for fast help!" |
+| Week 3 | Local Alert | "Heavy traffic on I-285 today. Stranded? Call RoadSide GA for fast help!" |
 | Week 4 | Tips/Education | "5 signs your car battery is dying — don't get stranded!" |
 
 ---
@@ -337,10 +337,10 @@ These have the strongest impact on local rankings. Use **exactly the same** busi
 | 25 | Hub.biz | hub.biz |
 
 ### NAP Consistency Rules
-- **Name**: Always use "RoadSide ATL" (exact capitalization)
+- **Name**: Always use "RoadSide GA" (exact capitalization)
 - **Phone**: Always use same format, e.g., "(404) 555-0199"
 - **Address**: If SAB (no physical location), consistently use "Atlanta, GA" as service city
-- **Website**: Always use `https://roadsideatl.com` (with https, no trailing slash)
+- **Website**: Always use `https://roadsidega.com` (with https, no trailing slash)
 - Audit all listings quarterly — use BrightLocal or Whitespark to detect inconsistencies
 
 ---
@@ -474,7 +474,7 @@ Create these as `app/(marketing)/service-areas/[area]/page.tsx` with `generateSt
 ### Automated Review Collection Flow
 1. After each completed service, send an automated SMS within 30 minutes:
    ```
-   Hi [Name], thanks for choosing RoadSide ATL! We'd love your feedback.
+   Hi [Name], thanks for choosing RoadSide GA! We'd love your feedback.
    Leave a quick review: [direct GBP review link]
    ```
 2. Follow up with an email 24 hours later if no review was left
@@ -492,7 +492,7 @@ Find your Place ID at: https://developers.google.com/maps/documentation/places/w
 ```
 Thank you so much, [Name]! We're glad we could help you with your [service type]
 in [area]. Our team works hard to provide fast, reliable roadside assistance
-across Atlanta. We appreciate you trusting RoadSide ATL!
+across Atlanta. We appreciate you trusting RoadSide GA!
 ```
 
 **Negative Review Response:**
@@ -670,11 +670,11 @@ Add these to your `.env` or hosting platform:
 
 ```bash
 # Required
-NEXT_PUBLIC_SITE_URL=https://roadsideatl.com
+NEXT_PUBLIC_SITE_URL=https://roadsidega.com
 
 # Update when you have them
 NEXT_PUBLIC_BUSINESS_PHONE=(404) YOUR-REAL-PHONE
-NEXT_PUBLIC_BUSINESS_NAME=RoadSide ATL
+NEXT_PUBLIC_BUSINESS_NAME=RoadSide GA
 ```
 
 ---

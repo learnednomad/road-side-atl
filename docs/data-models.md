@@ -1,4 +1,4 @@
-# Data Models - RoadSide ATL
+# Data Models - RoadSide GA
 
 > Generated: 2026-02-11 | Scan Level: Exhaustive | ORM: Drizzle ORM | Database: PostgreSQL 16
 
@@ -331,7 +331,7 @@ bookings ──1:N──▶ reviews (bookingId)
 
 The seed script (`db/seed.ts`) creates demo data:
 
-- **2 admins** (admin@roadsideatl.com, ops@roadsideatl.com)
+- **2 admins** (admin@roadsidega.com, ops@roadsidega.com)
 - **5 providers** (various commission structures, 1 pending approval)
 - **12 customers** with Atlanta-area profiles
 - **6 services** (Jump Start $100, Towing $125+$3/mi, Lockout $135, Flat Tire $100, Fuel Delivery $75, Diagnostics $250)

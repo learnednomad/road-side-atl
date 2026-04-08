@@ -1,4 +1,4 @@
-# Development Guide - RoadSide ATL
+# Development Guide - RoadSide GA
 
 > Generated: 2026-02-11 | Scan Level: Exhaustive
 
@@ -17,7 +17,7 @@
 
 ```bash
 git clone <repo-url>
-cd road-side-atl
+cd road-side-ga
 npm install
 ```
 
@@ -33,7 +33,7 @@ cp .env.example .env
 
 | Variable | Description | Example |
 |---|---|---|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/roadside_atl` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/roadside_ga` |
 | `AUTH_SECRET` | NextAuth session encryption key | Generate: `openssl rand -base64 32` |
 | `AUTH_URL` | Application URL | `http://localhost:3000` |
 
@@ -61,7 +61,7 @@ cp .env.example .env
 **Option A: Local PostgreSQL**
 
 ```bash
-createdb roadside_atl
+createdb roadside_ga
 npm run db:push       # Push schema to database
 npm run db:seed       # Seed demo data
 ```
@@ -121,11 +121,11 @@ npm run db:studio  # Opens browser-based database GUI
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | admin@roadsideatl.com | admin123 |
-| Admin | ops@roadsideatl.com | admin123 |
-| Provider (Active) | marcus@roadsideatl.com | provider123 |
-| Provider (Active) | terrence@roadsideatl.com | provider123 |
-| Provider (Pending) | jamal@roadsideatl.com | provider123 |
+| Admin | admin@roadsidega.com | admin123 |
+| Admin | ops@roadsidega.com | admin123 |
+| Provider (Active) | marcus@roadsidega.com | provider123 |
+| Provider (Active) | terrence@roadsidega.com | provider123 |
+| Provider (Pending) | jamal@roadsidega.com | provider123 |
 | Customer | jasmine.carter@gmail.com | customer123 |
 | Customer | david.okonkwo@gmail.com | customer123 |
 
@@ -214,7 +214,7 @@ npx shadcn@latest add <component-name>
 
 ```bash
 # Drop and recreate
-dropdb roadside_atl && createdb roadside_atl
+dropdb roadside_ga && createdb roadside_ga
 npm run db:push
 npm run db:seed
 ```

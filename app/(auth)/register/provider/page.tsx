@@ -125,7 +125,7 @@ export default function ProviderRegisterPage() {
             <Wrench className="h-6 w-6 text-primary" />
           </div>
           <Link href="/" className="text-xl font-bold">
-            RoadSide ATL
+            RoadSide GA
           </Link>
           <CardTitle>Provider Registration</CardTitle>
           <p className="text-sm text-muted-foreground">

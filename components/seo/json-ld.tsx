@@ -19,7 +19,7 @@ export function LocalBusinessJsonLd() {
     "@type": "AutoRepair",
     "@id": `${SITE_URL}/#business`,
     name: BUSINESS.name,
-    alternateName: "RoadSide ATL",
+    alternateName: "RoadSide GA",
     description:
       "24/7 emergency roadside assistance in Atlanta GA. Towing, jump starts, lockout service, flat tire changes, fuel delivery, and pre-purchase car diagnostics.",
     url: SITE_URL,
@@ -159,9 +159,9 @@ export function LocalBusinessJsonLd() {
     },
     sameAs: [
       // Add your social media URLs here:
-      // "https://www.facebook.com/RoadSideATL",
-      // "https://www.instagram.com/roadsideatl",
-      // "https://twitter.com/RoadSideATL",
+      // "https://www.facebook.com/RoadSideGA",
+      // "https://www.instagram.com/roadsidega",
+      // "https://twitter.com/RoadSideGA",
     ],
   };
   return <JsonLd data={data} />;

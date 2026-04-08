@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { ProvidersTable } from "@/components/admin/providers-table";
 import { TaxExportSection } from "@/components/admin/tax-export-section";
+import { ProvidersPageTabs } from "./providers-page-tabs";
 import { db } from "@/db";
 import { providers } from "@/db/schema";
 import { desc } from "drizzle-orm";
@@ -8,7 +9,7 @@ import { desc } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Providers | Admin | RoadSide ATL",
+  title: "Providers | Admin | RoadSide GA",
 };
 
 type Provider = typeof providers.$inferSelect;
@@ -32,8 +33,12 @@ export default async function AdminProvidersPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Service Providers</h1>
-      <TaxExportSection />
-      <ProvidersTable providers={serialized} />
+      <ProvidersPageTabs>
+        <div className="space-y-6">
+          <TaxExportSection />
+          <ProvidersTable providers={serialized} />
+        </div>
+      </ProvidersPageTabs>
     </div>
   );
 }

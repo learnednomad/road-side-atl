@@ -1,11 +1,11 @@
-# Source Tree Analysis - RoadSide ATL
+# Source Tree Analysis - RoadSide GA
 
 > Generated: 2026-02-11 | Scan Level: Exhaustive
 
 ## Annotated Directory Tree
 
 ```
-road-side-atl/
+road-side-ga/
 ├── app/                            # Next.js App Router (47 files)
 │   ├── (admin)/                    # Admin portal route group
 │   │   ├── layout.tsx              # Admin layout: sidebar + mobile nav

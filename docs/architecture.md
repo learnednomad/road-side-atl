@@ -1,10 +1,10 @@
-# Architecture - RoadSide ATL
+# Architecture - RoadSide GA
 
 > Generated: 2026-02-11 | Scan Level: Exhaustive
 
 ## Executive Summary
 
-RoadSide ATL is a full-stack roadside assistance platform built as a Next.js 16 monolith serving the Atlanta metro area. It provides a customer-facing booking system, a provider dispatch portal with real-time GPS tracking, and an admin management dashboard. The application uses a layered architecture with route groups for role isolation, a Hono-based REST API, WebSocket for real-time updates, and PostgreSQL for persistence.
+RoadSide GA is a full-stack roadside assistance platform built as a Next.js 16 monolith serving the Atlanta metro area. It provides a customer-facing booking system, a provider dispatch portal with real-time GPS tracking, and an admin management dashboard. The application uses a layered architecture with route groups for role isolation, a Hono-based REST API, WebSocket for real-time updates, and PostgreSQL for persistence.
 
 ## Technology Stack
 

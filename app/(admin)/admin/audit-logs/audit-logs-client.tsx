@@ -35,19 +35,99 @@ interface AuditLog {
   created_at: string;
 }
 
+// Friendly display names for all audit actions
+const ACTION_LABELS: Record<string, string> = {
+  "booking.create": "Booking Created",
+  "booking.update": "Booking Updated",
+  "booking.status_change": "Booking Status Changed",
+  "booking.assign_provider": "Provider Assigned",
+  "booking.cancel": "Booking Cancelled",
+  "booking.price_override": "Price Override",
+  "booking.delay_notification": "Delay Notification Sent",
+  "booking.update_notes": "Booking Notes Updated",
+  "provider.create": "Provider Created",
+  "provider.update": "Provider Updated",
+  "provider.delete": "Provider Removed",
+  "provider.status_change": "Provider Status Changed",
+  "provider.invite": "Provider Invited",
+  "provider.invite_accepted": "Invite Accepted",
+  "provider.self_register": "Provider Signed Up",
+  "provider.view_tax_id": "Tax ID Viewed",
+  "provider.update_tax_id": "Tax ID Updated",
+  "provider.1099_export": "1099 Data Exported",
+  "payout.create": "Payout Created",
+  "payout.mark_paid": "Payout Marked Paid",
+  "payout.clawback": "Payout Clawed Back",
+  "payout.batch_paid": "Batch Payout Processed",
+  "payment.confirm": "Payment Confirmed",
+  "payment.refund": "Payment Refunded",
+  "payment.dispute": "Payment Disputed",
+  "payment.receipt_sent": "Receipt Sent",
+  "user.login": "User Signed In",
+  "user.logout": "User Signed Out",
+  "user.register": "User Registered",
+  "user.mobile_login": "Mobile Sign In",
+  "settings.update": "Settings Updated",
+  "auto_dispatch.attempt": "Auto-Dispatch Attempted",
+  "auto_dispatch.success": "Auto-Dispatch Succeeded",
+  "auto_dispatch.failure": "Auto-Dispatch Failed",
+  "invoice.generate": "Invoice Generated",
+  "invoice.create_standalone": "Invoice Created",
+  "invoice.issue": "Invoice Issued",
+  "invoice.void": "Invoice Voided",
+  "invoice.send": "Invoice Sent",
+  "invoice.mark_paid": "Invoice Paid",
+  "invoice.mark_overdue": "Invoice Overdue",
+  "trust_tier.promote": "Trust Tier Promoted",
+  "trust_tier.demote": "Trust Tier Demoted",
+  "trust_tier.admin_override": "Trust Tier Override",
+  "trust_tier.bypass_attempt": "Trust Tier Bypass Attempt",
+  "observation.submit": "Observation Submitted",
+  "observation.follow_up_sent": "Follow-Up Sent",
+  "referral.create": "Referral Created",
+  "referral.credit": "Referral Credit Applied",
+  "referral.expire": "Referral Expired",
+  "inspection.generate": "Inspection Report Generated",
+  "inspection.email_sent": "Inspection Report Emailed",
+  "pricing.update_block": "Pricing Block Updated",
+  "pricing.toggle_storm_mode": "Storm Mode Toggled",
+  "commission.update_rate": "Commission Rate Updated",
+  "service.update_checklist_config": "Checklist Config Updated",
+  "b2b_account.create": "B2B Account Created",
+  "b2b_account.update": "B2B Account Updated",
+  "b2b_account.update_contract": "B2B Contract Updated",
+  "b2b_account.status_change": "B2B Account Status Changed",
+  "b2b_account.create_booking": "B2B Booking Created",
+  "b2b_account.generate_invoice": "B2B Invoice Generated",
+  "onboarding.fcra_consent": "FCRA Consent Given",
+  "onboarding.step_started": "Onboarding Step Started",
+  "onboarding.step_completed": "Onboarding Step Completed",
+  "onboarding.step_rejected": "Onboarding Step Rejected",
+  "onboarding.activated": "Provider Activated",
+  "onboarding.suspended": "Provider Suspended",
+  "onboarding.rejected": "Provider Rejected",
+  "onboarding.migration_bypass": "Onboarding Bypassed",
+  "onboarding.status_changed": "Onboarding Status Changed",
+  "onboarding.invite_sent": "Onboarding Invite Sent",
+};
+
+function getActionLabel(action: string): string {
+  return ACTION_LABELS[action] || action.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 const ACTION_TYPES = [
   { value: "all", label: "All Actions" },
-  { value: "booking.create", label: "Booking Created" },
-  { value: "booking.update", label: "Booking Updated" },
-  { value: "booking.status_change", label: "Status Change" },
-  { value: "booking.assign_provider", label: "Provider Assigned" },
-  { value: "booking.cancel", label: "Booking Cancelled" },
-  { value: "provider.create", label: "Provider Created" },
-  { value: "provider.update", label: "Provider Updated" },
-  { value: "payout.mark_paid", label: "Payout Marked Paid" },
-  { value: "payment.confirm", label: "Payment Confirmed" },
-  { value: "user.register", label: "User Registered" },
-  { value: "user.login", label: "User Login" },
+  { value: "booking", label: "Bookings" },
+  { value: "provider", label: "Providers" },
+  { value: "payout", label: "Payouts" },
+  { value: "payment", label: "Payments" },
+  { value: "user", label: "Users" },
+  { value: "invoice", label: "Invoices" },
+  { value: "onboarding", label: "Onboarding" },
+  { value: "auto_dispatch", label: "Auto-Dispatch" },
+  { value: "trust_tier", label: "Trust Tier" },
+  { value: "b2b_account", label: "B2B Accounts" },
+  { value: "settings", label: "Settings" },
 ];
 
 const RESOURCE_TYPES = [
@@ -57,16 +137,57 @@ const RESOURCE_TYPES = [
   { value: "payment", label: "Payments" },
   { value: "user", label: "Users" },
   { value: "payout", label: "Payouts" },
+  { value: "invoice", label: "Invoices" },
+  { value: "onboarding_step", label: "Onboarding Steps" },
+  { value: "provider_invite", label: "Provider Invites" },
 ];
 
 function getActionBadgeColor(action: string): string {
-  if (action.includes("create") || action.includes("register")) return "bg-green-100 text-green-800";
-  if (action.includes("update") || action.includes("change")) return "bg-blue-100 text-blue-800";
-  if (action.includes("delete") || action.includes("cancel")) return "bg-red-100 text-red-800";
-  if (action.includes("confirm") || action.includes("paid")) return "bg-purple-100 text-purple-800";
-  if (action.includes("assign")) return "bg-orange-100 text-orange-800";
+  if (action.includes("create") || action.includes("register") || action.includes("activated") || action.includes("self_register")) return "bg-green-100 text-green-800";
+  if (action.includes("update") || action.includes("change") || action.includes("toggle")) return "bg-blue-100 text-blue-800";
+  if (action.includes("delete") || action.includes("cancel") || action.includes("void") || action.includes("reject") || action.includes("suspend") || action.includes("clawback")) return "bg-red-100 text-red-800";
+  if (action.includes("confirm") || action.includes("paid") || action.includes("complete")) return "bg-purple-100 text-purple-800";
+  if (action.includes("assign") || action.includes("dispatch")) return "bg-orange-100 text-orange-800";
+  if (action.includes("invite") || action.includes("sent") || action.includes("email")) return "bg-cyan-100 text-cyan-800";
+  if (action.includes("login") || action.includes("logout") || action.includes("consent")) return "bg-gray-100 text-gray-800";
   return "bg-gray-100 text-gray-800";
 }
+
+const RESOURCE_LABELS: Record<string, string> = {
+  booking: "Booking",
+  provider: "Provider",
+  payment: "Payment",
+  user: "User",
+  payout: "Payout",
+  invoice: "Invoice",
+  onboarding_step: "Onboarding Step",
+  provider_invite: "Provider Invite",
+  service: "Service",
+  trust_tier: "Trust Tier",
+  b2b_account: "B2B Account",
+  settings: "Settings",
+};
+
+const DETAIL_LABELS: Record<string, string> = {
+  email: "Email",
+  platform: "Platform",
+  method: "Method",
+  status: "Status",
+  newStatus: "New Status",
+  oldStatus: "Previous Status",
+  providerId: "Provider",
+  bookingId: "Booking",
+  serviceName: "Service",
+  stepType: "Step",
+  name: "Name",
+  reason: "Reason",
+  amount: "Amount",
+  ipAddress: "IP",
+  timestamp: "Time",
+  stormMode: "Storm Mode",
+  rate: "Rate",
+  inviteToken: "Invite",
+};
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString("en-US", {
@@ -90,7 +211,7 @@ export function AuditLogsClient() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (actionFilter !== "all") params.set("action", actionFilter);
+      if (actionFilter !== "all") params.set("actionPrefix", actionFilter);
       if (resourceFilter !== "all") params.set("resourceType", resourceFilter);
       if (searchUserId) params.set("userId", searchUserId);
       params.set("page", page.toString());
@@ -225,13 +346,13 @@ export function AuditLogsClient() {
                   </TableCell>
                   <TableCell>
                     <Badge className={getActionBadgeColor(log.action)}>
-                      {log.action}
+                      {getActionLabel(log.action)}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     {log.resource_type && (
                       <div className="text-sm">
-                        <span className="font-medium">{log.resource_type}</span>
+                        <span className="font-medium">{RESOURCE_LABELS[log.resource_type] || log.resource_type}</span>
                         {log.resource_id && (
                           <span className="text-muted-foreground ml-1">
                             #{log.resource_id.slice(0, 8)}
@@ -241,12 +362,18 @@ export function AuditLogsClient() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="text-xs text-muted-foreground max-w-xs truncate">
-                      {Object.entries(log.details || {}).map(([key, value]) => (
-                        <span key={key} className="mr-2">
-                          {key}: {String(value)}
-                        </span>
-                      ))}
+                    <div className="text-xs text-muted-foreground max-w-xs space-x-2">
+                      {Object.entries(log.details || {}).map(([key, value]) => {
+                        const label = DETAIL_LABELS[key] || key;
+                        let displayValue = String(value);
+                        // Truncate long values like tokens
+                        if (displayValue.length > 30) displayValue = displayValue.slice(0, 27) + "...";
+                        return (
+                          <span key={key}>
+                            <span className="font-medium text-foreground/70">{label}:</span> {displayValue}
+                          </span>
+                        );
+                      })}
                     </div>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground font-mono">

@@ -8,12 +8,12 @@ import { buildMetadata, SITE_URL } from "@/lib/seo";
 import { LocalBusinessJsonLd, BreadcrumbJsonLd } from "@/components/seo/json-ld";
 
 export const metadata: Metadata = buildMetadata({
-  title: "About RoadSide ATL - Atlanta's Trusted Roadside Assistance Company",
+  title: "About RoadSide GA - Atlanta's Trusted Roadside Assistance Company",
   description:
-    "Learn about RoadSide ATL — Atlanta's trusted 24/7 roadside assistance provider. Fast response, professional technicians, serving Buckhead, Midtown, Decatur, Marietta & all metro Atlanta. Towing, jump starts, lockouts & more.",
+    "Learn about RoadSide GA — Atlanta's trusted 24/7 roadside assistance provider. Fast response, professional technicians, serving Buckhead, Midtown, Decatur, Marietta & all metro Atlanta. Towing, jump starts, lockouts & more.",
   path: "/about",
   keywords: [
-    "about RoadSide ATL",
+    "about RoadSide GA",
     "Atlanta roadside assistance company",
     "trusted towing company Atlanta",
     "roadside help provider Atlanta GA",
@@ -59,7 +59,7 @@ export default function AboutPage() {
         </div>
 
         <h2 className="mb-6 text-2xl font-semibold">
-          Why Atlanta Chooses RoadSide ATL
+          Why Atlanta Chooses RoadSide GA
         </h2>
         <div className="mb-12 grid gap-6 sm:grid-cols-2">
           {[
@@ -84,10 +84,10 @@ export default function AboutPage() {
               desc: "Book online in minutes or call us directly. Pay your way — Cash, CashApp, Zelle, or credit/debit card.",
             },
           ].map((item) => (
-            <Card key={item.title}>
+            <Card key={item.title} className="card-hover-glow">
               <CardContent className="pt-6">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                  <item.icon className="h-5 w-5 text-primary" />
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-red-600/10">
+                  <item.icon className="h-5 w-5 text-red-600" />
                 </div>
                 <h3 className="mb-1 font-semibold">{item.title}</h3>
                 <p className="text-sm text-muted-foreground">{item.desc}</p>

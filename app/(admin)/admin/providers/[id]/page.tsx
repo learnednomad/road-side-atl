@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { OnboardingSection } from "./onboarding-section";
+import { PROVIDER_ONBOARDING_STATUSES } from "@/lib/constants";
 import {
   Table,
   TableBody,
@@ -21,7 +23,7 @@ import { formatPrice } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Provider Detail | Admin | RoadSide ATL",
+  title: "Provider Detail | Admin | RoadSide GA",
 };
 
 export default async function ProviderDetailPage({
@@ -64,6 +66,11 @@ export default async function ProviderDetailPage({
     pending: "secondary" as const,
     inactive: "destructive" as const,
     resubmission_requested: "secondary" as const,
+    applied: "secondary" as const,
+    onboarding: "secondary" as const,
+    pending_review: "secondary" as const,
+    rejected: "destructive" as const,
+    suspended: "destructive" as const,
   };
 
   return (
@@ -159,6 +166,11 @@ export default async function ProviderDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Onboarding Progress (for providers in onboarding statuses) */}
+      {(PROVIDER_ONBOARDING_STATUSES as readonly string[]).includes(provider.status) && (
+        <OnboardingSection providerId={id} />
+      )}
 
       {/* Payout History */}
       <Card>

@@ -20,11 +20,16 @@ export type AuditAction =
   | "payout.mark_paid"
   | "payout.auto_migrated"
   | "payout.stripe_connect_failed"
+  | "payout.manual_deprecated"
+  | "payout.transfer_confirmed"
+  | "payout.transfer_failed"
   | "payment.confirm"
   | "payment.refund"
+  | "payment.dispute"
   | "user.login"
   | "user.logout"
   | "user.register"
+  | "user.mobile_login"
   | "settings.update"
   | "auto_dispatch.attempt"
   | "auto_dispatch.success"
@@ -76,6 +81,8 @@ export type AuditAction =
   | "onboarding.step_started"
   | "onboarding.invite_accepted"
   | "checkr.candidate_created"
+  | "checkr.webhook_invalid_signature"
+  | "checkr.report_received"
   | "document.uploaded"
   | "document.resubmitted"
   | "training.card_acknowledged"
@@ -193,6 +200,7 @@ export function getRequestInfo(request: Request): {
  */
 export async function queryAuditLogs(filters: {
   action?: AuditAction;
+  actionPrefix?: string;
   userId?: string;
   resourceType?: string;
   resourceId?: string;
@@ -209,6 +217,9 @@ export async function queryAuditLogs(filters: {
 
     if (filters.action) {
       conditions.push(sql`action = ${filters.action}`);
+    }
+    if (filters.actionPrefix) {
+      conditions.push(sql`action LIKE ${filters.actionPrefix + "%"}`);
     }
     if (filters.userId) {
       conditions.push(sql`user_id = ${filters.userId}`);

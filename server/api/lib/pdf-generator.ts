@@ -52,7 +52,7 @@ export async function generateInspectionPDF(data: ReportData): Promise<Buffer> {
       React.createElement(
         View,
         { style: styles.header },
-        React.createElement(Text, { style: styles.title }, "RoadSide ATL"),
+        React.createElement(Text, { style: styles.title }, "RoadSide GA"),
         React.createElement(Text, { style: styles.subtitle }, "Vehicle Inspection Report"),
         React.createElement(Text, { style: styles.subtitle }, `Date: ${data.inspectionDate}`),
         React.createElement(Text, { style: styles.subtitle }, `Inspector: ${data.providerName}`),
@@ -102,7 +102,7 @@ export async function generateInspectionPDF(data: ReportData): Promise<Buffer> {
       React.createElement(
         View,
         { style: styles.footer },
-        React.createElement(Text, null, "RoadSide ATL — Atlanta's Premium Roadside Assistance — roadsideatl.com")
+        React.createElement(Text, null, "RoadSide GA — Atlanta's Premium Roadside Assistance — roadsidega.com")
       )
     )
   );

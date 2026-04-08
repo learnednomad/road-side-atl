@@ -3,13 +3,18 @@ import { BusinessSettingsForm } from "@/components/admin/business-settings-form"
 import { BetaModeToggle } from "@/components/admin/beta-mode-toggle";
 
 export const metadata: Metadata = {
-  title: "Settings | Admin | RoadSide ATL",
+  title: "Settings | Admin | RoadSide GA",
 };
 
 export default function AdminSettingsPage() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Business Settings</h1>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold">Business Settings</h1>
+        <p className="mt-1 text-muted-foreground">
+          Manage your company profile, banking details, and invoice defaults.
+        </p>
+      </div>
       <BetaModeToggle />
       <BusinessSettingsForm />
     </div>

@@ -77,7 +77,7 @@ export async function sendVerificationEmail(email: string, name: string): Promis
     <body>
       <div class="container">
         <div class="header">
-          <h1>RoadSide ATL</h1>
+          <h1>RoadSide GA</h1>
         </div>
         <div class="content">
           <h2>Verify Your Email</h2>
@@ -92,7 +92,7 @@ export async function sendVerificationEmail(email: string, name: string): Promis
           <p>If you didn't create an account, you can safely ignore this email.</p>
         </div>
         <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} RoadSide ATL. All rights reserved.</p>
+          <p>&copy; ${new Date().getFullYear()} RoadSide GA. All rights reserved.</p>
         </div>
       </div>
     </body>
@@ -101,7 +101,7 @@ export async function sendVerificationEmail(email: string, name: string): Promis
 
   await sendEmail({
     to: email,
-    subject: "Verify your email - RoadSide ATL",
+    subject: "Verify your email - RoadSide GA",
     html,
   });
 }
@@ -170,7 +170,7 @@ export async function sendPasswordResetEmail(email: string, name: string): Promi
     <body>
       <div class="container">
         <div class="header">
-          <h1>RoadSide ATL</h1>
+          <h1>RoadSide GA</h1>
         </div>
         <div class="content">
           <h2>Reset Your Password</h2>
@@ -185,7 +185,7 @@ export async function sendPasswordResetEmail(email: string, name: string): Promi
           <p>If you didn't request a password reset, you can safely ignore this email.</p>
         </div>
         <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} RoadSide ATL. All rights reserved.</p>
+          <p>&copy; ${new Date().getFullYear()} RoadSide GA. All rights reserved.</p>
         </div>
       </div>
     </body>
@@ -194,7 +194,7 @@ export async function sendPasswordResetEmail(email: string, name: string): Promi
 
   await sendEmail({
     to: email,
-    subject: "Reset your password - RoadSide ATL",
+    subject: "Reset your password - RoadSide GA",
     html,
   });
 }

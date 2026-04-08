@@ -76,7 +76,7 @@ export default function RegisterPage() {
               <span className="font-medium text-foreground">{email}</span>
             </p>
             <p className="text-sm text-muted-foreground">
-              Click the link in the email to verify your account and start using RoadSide ATL.
+              Click the link in the email to verify your account and start using RoadSide GA.
             </p>
             <div className="pt-2">
               <Button asChild variant="outline" className="w-full">
@@ -124,7 +124,7 @@ export default function RegisterPage() {
             <Car className="h-6 w-6 text-primary" />
           </div>
           <Link href="/" className="text-xl font-bold">
-            RoadSide ATL
+            RoadSide GA
           </Link>
           <CardTitle>Create Account</CardTitle>
         </CardHeader>

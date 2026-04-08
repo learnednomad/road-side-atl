@@ -85,9 +85,9 @@ export async function incrementCleanTransaction(userId: string): Promise<{
             name: user.name || "Customer",
             email: user.email,
             phone: user.phone,
-          }).catch(() => {});
+          }).catch((err) => { console.error("[Notifications] Failed:", err); });
         }
-      })().catch(() => {});
+      })().catch((err) => { console.error("[Error]", err); });
 
       return {
         promoted: true,
@@ -153,9 +153,9 @@ export async function checkAndPromote(userId: string): Promise<boolean> {
           name: fullUser.name || "Customer",
           email: fullUser.email,
           phone: fullUser.phone,
-        }).catch(() => {});
+        }).catch((err) => { console.error("[Notifications] Failed:", err); });
       }
-    })().catch(() => {});
+    })().catch((err) => { console.error("[Error]", err); });
 
     return true;
   }

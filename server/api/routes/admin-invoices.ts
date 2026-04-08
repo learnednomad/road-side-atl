@@ -311,7 +311,7 @@ app.post("/:id/send", async (c) => {
     updated.dueDate,
     invoice.billingPeriodStart ?? "",
     invoice.billingPeriodEnd ?? "",
-  ).catch(() => {});
+  ).catch((err) => { console.error("[Notifications] Failed:", err); });
 
   const user = c.get("user");
   logAudit({

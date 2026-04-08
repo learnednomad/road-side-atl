@@ -1,4 +1,5 @@
 import { BUSINESS } from "@/lib/constants";
+import { escapeHtml } from "@/lib/escape-html";
 
 interface ReceiptData {
   bookingId: string;
@@ -40,7 +41,7 @@ export function generateReceiptHTML(data: ReceiptData): string {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Receipt - ${data.bookingId}</title>
+  <title>Receipt - ${data.bookingId.slice(0, 8)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; line-height: 1.5; padding: 40px; max-width: 800px; margin: 0 auto; }
@@ -83,15 +84,15 @@ export function generateReceiptHTML(data: ReceiptData): string {
     <div class="info-grid">
       <div class="info-block">
         <div class="info-label">Customer</div>
-        <div class="info-value">${data.customerName}</div>
-        <div class="info-value" style="font-size: 13px; color: #64748b;">${data.customerEmail}</div>
-        <div class="info-value" style="font-size: 13px; color: #64748b;">${data.customerPhone}</div>
+        <div class="info-value">${escapeHtml(data.customerName)}</div>
+        <div class="info-value" style="font-size: 13px; color: #64748b;">${escapeHtml(data.customerEmail)}</div>
+        <div class="info-value" style="font-size: 13px; color: #64748b;">${escapeHtml(data.customerPhone)}</div>
       </div>
       <div class="info-block" style="text-align: right;">
         <div class="info-label">Payment Date</div>
         <div class="info-value">${formatDate(data.paymentDate)}</div>
         <div style="margin-top: 8px;">
-          <span class="payment-badge">Paid via ${data.paymentMethod}</span>
+          <span class="payment-badge">Paid via ${escapeHtml(data.paymentMethod)}</span>
         </div>
       </div>
     </div>
@@ -100,19 +101,19 @@ export function generateReceiptHTML(data: ReceiptData): string {
   <div class="section">
     <div class="section-title">Service Details</div>
     <div class="service-box">
-      <div class="service-name">${data.serviceName}</div>
-      <div class="vehicle-info">${data.vehicleInfo.year} ${data.vehicleInfo.make} ${data.vehicleInfo.model} (${data.vehicleInfo.color})</div>
-      ${data.providerName ? `<div class="vehicle-info">Serviced by: ${data.providerName}</div>` : ""}
+      <div class="service-name">${escapeHtml(data.serviceName)}</div>
+      <div class="vehicle-info">${escapeHtml(data.vehicleInfo.year)} ${escapeHtml(data.vehicleInfo.make)} ${escapeHtml(data.vehicleInfo.model)} (${escapeHtml(data.vehicleInfo.color)})</div>
+      ${data.providerName ? `<div class="vehicle-info">Serviced by: ${escapeHtml(data.providerName)}</div>` : ""}
 
       <div class="location-box">
         <div class="location-label">Pickup Location</div>
-        <div class="location-value">${data.location.address}</div>
+        <div class="location-value">${escapeHtml(data.location.address)}</div>
       </div>
 
       ${data.location.destination ? `
       <div class="location-box" style="margin-top: 8px;">
         <div class="location-label">Towed To</div>
-        <div class="location-value">${data.location.destination}</div>
+        <div class="location-value">${escapeHtml(data.location.destination)}</div>
       </div>
       ` : ""}
     </div>

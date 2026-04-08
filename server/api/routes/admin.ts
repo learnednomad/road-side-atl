@@ -312,7 +312,7 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
   }
 
   // Notify provider
-  notifyProviderAssigned(updated, provider, estimatedPrice, estimatedPayout, service?.name).catch(() => {});
+  notifyProviderAssigned(updated, provider, estimatedPrice, estimatedPayout, service?.name).catch((err) => { console.error("[Notifications] Failed:", err); });
   if (provider.userId) {
     broadcastToProvider(provider.userId, {
       type: "provider:job_assigned",
@@ -346,7 +346,7 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
       provider.name,
       etaDisplay,
       service.name,
-    ).catch(() => {});
+    ).catch((err) => { console.error("[Notifications] Failed:", err); });
   }
 
   return c.json(updated);
@@ -415,16 +415,16 @@ app.patch("/bookings/:id/status", async (c) => {
             referralCode = await generateReferralCode(bookingUser.id);
           }
           const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
-          notifyReferralLink(updated.contactPhone, referralLink).catch(() => {});
+          notifyReferralLink(updated.contactPhone, referralLink).catch((err) => { console.error("[Notifications] Failed:", err); });
         }
-      })().catch(() => {});
+      })().catch((err) => { console.error("[Notifications] Failed:", err); });
     }
 
     // Credit referral on first booking completion (fire-and-forget)
     if (updated.userId) {
       (async () => {
         await creditReferralOnFirstBooking(updated.userId!, bookingId);
-      })().catch(() => {});
+      })().catch((err) => { console.error("[Error]", err); });
     }
   }
 
@@ -433,7 +433,7 @@ app.patch("/bookings/:id/status", async (c) => {
       db.update(providers)
         .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
         .where(eq(providers.id, updated.providerId))
-        .catch(() => {});
+        .catch((err) => { console.error("[Error]", err); });
     }
     clearDelayNotification(bookingId);
   }
@@ -445,7 +445,7 @@ app.patch("/bookings/:id/status", async (c) => {
   }
 
   // Fire-and-forget notifications (FR32: completion includes amount paid)
-  notifyStatusChange(updated, parsed.data.status, amountPaid).catch(() => {});
+  notifyStatusChange(updated, parsed.data.status, amountPaid).catch((err) => { console.error("[Notifications] Failed:", err); });
 
   // WebSocket broadcasts
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
@@ -534,7 +534,7 @@ app.patch("/payments/:id/confirm", async (c) => {
         parsed.data.method,
         updated.confirmedAt?.toISOString() || new Date().toISOString(),
         providerName
-      ).catch(() => {});
+      ).catch((err) => { console.error("[Notifications] Failed:", err); });
 
       // Audit receipt sent
       logAudit({
@@ -642,7 +642,7 @@ app.post("/bookings/:id/confirm-payment", async (c) => {
     parsed.data.method,
     payment.confirmedAt?.toISOString() || new Date().toISOString(),
     providerName
-  ).catch(() => {});
+  ).catch((err) => { console.error("[Notifications] Failed:", err); });
 
   // Audit receipt sent
   logAudit({
@@ -1020,6 +1020,7 @@ app.get("/customers", async (c) => {
 // Audit logs endpoint
 app.get("/audit-logs", async (c) => {
   const action = c.req.query("action");
+  const actionPrefix = c.req.query("actionPrefix");
   const userId = c.req.query("userId");
   const resourceType = c.req.query("resourceType");
   const startDateStr = c.req.query("startDate");
@@ -1032,6 +1033,7 @@ app.get("/audit-logs", async (c) => {
     const { queryAuditLogs } = await import("../lib/audit-logger");
     const logs = await queryAuditLogs({
       action: action as AuditAction,
+      actionPrefix: actionPrefix || undefined,
       userId: userId || undefined,
       resourceType: resourceType || undefined,
       startDate: startDateStr ? new Date(startDateStr) : undefined,

@@ -1,4 +1,4 @@
-# generated: 2026-02-18
+# generated: 2026-03-03
 # project: road-side-atl
 # project_key: NOKEY
 # tracking_system: file-system
@@ -33,7 +33,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-02-18
+generated: 2026-03-03
 project: road-side-atl
 project_key: NOKEY
 tracking_system: file-system
@@ -103,21 +103,38 @@ development_status:
   9-2-b2b-invoicing-and-billing: done
   epic-9-retrospective: done
 
-  # Epic 16: Mechanics Service Category + Beta Foundation (Sprint 1: Apr 7–20)
-  epic-16: done
-  16-1-extend-service-category-enum-and-scheduling-mode: done
-  16-2-create-beta-users-table: done
-  16-3-seed-mechanic-services-and-beta-config: done
-  16-4-create-beta-helper-and-trust-tier-bypass: done
-  16-5-add-category-filter-to-services-api: done
-  16-6-beta-status-endpoint-and-auto-enrollment: done
-  16-7-admin-beta-toggle: done
-  epic-16-retrospective: optional
+  # Epic 10: Provider Application & Onboarding Dashboard
+  epic-10: done
+  10-1-onboarding-schema-application-form-and-registration: done
+  10-2-provider-onboarding-dashboard: done
+  10-3-onboarding-state-machine-and-access-control: done
+  epic-10-retrospective: done
 
-  # Epic 17: Mechanic Booking + Dispatch (Sprint 2: Apr 21 – May 4)
-  epic-17: done
-  17-1-enforce-scheduled-at-for-mechanic-bookings: done
-  17-2-mechanic-pre-dispatch-cron-job: done
-  17-3-observation-to-mechanic-upsell: done
-  17-4-web-mechanic-booking-ui: done
-  epic-17-retrospective: optional
+  # Epic 11: Document Upload & Admin Review Pipeline
+  epic-11: done
+  11-1-mobile-document-capture-and-upload-system: done
+  11-2-admin-pipeline-view-and-document-review: done
+  epic-11-retrospective: optional
+
+  # Epic 12: Checkr Background Check Integration
+  epic-12: done
+  12-1-checkr-api-integration-and-webhook-processing: done
+  12-2-admin-adjudication-polling-reconciliation-and-dispatch-gating: done
+  epic-12-retrospective: optional
+
+  # Epic 13: Stripe Connect Express & Payout Transition
+  epic-13: done
+  13-1-stripe-connect-express-onboarding-flow: done
+  13-2-payout-routing-abandonment-reminders-and-manual-deprecation: done
+  epic-13-retrospective: optional
+
+  # Epic 14: Training, Activation & Onboarding Notifications
+  epic-14: done
+  14-1-training-module-v1-policy-acknowledgment-cards: done
+  14-2-admin-activation-rejection-and-onboarding-notifications: done
+  epic-14-retrospective: optional
+
+  # Epic 15: Existing Provider Migration & Deadline Enforcement
+  epic-15: in-progress
+  15-1-existing-provider-migration-and-deadline-enforcement: review
+  epic-15-retrospective: optional

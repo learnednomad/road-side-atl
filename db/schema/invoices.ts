@@ -28,7 +28,6 @@ export const invoices = pgTable("invoices", {
   invoiceNumber: text("invoiceNumber").unique().notNull(),
   status: invoiceStatusEnum("status").default("draft").notNull(),
   createdById: text("createdById")
-    .notNull()
     .references(() => users.id),
   // Customer fields (denormalized for one-off support)
   customerId: text("customerId").references(() => users.id, {

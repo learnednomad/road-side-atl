@@ -1,0 +1,15 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e121]
+      - generic [ref=e124]: Application Submitted
+    - generic [ref=e12]:
+      - img [ref=e126]
+      - paragraph [ref=e129]: We've sent a verification link to tony.mechanic@test.com
+      - paragraph [ref=e130]: Please verify your email. An admin will review your application and activate your account.
+      - link "Go to Login" [ref=e132] [cursor=pointer]:
+        - /url: /login
+  - region "Notifications alt+T"
+  - alert [ref=e116]

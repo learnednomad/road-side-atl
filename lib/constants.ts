@@ -43,6 +43,10 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const PROVIDER_STATUSES = ["active", "inactive", "pending", "resubmission_requested", "applied", "onboarding", "pending_review", "rejected", "suspended"] as const;
 export type ProviderStatus = (typeof PROVIDER_STATUSES)[number];
 
+/** Provider statuses that indicate onboarding flow (not yet fully active) */
+export const PROVIDER_ONBOARDING_STATUSES = ["applied", "onboarding", "pending_review", "resubmission_requested"] as const;
+export type ProviderOnboardingStatus = (typeof PROVIDER_ONBOARDING_STATUSES)[number];
+
 export const COMMISSION_TYPES = ["percentage", "flat_per_job"] as const;
 export type CommissionType = (typeof COMMISSION_TYPES)[number];
 
@@ -111,11 +115,34 @@ export const DISPATCH_OFFER_TIMEOUT_MS = 60_000; // 60s for provider to accept
 export const MAX_DISPATCH_CASCADE_ATTEMPTS = 3;
 export const MAX_CONCURRENT_JOBS_PER_PROVIDER = 3;
 export const OFFER_EXPIRY_CHECK_INTERVAL_MS = 15_000; // 15s cron interval
+
 // Onboarding
 export const ONBOARDING_STEP_TYPES = [
   "background_check", "insurance", "certifications", "training", "stripe_connect",
 ] as const;
 export type OnboardingStepType = (typeof ONBOARDING_STEP_TYPES)[number];
+
+export const ONBOARDING_STEP_STATUSES = [
+  "not_started", "in_progress", "submitted", "pending_review", "complete", "rejected",
+] as const;
+export type OnboardingStepStatus = (typeof ONBOARDING_STEP_STATUSES)[number];
+
+export const DOCUMENT_TYPES = ["insurance", "certification", "vehicle_doc"] as const;
+export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
+export const DOCUMENT_STATUSES = ["pending", "approved", "rejected"] as const;
+export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
+
+export const TRAINING_TOPICS = [
+  "platform_overview",
+  "safety_protocols",
+  "customer_service",
+  "payment_handling",
+  "emergency_procedures",
+] as const;
+export type TrainingTopic = (typeof TRAINING_TOPICS)[number];
+
+export const ONBOARDING_INVITE_EXPIRY_HOURS = 72;
 
 export const SERVICE_AREA_IDS = [
   "mobile_mechanic",
@@ -171,3 +198,14 @@ export const DEFAULT_SCORING_WEIGHTS: ScoringWeights = {
   workload: 0.10,
   fairness: 0.10,
 };
+
+// ── NextAuth JWT salt for mobile token decoding ──────────────────────
+export const NEXTAUTH_JWT_SALT = "authjs.session-token";
+
+// ── Stripe Connect migration constants ───────────────────────────────
+/** Date when Stripe Connect migration started (ISO string) */
+export const MIGRATION_LAUNCH_DATE = new Date("2025-11-01T00:00:00.000Z");
+/** Days after launch before manual payouts are fully deprecated */
+export const MIGRATION_DEPRECATION_DAYS = 90;
+/** Days after deprecation where admin can still override (grace period) */
+export const MIGRATION_GRACE_PERIOD_DAYS = 30;

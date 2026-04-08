@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { InvoiceList } from "@/components/invoices/invoice-list";
 
 export const metadata: Metadata = {
-  title: "Invoices | Provider | RoadSide ATL",
+  title: "Invoices | Provider | RoadSide GA",
 };
 
 export default function ProviderInvoicesPage() {

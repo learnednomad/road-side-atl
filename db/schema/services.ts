@@ -35,6 +35,7 @@ export const services = pgTable("services", {
   checklistConfig: jsonb("checklistConfig").$type<{ category: string; items: string[] }[]>(),
   schedulingMode: schedulingModeEnum("schedulingMode").notNull().default("both"),
   commissionRate: integer("commissionRate").notNull().default(2500), // basis points: 2500 = 25% platform cut
+  stripeProductId: text("stripeProductId"),
   tenantId: text("tenantId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),

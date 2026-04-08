@@ -9,6 +9,8 @@ export function getStripe(): Stripe {
     }
     _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
       typescript: true,
+      // apiVersion is pinned by the SDK to the version it was built for.
+      // Avoid overriding unless you've tested against a specific version.
     });
   }
   return _stripe;

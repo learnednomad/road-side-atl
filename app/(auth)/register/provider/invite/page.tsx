@@ -196,7 +196,7 @@ function AcceptInviteContent() {
           <IconComponent className="h-6 w-6 text-primary" />
         </div>
         <Link href="/" className="text-xl font-bold">
-          RoadSide ATL
+          RoadSide GA
         </Link>
         {config.badge && (
           <Badge variant={config.badgeVariant} className="mx-auto w-fit">

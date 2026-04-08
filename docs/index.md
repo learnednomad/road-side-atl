@@ -1,4 +1,4 @@
-# RoadSide ATL - Project Documentation Index
+# RoadSide GA - Project Documentation Index
 
 > Generated: 2026-02-11 | Mode: Initial Scan | Scan Level: Exhaustive
 
@@ -20,6 +20,12 @@
 - **Real-time:** WebSocket for live tracking, status updates, job notifications
 - **Notifications:** Email (Resend) + SMS (Twilio) + Web Push (VAPID)
 - **Maps:** Google Maps (Places autocomplete, Geocoding, AdvancedMarker)
+
+## Feature Documentation
+
+- [Technical Feature Catalog](./feature-catalog-technical.md) — Complete inventory of all platform features with schemas, APIs, business logic, and file paths (developer audience)
+- [User Feature Guide](./feature-guide-users.md) — Task-oriented guide to all features for customers, providers, and administrators (end-user audience)
+- [Architecture Diagrams](./architecture-diagram.md) — Full system architecture, feature connection map, and booking lifecycle sequence diagram (Mermaid)
 
 ## Generated Documentation
 
@@ -53,8 +59,8 @@
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | admin@roadsideatl.com | admin123 |
-| Provider | marcus@roadsideatl.com | provider123 |
+| Admin | admin@roadsidega.com | admin123 |
+| Provider | marcus@roadsidega.com | provider123 |
 | Customer | jasmine.carter@gmail.com | customer123 |
 
 ### For Production

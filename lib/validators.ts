@@ -45,6 +45,12 @@ export const updateBookingStatusSchema = z.object({
   ]),
 });
 
+export const rescheduleBookingSchema = z.object({
+  scheduledAt: z.string().datetime("Invalid date format"),
+  location: locationSchema.partial().optional(),
+  notes: z.string().optional(),
+});
+
 export const confirmPaymentSchema = z.object({
   method: z.enum(["cash", "cashapp", "zelle"]),
   amount: z.number().int().positive().optional(),
@@ -76,6 +82,7 @@ export const assignProviderSchema = z.object({
 
 export const markPayoutPaidSchema = z.object({
   payoutIds: z.array(z.string().uuid()),
+  override: z.boolean().optional(),
 });
 
 export const registerSchema = z.object({

@@ -211,7 +211,7 @@ app.patch("/:userId", async (c) => {
       name: existing.name || "Customer",
       email: existing.email,
       phone: existing.phone,
-    }).catch(() => {});
+    }).catch((err) => { console.error("[Notifications] Failed:", err); });
   }
 
   return c.json(updated);

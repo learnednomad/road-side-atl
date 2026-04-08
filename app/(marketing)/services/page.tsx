@@ -77,8 +77,14 @@ export default async function ServicesPage() {
         serving the entire Atlanta metro area. Affordable, fast, and reliable.
       </p>
 
-      <h2 className="mb-6 text-2xl font-semibold" id="roadside">
-        24/7 Emergency Roadside Assistance in Atlanta
+      <h2
+        className="mb-6 border-l-4 border-red-600 pl-4 text-2xl font-semibold"
+        id="roadside"
+      >
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-red-600" />
+          24/7 Emergency Roadside Assistance in Atlanta
+        </div>
       </h2>
       <div className="mb-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {roadsideServices.map((service) => (
@@ -86,8 +92,14 @@ export default async function ServicesPage() {
         ))}
       </div>
 
-      <h2 className="mb-6 text-2xl font-semibold" id="diagnostics">
-        Pre-Purchase Vehicle Diagnostics in Atlanta
+      <h2
+        className="mb-6 border-l-4 border-red-600 pl-4 text-2xl font-semibold"
+        id="diagnostics"
+      >
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-red-600" />
+          Pre-Purchase Vehicle Diagnostics in Atlanta
+        </div>
       </h2>
       <div className="grid gap-6 sm:grid-cols-2">
         {diagnosticsServices.map((service) => (

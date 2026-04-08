@@ -292,7 +292,7 @@ app.post("/:id/email", async (c) => {
 
   const vehicleInfoRaw = booking.vehicleInfo as Record<string, string> || {};
   const vehicleDescription = `${vehicleInfoRaw.year || ''} ${vehicleInfoRaw.make || ''} ${vehicleInfoRaw.model || ''}`.trim();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
   const reportUrl = `${appUrl}/inspection-reports/${reportId}`;
 
   // Await email notification and only set emailedAt on success

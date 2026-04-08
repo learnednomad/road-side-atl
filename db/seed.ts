@@ -234,7 +234,7 @@ async function seed() {
     .values([
       {
         name: "Sani Nabil",
-        email: "admin@roadsideatl.com",
+        email: "admin@roadsidega.com",
         phone: "(678) 744-8092",
         password: hashedAdmin,
         emailVerified: new Date(),
@@ -242,7 +242,7 @@ async function seed() {
       },
       {
         name: "Ops Manager",
-        email: "ops@roadsideatl.com",
+        email: "ops@roadsidega.com",
         phone: "(404) 555-0200",
         password: hashedAdmin,
         emailVerified: new Date(),
@@ -285,7 +285,7 @@ async function seed() {
   const providerData = [
     {
       name: "Marcus Johnson",
-      email: "marcus@roadsideatl.com",
+      email: "marcus@roadsidega.com",
       phone: "(404) 555-0101",
       commissionRate: 7000,
       commissionType: "percentage" as const,
@@ -298,7 +298,7 @@ async function seed() {
     },
     {
       name: "Terrence Williams",
-      email: "terrence@roadsideatl.com",
+      email: "terrence@roadsidega.com",
       phone: "(404) 555-0102",
       commissionRate: 6500,
       commissionType: "percentage" as const,
@@ -311,7 +311,7 @@ async function seed() {
     },
     {
       name: "DeAndre Smith",
-      email: "deandre@roadsideatl.com",
+      email: "deandre@roadsidega.com",
       phone: "(404) 555-0103",
       commissionRate: 7000,
       commissionType: "percentage" as const,
@@ -324,7 +324,7 @@ async function seed() {
     },
     {
       name: "Carlos Rivera",
-      email: "carlos@roadsideatl.com",
+      email: "carlos@roadsidega.com",
       phone: "(678) 555-0104",
       commissionRate: 5000,
       commissionType: "flat_per_job" as const,
@@ -338,7 +338,7 @@ async function seed() {
     },
     {
       name: "Jamal Osei",
-      email: "jamal@roadsideatl.com",
+      email: "jamal@roadsidega.com",
       phone: "(770) 555-0105",
       commissionRate: 6500,
       commissionType: "percentage" as const,
@@ -912,14 +912,14 @@ async function seed() {
   console.log("\n  LOGIN ACCOUNTS:");
   console.log("  ─────────────────────────────────────");
   console.log("  ADMINS:");
-  console.log("    admin@roadsideatl.com      / admin123");
-  console.log("    ops@roadsideatl.com        / admin123");
+  console.log("    admin@roadsidega.com      / admin123");
+  console.log("    ops@roadsidega.com        / admin123");
   console.log("\n  PROVIDERS:");
-  console.log("    marcus@roadsideatl.com     / provider123");
-  console.log("    terrence@roadsideatl.com   / provider123");
-  console.log("    deandre@roadsideatl.com    / provider123");
-  console.log("    carlos@roadsideatl.com     / provider123");
-  console.log("    jamal@roadsideatl.com      / provider123  (pending approval)");
+  console.log("    marcus@roadsidega.com     / provider123");
+  console.log("    terrence@roadsidega.com   / provider123");
+  console.log("    deandre@roadsidega.com    / provider123");
+  console.log("    carlos@roadsidega.com     / provider123");
+  console.log("    jamal@roadsidega.com      / provider123  (pending approval)");
   console.log("\n  CUSTOMERS:");
   console.log("    jasmine.carter@gmail.com   / customer123");
   console.log("    david.okonkwo@gmail.com    / customer123");

@@ -44,16 +44,17 @@ export function ServiceCard({
   const isDiagnostics = category === "diagnostics";
 
   return (
-    <Card className="flex flex-col" id={slug}>
-      <CardHeader>
-        <div className="mb-2 flex items-center justify-between">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
-          </div>
-          {isDiagnostics && (
-            <Badge variant="secondary">Payment Upfront</Badge>
-          )}
+    <Card
+      className="card-hover-glow flex flex-col text-center transition-transform hover:-translate-y-1"
+      id={slug}
+    >
+      <CardHeader className="items-center justify-items-center">
+        <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-red-600/10">
+          <Icon className="h-8 w-8 text-red-600" aria-hidden="true" />
         </div>
+        {isDiagnostics && (
+          <Badge variant="secondary">Payment Upfront</Badge>
+        )}
         <CardTitle className="text-lg">
           <span>{name}</span>
           <span className="sr-only"> in Atlanta</span>
@@ -61,7 +62,7 @@ export function ServiceCard({
       </CardHeader>
       <CardContent className="flex-1">
         <p className="mb-3 text-sm text-muted-foreground">{description}</p>
-        <p className="text-2xl font-bold">
+        <p className="text-2xl font-bold text-red-600">
           {formatPrice(basePrice)}
           {pricePerMile && (
             <span className="text-sm font-normal text-muted-foreground">

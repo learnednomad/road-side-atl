@@ -14,7 +14,6 @@ import {
   FileText,
   Settings,
   LogOut,
-  Home,
   ScrollText,
   Menu,
   PiggyBank,
@@ -97,14 +96,6 @@ export function AdminMobileNav() {
               })}
             </div>
             <div className="mt-8 space-y-1 border-t pt-4">
-              <Link
-                href="/"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <Home className="h-4 w-4" />
-                Back to Site
-              </Link>
               <button
                 onClick={() => {
                   setOpen(false);

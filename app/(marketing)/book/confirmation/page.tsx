@@ -15,7 +15,7 @@ import { formatPrice } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Booking Confirmed | RoadSide ATL",
+  title: "Booking Confirmed | RoadSide GA",
 };
 
 export default async function ConfirmationPage({

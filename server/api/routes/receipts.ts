@@ -3,12 +3,20 @@ import { db } from "@/db";
 import { bookings, services, providers, payments } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { generateReceiptHTML } from "@/lib/receipts/generate-receipt";
+import { requireAuth } from "../middleware/auth";
 
-const app = new Hono();
+type AuthEnv = {
+  Variables: {
+    user: { id: string; role: string; name?: string | null; email?: string | null };
+  };
+};
+
+const app = new Hono<AuthEnv>();
 
 // GET /api/receipts/:bookingId - Get receipt HTML for a booking
-app.get("/:bookingId", async (c) => {
+app.get("/:bookingId", requireAuth, async (c) => {
   const bookingId = c.req.param("bookingId");
+  const user = c.get("user");
 
   const booking = await db.query.bookings.findFirst({
     where: eq(bookings.id, bookingId),
@@ -16,6 +24,11 @@ app.get("/:bookingId", async (c) => {
 
   if (!booking) {
     return c.json({ error: "Booking not found" }, 404);
+  }
+
+  // Only allow the booking owner or admins to view receipts
+  if (booking.userId !== user.id && user.role !== "admin") {
+    return c.json({ error: "Not authorized" }, 403);
   }
 
   // Get confirmed payment
@@ -75,8 +88,9 @@ app.get("/:bookingId", async (c) => {
 });
 
 // GET /api/receipts/:bookingId/download - Download receipt as file
-app.get("/:bookingId/download", async (c) => {
+app.get("/:bookingId/download", requireAuth, async (c) => {
   const bookingId = c.req.param("bookingId");
+  const user = c.get("user");
 
   const booking = await db.query.bookings.findFirst({
     where: eq(bookings.id, bookingId),
@@ -84,6 +98,10 @@ app.get("/:bookingId/download", async (c) => {
 
   if (!booking) {
     return c.json({ error: "Booking not found" }, 404);
+  }
+
+  if (booking.userId !== user.id && user.role !== "admin") {
+    return c.json({ error: "Not authorized" }, 403);
   }
 
   const payment = await db.query.payments.findFirst({
