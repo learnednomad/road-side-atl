@@ -94,6 +94,7 @@ app.post("/", async (c) => {
     .insert(invoices)
     .values({
       invoiceNumber,
+      createdById: user.id,
       bookingId: null,
       customerName,
       customerEmail,
@@ -233,9 +234,9 @@ app.get("/:id/html", async (c) => {
   const html = generateInvoiceHTML({
     invoiceNumber: invoice.invoiceNumber,
     customerName: invoice.customerName,
-    customerEmail: invoice.customerEmail,
-    customerPhone: invoice.customerPhone,
-    lineItems: invoice.lineItems,
+    customerEmail: invoice.customerEmail ?? "",
+    customerPhone: invoice.customerPhone ?? "",
+    lineItems: invoice.lineItems ?? [],
     subtotal: invoice.subtotal,
     total: invoice.total,
     status: invoice.status,

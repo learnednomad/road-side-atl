@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList } from "lucide-react";
+import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { BUSINESS } from "@/lib/constants";
@@ -101,6 +101,12 @@ export function Navbar() {
               <Button asChild size="sm">
                 <Link href="/book">Get Help Now</Link>
               </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/become-provider">
+                  <Wrench className="mr-2 h-4 w-4" />
+                  Become a Provider
+                </Link>
+              </Button>
             </>
           )}
         </div>
@@ -178,6 +184,12 @@ export function Navbar() {
                   <Button asChild className="w-full">
                     <Link href="/book" onClick={() => setOpen(false)}>
                       Get Help Now
+                    </Link>
+                  </Button>
+                  <Button asChild variant="ghost" className="w-full">
+                    <Link href="/become-provider" onClick={() => setOpen(false)}>
+                      <Wrench className="mr-2 h-4 w-4" />
+                      Become a Provider
                     </Link>
                   </Button>
                 </>

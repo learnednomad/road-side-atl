@@ -306,11 +306,11 @@ app.post("/:id/send", async (c) => {
     { name: account.contactName, email: account.contactEmail },
     account.companyName,
     invoice.invoiceNumber,
-    invoice.lineItems,
+    invoice.lineItems ?? [],
     invoice.total,
     updated.dueDate,
-    invoice.billingPeriodStart,
-    invoice.billingPeriodEnd,
+    invoice.billingPeriodStart ?? "",
+    invoice.billingPeriodEnd ?? "",
   ).catch(() => {});
 
   const user = c.get("user");
@@ -346,9 +346,9 @@ app.get("/:id/html", async (c) => {
   const html = generateInvoiceHTML({
     invoiceNumber: invoice.invoiceNumber,
     customerName: invoice.customerName,
-    customerEmail: invoice.customerEmail,
-    customerPhone: invoice.customerPhone,
-    lineItems: invoice.lineItems,
+    customerEmail: invoice.customerEmail ?? "",
+    customerPhone: invoice.customerPhone ?? "",
+    lineItems: invoice.lineItems ?? [],
     subtotal: invoice.subtotal,
     total: invoice.total,
     status: invoice.status,

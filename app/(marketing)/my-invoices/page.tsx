@@ -78,7 +78,7 @@ export default async function MyInvoicesPage() {
                     </Badge>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {inv.lineItems.map((item) => item.description).join(", ")}
+                    {inv.lineItems?.map((item) => item.description).join(", ")}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {inv.issuedAt
