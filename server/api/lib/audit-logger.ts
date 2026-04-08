@@ -15,8 +15,11 @@ export type AuditAction =
   | "provider.update"
   | "provider.delete"
   | "provider.status_change"
+  | "provider.reactivated"
   | "payout.create"
   | "payout.mark_paid"
+  | "payout.auto_migrated"
+  | "payout.stripe_connect_failed"
   | "payment.confirm"
   | "payment.refund"
   | "user.login"
@@ -65,7 +68,21 @@ export type AuditAction =
   | "b2b_account.generate_invoice"
   | "invoice.send"
   | "invoice.mark_paid"
-  | "invoice.mark_overdue";
+  | "invoice.mark_overdue"
+  | "migration.completed"
+  | "onboarding.status_changed"
+  | "onboarding.migration_bypass"
+  | "onboarding.fcra_consent"
+  | "onboarding.step_started"
+  | "onboarding.invite_accepted"
+  | "checkr.candidate_created"
+  | "document.uploaded"
+  | "document.resubmitted"
+  | "training.card_acknowledged"
+  | "training.module_completed"
+  | "stripe_connect.account_created"
+  | "stripe_connect.link_generated"
+  | "stripe_connect.onboarding_completed";
 
 export interface AuditLogEntry {
   action: AuditAction;

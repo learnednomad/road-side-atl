@@ -20,4 +20,4 @@ export * from "./b2b-accounts";
 export * from "./beta-users";
 export * from "./onboarding-steps";
 export * from "./provider-documents";
-export * from "./provider-invites";
+// provider-invites consolidated into providerInviteTokens in auth.ts

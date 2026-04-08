@@ -59,7 +59,7 @@ export default async function ProviderDetailPage({
     .where(eq(providerPayouts.providerId, id))
     .orderBy(desc(providerPayouts.createdAt));
 
-  const statusVariant = {
+  const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
     active: "default" as const,
     pending: "secondary" as const,
     inactive: "destructive" as const,

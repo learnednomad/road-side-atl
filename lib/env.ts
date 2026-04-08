@@ -23,6 +23,15 @@ const envSchema = z.object({
   AUTH_GOOGLE_SECRET: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
 
+  // Encryption
+  ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i, "ENCRYPTION_KEY must be 64 hex characters (32 bytes)").optional(),
+
+  // AWS (all optional — S3 features degrade gracefully)
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_BUCKET_NAME: z.string().optional(),
+  AWS_REGION: z.string().optional(),
+
   // Server config
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
@@ -68,6 +77,14 @@ function validateEnv() {
       }
       console.warn("========================================");
     }
+  }
+
+  // Warn about partial AWS configuration
+  const awsVars = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "S3_BUCKET_NAME", "AWS_REGION"];
+  const awsSet = awsVars.filter((k) => process.env[k]);
+  if (awsSet.length > 0 && awsSet.length < awsVars.length) {
+    const missing = awsVars.filter((k) => !process.env[k]);
+    console.warn("WARNING: Partial AWS configuration. Missing:", missing.join(", "));
   }
 }
 

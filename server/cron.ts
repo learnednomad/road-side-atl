@@ -78,6 +78,23 @@ const jobs: CronJob[] = [
       return findAndDispatchMechanicBookings();
     },
   },
+  {
+    name: "offer-expiry-check",
+    intervalMs: 15_000, // 15 seconds
+    run: async () => {
+      if (process.env.DISPATCH_OFFER_MODE !== "true") return { skipped: true };
+      const { processExpiredOffers } = await import("./api/lib/offer-expiry");
+      return processExpiredOffers();
+    },
+  },
+  {
+    name: "expire-invite-tokens",
+    intervalMs: 6 * HOUR,
+    run: async () => {
+      const { expireInviteTokens } = await import("./api/lib/invite-expiry");
+      return expireInviteTokens();
+    },
+  },
 ];
 
 function runJob(job: CronJob) {

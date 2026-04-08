@@ -100,3 +100,17 @@ export async function createPayoutIfEligible(bookingId: string) {
 
   return payout;
 }
+
+/**
+ * Migrate pending manual_batch payouts to Stripe Connect transfers.
+ * Called when a provider completes Stripe Connect onboarding.
+ *
+ * Stub implementation — will be fully implemented when Stripe Connect
+ * payout migration is delivered.
+ */
+export async function migratePendingPayoutsToConnect(
+  providerId: string
+): Promise<{ migrated: number; errors: number }> {
+  console.log(`[Payout] migratePendingPayoutsToConnect called for provider: ${providerId}`);
+  return { migrated: 0, errors: 0 };
+}

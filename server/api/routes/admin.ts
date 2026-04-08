@@ -23,6 +23,7 @@ import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import type { AuditAction } from "../lib/audit-logger";
 import { clearDelayNotification } from "../lib/delay-tracker";
+import { logger } from "@/lib/logger";
 import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
 import { BOOKING_STATUSES, SERVICE_CATEGORIES } from "@/lib/constants";
@@ -548,7 +549,7 @@ app.patch("/payments/:id/confirm", async (c) => {
 
       // Create payout if eligible (was missing from this endpoint)
       createPayoutIfEligible(fullBooking.id).catch((err) => {
-        console.error("[Payment] Failed to create payout for booking:", fullBooking.id, err);
+        logger.error("[Payment] Failed to create payout for booking:", fullBooking.id, err);
       });
     }
 

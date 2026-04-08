@@ -40,7 +40,7 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export const USER_ROLES = ["customer", "admin", "provider"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const PROVIDER_STATUSES = ["active", "inactive", "pending", "resubmission_requested"] as const;
+export const PROVIDER_STATUSES = ["active", "inactive", "pending", "resubmission_requested", "applied", "onboarding", "pending_review", "rejected", "suspended"] as const;
 export type ProviderStatus = (typeof PROVIDER_STATUSES)[number];
 
 export const COMMISSION_TYPES = ["percentage", "flat_per_job"] as const;
@@ -70,6 +70,12 @@ export type ReferralStatus = (typeof REFERRAL_STATUSES)[number];
 export const REFERRAL_CREDIT_AMOUNT_CENTS = 1000; // $10.00
 export const REFERRAL_SMS_DELAY_MINUTES = 30;
 
+// Provider-to-provider referral invites
+export const PROVIDER_REFERRAL_REWARD_CENTS = 5000; // $50.00
+export const PROVIDER_REFERRAL_INVITE_LIMIT = 5; // per 30-day rolling window
+export const INVITE_TOKEN_EXPIRY_MS = 72 * 60 * 60 * 1000; // 72 hours
+export const BETA_INVITE_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 export const INSPECTION_CONDITIONS = ["good", "fair", "poor", "critical"] as const;
 export type InspectionCondition = (typeof INSPECTION_CONDITIONS)[number];
 
@@ -98,4 +104,70 @@ export const B2B_INVOICE_DUE_DAYS: Record<B2bPaymentTerms, number> = {
   prepaid: 0,
   net_30: 30,
   net_60: 60,
+};
+
+// Dispatch V2 — Scored Offer-Based Dispatch
+export const DISPATCH_OFFER_TIMEOUT_MS = 60_000; // 60s for provider to accept
+export const MAX_DISPATCH_CASCADE_ATTEMPTS = 3;
+export const MAX_CONCURRENT_JOBS_PER_PROVIDER = 3;
+export const OFFER_EXPIRY_CHECK_INTERVAL_MS = 15_000; // 15s cron interval
+// Onboarding
+export const ONBOARDING_STEP_TYPES = [
+  "background_check", "insurance", "certifications", "training", "stripe_connect",
+] as const;
+export type OnboardingStepType = (typeof ONBOARDING_STEP_TYPES)[number];
+
+export const SERVICE_AREA_IDS = [
+  "mobile_mechanic",
+  "atlanta_itp",
+  "atlanta_otp",
+  "marietta_cobb",
+  "decatur_dekalb",
+  "gwinnett",
+  "south_fulton",
+] as const;
+export type ServiceAreaId = (typeof SERVICE_AREA_IDS)[number];
+
+export const REAPPLY_COOLDOWN_DAYS = 30;
+
+export const PRESIGNED_UPLOAD_EXPIRY = 900;
+export const PRESIGNED_DOWNLOAD_EXPIRY_ADMIN = 600;
+export const PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER = 3600;
+export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+export const ALLOWED_DOCUMENT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+
+export const MIN_DOCUMENTS_PER_STEP: Record<string, number> = {
+  insurance: 1,
+  certifications: 1,
+};
+
+export const CHECKR_PACKAGE = "tasker_standard";
+export const CHECKR_POLLING_THRESHOLD_HOURS = 24;
+export const CHECKR_MAX_RETRIES = 3;
+
+export const CHECKR_DASHBOARD_BASE_URL = "https://dashboard.checkr.com/reports";
+
+/** Maps Checkr adjudication/status values to internal onboarding step status */
+export const CHECKR_STATUS_MAP: Record<string, string | undefined> = {
+  clear: "complete",
+  consider: "pending_review",
+  suspended: "rejected",
+  adverse_action: "rejected",
+  post_adverse_action: "rejected",
+  // Non-terminal values intentionally omitted (return undefined)
+};
+
+export interface ScoringWeights {
+  eta: number;
+  rating: number;
+  specialty: number;
+  workload: number;
+  fairness: number;
+}
+export const DEFAULT_SCORING_WEIGHTS: ScoringWeights = {
+  eta: 0.40,
+  rating: 0.20,
+  specialty: 0.20,
+  workload: 0.10,
+  fairness: 0.10,
 };

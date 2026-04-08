@@ -134,6 +134,13 @@
       "when": 1775654638459,
       "tag": "0018_yielding_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1775657143084,
+      "tag": "0019_sour_dragon_man",
+      "breakpoints": true
     }
   ]
 }

@@ -7,16 +7,19 @@ import { users } from "@/db/schema/users";
 import { eq, desc, sql, count, and, inArray } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import { rateLimitStrict } from "../middleware/rate-limit";
-import { createProviderSchema, updateProviderSchema } from "@/lib/validators";
+import { createProviderSchema, updateProviderSchema, betaInviteSchema } from "@/lib/validators";
 import { geocodeAddress } from "@/lib/geocoding";
 import {
   createProviderInviteToken,
   sendProviderInviteEmail,
+  sendBetaInviteEmail,
 } from "@/lib/auth/provider-invite";
+import { platformSettings } from "@/db/schema/platform-settings";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { encrypt, decrypt } from "../lib/encryption";
 import { generateCSV } from "@/lib/csv";
 import { PROVIDER_STATUSES, IRS_1099_THRESHOLD_CENTS } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 import type { ProviderStatus } from "@/lib/constants";
 
 type AuthEnv = {
@@ -432,13 +435,13 @@ app.post("/:id/invite", async (c) => {
 
   const token = await createProviderInviteToken(
     provider.email,
-    providerId,
-    adminUser.id
+    adminUser.id,
+    { providerId, inviteType: "admin" }
   );
 
   await sendProviderInviteEmail(provider.email, provider.name, token).catch(
     (err) => {
-      console.error("Failed to send provider invite email:", err);
+      logger.error("Failed to send provider invite email:", err);
     }
   );
 
@@ -485,6 +488,120 @@ app.get("/:id/invite-status", async (c) => {
     sentAt: invite.createdAt,
     expiresAt: invite.expires,
     acceptedAt: invite.acceptedAt,
+  });
+});
+
+// Beta invite — admin sends a beta program invite
+app.post("/beta-invite", async (c) => {
+  const body = await c.req.json();
+  const parsed = betaInviteSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  // Check beta is active
+  const { isBetaActive } = await import("../lib/beta");
+  const betaActive = await isBetaActive();
+  if (!betaActive) {
+    return c.json({ error: "Beta program is not currently active" }, 400);
+  }
+
+  // Check beta slot availability
+  const [{ count: usedSlots }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.inviteType, "beta"),
+      eq(providerInviteTokens.status, "accepted"),
+    ));
+
+  const slotSetting = await db.query.platformSettings.findFirst({
+    where: eq(platformSettings.key, "beta_provider_slots"),
+  });
+  const totalSlots = slotSetting ? parseInt(slotSetting.value) : 50;
+
+  if (Number(usedSlots) >= totalSlots) {
+    return c.json({ error: "Beta program slots are full" }, 400);
+  }
+
+  // Check if email already has a pending invite or account
+  const existingUser = await db.query.users.findFirst({
+    where: eq(users.email, parsed.data.email),
+  });
+  if (existingUser) {
+    return c.json({ error: "User with this email already exists" }, 400);
+  }
+
+  const existingInvite = await db.query.providerInviteTokens.findFirst({
+    where: and(
+      eq(providerInviteTokens.identifier, parsed.data.email),
+      eq(providerInviteTokens.status, "pending"),
+    ),
+  });
+  if (existingInvite) {
+    return c.json({ error: "An invite is already pending for this email" }, 400);
+  }
+
+  // Create invite token
+  const user = c.get("user");
+  const token = await createProviderInviteToken(
+    parsed.data.email,
+    user.id,
+    {
+      inviteType: "beta",
+      name: parsed.data.name,
+    }
+  );
+
+  // Send beta invite email
+  await sendBetaInviteEmail(parsed.data.email, parsed.data.name, token);
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "provider.invite",
+    userId: user.id,
+    resourceType: "provider",
+    resourceId: "beta-invite",
+    details: { email: parsed.data.email, inviteType: "beta" },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json({ success: true, inviteType: "beta" }, 201);
+});
+
+// Beta stats — slot usage and invite counts
+app.get("/beta-stats", async (c) => {
+  const { isBetaActive } = await import("../lib/beta");
+  const betaActive = await isBetaActive();
+
+  const [{ count: usedSlots }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.inviteType, "beta"),
+      eq(providerInviteTokens.status, "accepted"),
+    ));
+
+  const [{ count: pendingInvites }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.inviteType, "beta"),
+      eq(providerInviteTokens.status, "pending"),
+    ));
+
+  const slotSetting = await db.query.platformSettings.findFirst({
+    where: eq(platformSettings.key, "beta_provider_slots"),
+  });
+  const totalSlots = slotSetting ? parseInt(slotSetting.value) : 50;
+
+  return c.json({
+    betaActive,
+    totalSlots,
+    usedSlots: Number(usedSlots),
+    pendingInvites: Number(pendingInvites),
+    remainingSlots: totalSlots - Number(usedSlots),
   });
 });
 

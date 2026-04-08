@@ -8,11 +8,12 @@ import type { BookingStatus } from "@/lib/constants";
 import { updateBookingStatusSchema } from "@/lib/validators";
 import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
-import { autoDispatchBooking } from "../lib/auto-dispatch";
+import { dispatchBooking } from "../lib/dispatch-router";
 import { geocodeAddress } from "@/lib/geocoding";
-import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
+import { generateReferralCode, creditReferralOnFirstBooking, creditProviderReferralOnFirstJob } from "../lib/referral-credits";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
 import { logAudit } from "../lib/audit-logger";
+import { logger } from "@/lib/logger";
 import { sendDelayNotificationSMS } from "@/lib/notifications/sms";
 import { ETA_DELAY_THRESHOLD_MINUTES } from "@/lib/constants";
 import { markDelayNotified, hasDelayNotification, clearDelayNotification } from "../lib/delay-tracker";
@@ -136,7 +137,7 @@ app.patch("/jobs/:id/accept", async (c) => {
 
   const [updated] = await db
     .update(bookings)
-    .set({ status: "in_progress", updatedAt: new Date() })
+    .set({ status: "in_progress", offerExpiresAt: null, updatedAt: new Date() })
     .where(eq(bookings.id, bookingId))
     .returning();
 
@@ -178,9 +179,19 @@ app.patch("/jobs/:id/reject", async (c) => {
   // Unassign provider and revert to confirmed
   const [updated] = await db
     .update(bookings)
-    .set({ providerId: null, status: "confirmed", updatedAt: new Date() })
+    .set({ providerId: null, status: "confirmed", offerExpiresAt: null, updatedAt: new Date() })
     .where(eq(bookings.id, bookingId))
     .returning();
+
+  // Log rejection outcome
+  await db.insert(dispatchLogs).values({
+    bookingId,
+    assignedProviderId: provider.id,
+    algorithm: "auto",
+    reason: `Provider ${provider.name} rejected the offer`,
+    attemptNumber: booking.dispatchAttempt || 1,
+    outcome: "rejected",
+  });
 
   // Build exclusion list from previous dispatch attempts, then re-dispatch
   const previousDispatches = await db.query.dispatchLogs.findMany({
@@ -189,7 +200,10 @@ app.patch("/jobs/:id/reject", async (c) => {
   const excludeProviderIds = previousDispatches
     .filter((d) => d.assignedProviderId)
     .map((d) => d.assignedProviderId!);
-  autoDispatchBooking(bookingId, { excludeProviderIds }).catch(() => {});
+  dispatchBooking(bookingId, {
+    excludeProviderIds,
+    attempt: (booking.dispatchAttempt || 0) + 1,
+  }).catch(() => {});
 
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
   if (booking.userId) {
@@ -284,6 +298,13 @@ app.patch("/jobs/:id/status", async (c) => {
     (async () => {
       await creditReferralOnFirstBooking(booking.userId!, bookingId);
     })().catch(() => {});
+  }
+
+  // Provider referral reward on first completed job (fire-and-forget)
+  if (parsed.data.status === "completed" && booking.providerId) {
+    creditProviderReferralOnFirstJob(booking.providerId, bookingId).catch((err) => {
+      logger.error("[Notifications] Failed:", err);
+    });
   }
 
   return c.json(updated);
@@ -467,6 +488,7 @@ app.patch("/profile", async (c) => {
     address: string;
     latitude: number;
     longitude: number;
+    serviceAreas: string[];
     updatedAt: Date;
   }> = { updatedAt: new Date() };
 
@@ -475,6 +497,7 @@ app.patch("/profile", async (c) => {
   if (body.address && typeof body.address === "string") updates.address = body.address;
   if (typeof body.latitude === "number") updates.latitude = body.latitude;
   if (typeof body.longitude === "number") updates.longitude = body.longitude;
+  if (Array.isArray(body.serviceAreas)) updates.serviceAreas = body.serviceAreas;
 
   // Geocode if address provided without coordinates
   if (updates.address && !updates.latitude && !updates.longitude) {

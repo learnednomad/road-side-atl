@@ -35,8 +35,8 @@ vi.mock("@/db/schema", () => ({
 }));
 
 const mockAutoDispatch = vi.fn();
-vi.mock("@/server/api/lib/auto-dispatch", () => ({
-  autoDispatchBooking: (...args: unknown[]) => mockAutoDispatch(...args),
+vi.mock("@/server/api/lib/dispatch-router", () => ({
+  dispatchBooking: (...args: unknown[]) => mockAutoDispatch(...args),
 }));
 
 const mockBroadcastToAdmins = vi.fn();

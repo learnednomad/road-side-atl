@@ -12,24 +12,35 @@
 
 import { logger } from "@/lib/logger";
 
-export async function reconcileCheckrStatuses(): Promise<{ reconciled: number }> {
+export interface ReconciliationResult {
+  checked: number;
+  updated: number;
+  errors: number;
+  details: Array<{ stepId: string; providerId: string; newStatus: string }>;
+}
+
+export interface AbandonmentResult {
+  reminded: number;
+}
+
+export async function reconcileCheckrStatuses(): Promise<{ reconciled: number; details: Array<{ providerId: string; checkrStatus: string; adjudication: string }> }> {
   logger.info("[Reconciliation] reconcileCheckrStatuses — stub (not yet implemented)");
-  return { reconciled: 0 };
+  return { reconciled: 0, details: [] };
 }
 
-export async function reconcileStripeConnectStatuses(): Promise<{ reconciled: number }> {
+export async function reconcileStripeConnectStatuses(): Promise<ReconciliationResult> {
   logger.info("[Reconciliation] reconcileStripeConnectStatuses — stub (not yet implemented)");
-  return { reconciled: 0 };
+  return { checked: 0, updated: 0, errors: 0, details: [] };
 }
 
-export async function checkStripeConnectAbandonment(): Promise<{ reminded: number }> {
+export async function checkStripeConnectAbandonment(): Promise<AbandonmentResult> {
   logger.info("[Reconciliation] checkStripeConnectAbandonment — stub (not yet implemented)");
   return { reminded: 0 };
 }
 
-export async function enforceStripeConnectDeadline(): Promise<{ enforced: number }> {
+export async function enforceStripeConnectDeadline(): Promise<{ enforced: number; checked: number; suspended: number }> {
   logger.info("[Reconciliation] enforceStripeConnectDeadline — stub (not yet implemented)");
-  return { enforced: 0 };
+  return { enforced: 0, checked: 0, suspended: 0 };
 }
 
 export async function checkMigrationReminders(): Promise<{ reminded: number }> {

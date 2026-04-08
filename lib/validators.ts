@@ -109,6 +109,7 @@ export const providerSelfRegisterSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   specialties: z.array(z.string()).optional(),
   address: z.string().optional(),
+  serviceArea: z.array(z.string()).optional(),
 });
 
 // Invoice schemas (from development)
@@ -381,3 +382,78 @@ export const generateB2bInvoiceSchema = z
     path: ["billingPeriodEnd"],
   });
 export type GenerateB2bInvoiceInput = z.infer<typeof generateB2bInvoiceSchema>;
+
+// Onboarding validators (restored from main)
+export const providerApplicationSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  email: z.email("Valid email is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  phone: z.string().min(10, "Phone number is required"),
+  dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date of birth must be YYYY-MM-DD").optional(),
+  serviceArea: z.array(z.string().min(1)).min(1, "At least one service area is required"),
+  specialties: z.array(z.string()).optional(),
+  fcraConsent: z.literal(true, { message: "FCRA consent is required" }),
+});
+export type ProviderApplicationInput = z.infer<typeof providerApplicationSchema>;
+
+export const inviteAcceptSchema = z.object({
+  inviteToken: z.string().min(1, "Invite token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  phone: z.string().min(10, "Phone number is required"),
+  serviceArea: z.array(z.string().min(1)).min(1, "At least one service area is required"),
+  specialties: z.array(z.string()).optional(),
+  fcraConsent: z.literal(true, { message: "FCRA consent is required" }),
+});
+export type InviteAcceptInput = z.infer<typeof inviteAcceptSchema>;
+
+export const onboardingInviteSchema = z.object({
+  email: z.email("Valid email is required"),
+  name: z.string().min(2, "Name is required"),
+});
+export type OnboardingInviteInput = z.infer<typeof onboardingInviteSchema>;
+
+export const betaInviteSchema = z.object({
+  email: z.email("Valid email is required"),
+  name: z.string().min(2, "Name is required"),
+  phone: z.string().min(10, "Phone number is required").optional(),
+  commissionRate: z.number().int().min(0).max(10000).optional(),
+});
+export type BetaInviteInput = z.infer<typeof betaInviteSchema>;
+
+export const providerStepUpdateSchema = z.object({
+  status: z.enum(["draft", "in_progress"]),
+  draftData: z.record(z.string(), z.unknown()).optional(),
+});
+export type ProviderStepUpdateInput = z.infer<typeof providerStepUpdateSchema>;
+
+export const documentUploadUrlSchema = z.object({
+  documentType: z.enum(["insurance", "certification", "vehicle_doc"]),
+  mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+  fileName: z.string().min(1),
+});
+export type DocumentUploadUrlInput = z.infer<typeof documentUploadUrlSchema>;
+
+export const documentCreateSchema = z.object({
+  s3Key: z.string().min(1),
+  documentType: z.enum(["insurance", "certification", "vehicle_doc"]),
+  originalFileName: z.string().min(1),
+  fileSize: z.number().int().positive().max(10485760),
+  mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+  onboardingStepId: z.string().min(1),
+});
+export type DocumentCreateInput = z.infer<typeof documentCreateSchema>;
+
+export const adjudicationRequestSchema = z.object({
+  decision: z.enum(["approve", "adverse_action"]),
+  reason: z.string().min(10, "Reason must be at least 10 characters").max(500, "Reason must be 500 characters or fewer"),
+});
+export type AdjudicationRequestInput = z.infer<typeof adjudicationRequestSchema>;
+
+export const adminDocumentReviewSchema = z.object({
+  status: z.enum(["approved", "rejected"]),
+  rejectionReason: z.string().min(1).optional(),
+}).refine(
+  (val) => val.status !== "rejected" || (val.rejectionReason !== undefined && val.rejectionReason.length > 0),
+  { message: "Rejection reason required when rejecting" },
+);
+export type AdminDocumentReviewInput = z.infer<typeof adminDocumentReviewSchema>;

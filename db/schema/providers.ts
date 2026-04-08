@@ -16,6 +16,11 @@ export const providerStatusEnum = pgEnum("provider_status", [
   "inactive",
   "pending",
   "resubmission_requested",
+  "applied",
+  "onboarding",
+  "pending_review",
+  "rejected",
+  "suspended",
 ]);
 
 export const commissionTypeEnum = pgEnum("commission_type", [
@@ -44,8 +49,15 @@ export const providers = pgTable("providers", {
   currentLocation: jsonb("currentLocation").$type<{ lat: number; lng: number; updatedAt: string }>(),
   lastLocationUpdate: timestamp("lastLocationUpdate", { mode: "date" }),
   specialties: jsonb("specialties").$type<string[]>().default([]),
+  serviceAreas: jsonb("serviceAreas").$type<string[]>().default([]),
   averageRating: real("average_rating"),
   reviewCount: integer("review_count").default(0).notNull(),
+  stripeConnectAccountId: text("stripeConnectAccountId"),
+  migrationBypassExpiresAt: timestamp("migrationBypassExpiresAt", { mode: "date" }),
+  activatedAt: timestamp("activatedAt", { mode: "date" }),
+  suspendedAt: timestamp("suspendedAt", { mode: "date" }),
+  suspendedReason: text("suspendedReason"),
+  previousApplicationId: text("previousApplicationId"),
   tenantId: text("tenantId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),

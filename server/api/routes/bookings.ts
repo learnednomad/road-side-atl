@@ -17,6 +17,7 @@ import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { isBetaActive } from "../lib/beta";
+import { logger } from "@/lib/logger";
 
 const app = new Hono();
 
@@ -138,11 +139,11 @@ app.post("/", async (c) => {
           .values({ userId, source: "booking" })
           .onConflictDoNothing()
           .catch((err) => {
-            console.error("[Beta] Enrollment failed:", err);
+            logger.error("[Beta] Enrollment failed:", err);
           });
       }
     }).catch((err) => {
-      console.error("[Beta] Enrollment failed:", err);
+      logger.error("[Beta] Enrollment failed:", err);
     });
   }
 

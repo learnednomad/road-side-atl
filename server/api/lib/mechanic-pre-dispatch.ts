@@ -9,7 +9,7 @@
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { eq, and, isNull, gte, lte } from "drizzle-orm";
-import { autoDispatchBooking } from "./auto-dispatch";
+import { dispatchBooking } from "./dispatch-router";
 import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { logger } from "@/lib/logger";
 
@@ -52,7 +52,7 @@ export async function findAndDispatchMechanicBookings(): Promise<PreDispatchResu
   let failed = 0;
 
   for (const row of mechanicBookings) {
-    const result = await autoDispatchBooking(row.booking.id).catch((err) => {
+    const result = await dispatchBooking(row.booking.id).catch((err) => {
       logger.error(
         `[Mechanic Dispatch] Failed for booking ${row.booking.id}`,
         err,
