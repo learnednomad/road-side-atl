@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod/v4";
 import { db } from "@/db";
-import { bookings, services, payments, users, providers } from "@/db/schema";
-import { eq, desc, sql, and, gte, lte, count, or, ilike } from "drizzle-orm";
+import { bookings, services, payments, users, providers, platformSettings, betaUsers } from "@/db/schema";
+import { eq, desc, sql, and, gte, lte, count, or, ilike, inArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import {
@@ -23,6 +23,7 @@ import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import type { AuditAction } from "../lib/audit-logger";
 import { clearDelayNotification } from "../lib/delay-tracker";
+import { logger } from "@/lib/logger";
 import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
 import { BOOKING_STATUSES, SERVICE_CATEGORIES } from "@/lib/constants";
@@ -548,7 +549,7 @@ app.patch("/payments/:id/confirm", async (c) => {
 
       // Create payout if eligible (was missing from this endpoint)
       createPayoutIfEligible(fullBooking.id).catch((err) => {
-        console.error("[Payment] Failed to create payout for booking:", fullBooking.id, err);
+        logger.error("[Payment] Failed to create payout for booking:", fullBooking.id, err);
       });
     }
 
@@ -1249,6 +1250,74 @@ app.put("/services/:id/checklist", async (c) => {
   });
 
   return c.json(updated, 200);
+});
+
+// ── BETA MANAGEMENT ─────────────────────────────────────────────
+
+// PATCH /admin/settings/beta — toggle beta mode on/off
+app.patch("/settings/beta", async (c) => {
+  const user = c.get("user");
+  const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
+
+  // Read old value for audit trail
+  const oldSetting = await db.query.platformSettings.findFirst({
+    where: eq(platformSettings.key, "beta_active"),
+  });
+  const oldValue = oldSetting?.value ?? "false";
+  const newValue = active ? "true" : "false";
+
+  await db
+    .update(platformSettings)
+    .set({ value: newValue, updatedAt: new Date() })
+    .where(eq(platformSettings.key, "beta_active"));
+
+  // Clear cache so the change takes effect immediately
+  const { clearBetaCache } = await import("@/server/api/lib/beta");
+  clearBetaCache();
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "settings.update",
+    userId: user.id,
+    resourceType: "platform_settings",
+    resourceId: "beta_active",
+    details: { setting: "beta_active", oldValue, newValue },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json({ success: true, betaActive: active });
+});
+
+// GET /admin/beta/stats — beta dashboard metrics
+app.get("/beta/stats", async (c) => {
+  const { isBetaActive } = await import("@/server/api/lib/beta");
+
+  const [betaUserCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(betaUsers);
+
+  const [mechanicBookingCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(bookings)
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .where(eq(services.category, "mechanics"));
+
+  const active = await isBetaActive();
+
+  const settings = await db.query.platformSettings.findMany({
+    where: inArray(platformSettings.key, ["beta_start_date", "beta_end_date"]),
+  });
+  const startDate = settings.find((s) => s.key === "beta_start_date")?.value ?? null;
+  const endDate = settings.find((s) => s.key === "beta_end_date")?.value ?? null;
+
+  return c.json({
+    betaActive: active,
+    betaUserCount: betaUserCount?.count ?? 0,
+    mechanicBookingCount: mechanicBookingCount?.count ?? 0,
+    startDate,
+    endDate,
+  });
 });
 
 export default app;

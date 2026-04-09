@@ -8,6 +8,7 @@ import { registerSchema, loginSchema } from "@/lib/validators";
 import { NEXTAUTH_JWT_SALT } from "@/lib/constants";
 import { rateLimitAuth } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
+import { logger } from "@/lib/logger";
 import { generateReferralCode } from "../lib/referral-credits";
 import {
   sendVerificationEmail,
@@ -57,7 +58,7 @@ app.post("/register", async (c) => {
 
   // Send verification email (fire and forget)
   sendVerificationEmail(email, name).catch((err) => {
-    console.error("Failed to send verification email:", err);
+    logger.error("Failed to send verification email:", err);
   });
 
   // Audit log the registration

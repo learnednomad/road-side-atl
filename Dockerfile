@@ -25,6 +25,7 @@ ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=""
 
 # Dummy DATABASE_URL so drizzle schema import doesn't crash during build
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build Next.js application
 RUN npm run build
@@ -74,9 +75,8 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Health check - hits /api/health which verifies DB connectivity
-# Falls back to root path check during migrations/seed startup
-HEALTHCHECK --interval=15s --timeout=10s --start-period=120s --retries=8 \
-  CMD wget --no-verbose --tries=1 -O /dev/null http://127.0.0.1:3000/api/health || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1
 
 CMD ["./docker-entrypoint.sh"]

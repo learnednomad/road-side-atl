@@ -52,7 +52,6 @@ vi.mock("@/db", () => {
         providers: { findFirst: vi.fn(), findMany: vi.fn() },
         onboardingSteps: { findFirst: vi.fn(), findMany: vi.fn() },
         users: { findFirst: vi.fn() },
-        providerInvites: { findFirst: vi.fn() },
         providerInviteTokens: { findFirst: vi.fn() },
         providerDocuments: { findFirst: vi.fn(), findMany: vi.fn() },
       },
@@ -69,11 +68,11 @@ vi.mock("@/db/schema", () => ({
   providers: { id: "id", email: "email", status: "status", createdAt: "createdAt", userId: "userId", name: "name" },
   providerPayouts: { providerId: "providerId", amount: "amount", createdAt: "createdAt", status: "status", payoutType: "payoutType" },
   bookings: { id: "id" },
-  providerInvites: { id: "id", email: "email", token: "token", usedAt: "usedAt" },
+  providerInviteTokens: { identifier: "identifier", token: "token", providerId: "providerId", status: "status", createdAt: "createdAt", acceptedAt: "acceptedAt" },
 }));
 
 vi.mock("@/db/schema/auth", () => ({
-  providerInviteTokens: { providerId: "providerId", createdAt: "createdAt", status: "status" },
+  providerInviteTokens: { identifier: "identifier", token: "token", providerId: "providerId", status: "status", createdAt: "createdAt", acceptedAt: "acceptedAt" },
 }));
 
 vi.mock("@/db/schema/users", () => ({
@@ -89,7 +88,7 @@ vi.mock("@/db/schema/onboarding-steps", () => ({
 }));
 
 vi.mock("@/db/schema/provider-invites", () => ({
-  providerInvites: { id: "id", email: "email", token: "token", usedAt: "usedAt" },
+  providerInviteTokens: { identifier: "identifier", token: "token", providerId: "providerId", status: "status", createdAt: "createdAt", acceptedAt: "acceptedAt" },
 }));
 
 vi.mock("@/db/schema/provider-documents", () => ({

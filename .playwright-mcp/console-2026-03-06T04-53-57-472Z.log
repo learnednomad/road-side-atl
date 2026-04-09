@@ -1,0 +1,10 @@
+[     233ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rK (https://roadsideatl.learnednomad.com/_next/static/chunks/1d051f014bf1fee1.js:1:46792)
+    at https://roadsideatl.learnednomad.com/_next/static/chunks/1d051f014bf1fee1.js:1:143140
+    at sp (https://roadsideatl.learnednomad.com/_next/static/chunks/1d051f014bf1fee1.js:1:146705)
+    at sc (https://roadsideatl.learnednomad.com/_next/static/chunks/1d051f014bf1fee1.js:1:138045)
+    at https://roadsideatl.learnednomad.com/_next/static/chunks/1d051f014bf1fee1.js:1:132874
+    at u9 (https://roadsideatl.learnednomad.com/_next/static/chunks/1d051f014bf1fee1.js:1:132975)
+    at sV (https://roadsideatl.learnednomad.com/_next/static/chunks/1d051f014bf1fee1.js:1:159357)
+    at MessagePort.O (https://roadsideatl.learnednomad.com/_next/static/chunks/1d051f014bf1fee1.js:1:8316)
+[     248ms] [ERROR] Failed to load resource: the server responded with a status of 503 () @ https://roadsideatl.learnednomad.com/api/health:0
