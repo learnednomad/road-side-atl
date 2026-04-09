@@ -1,0 +1,6 @@
+[    4459ms] [ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://localhost:3000/api/health:0
+[   11500ms] [ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://localhost:3000/api/health:0
+[   35358ms] [ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://localhost:3000/api/health:0
+[  242571ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[  259074ms] [ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://localhost:3000/api/health:0
+[  262379ms] [ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://localhost:3000/api/health:0

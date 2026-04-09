@@ -1,31 +1,25 @@
 import { Hono } from "hono";
 import { z } from "zod/v4";
 import { db } from "@/db";
-import { providers, providerPayouts, bookings, providerInvites } from "@/db/schema";
+import { providers, providerPayouts, bookings } from "@/db/schema";
 import { providerInviteTokens } from "@/db/schema/auth";
 import { users } from "@/db/schema/users";
-import { eq, desc, asc, sql, count, and, or, inArray, isNull, ilike } from "drizzle-orm";
+import { eq, desc, sql, count, and, inArray } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import { rateLimitStrict } from "../middleware/rate-limit";
-import { createProviderSchema, updateProviderSchema, onboardingInviteSchema, adminRejectProviderSchema, adminSuspendProviderSchema, adminReviewStepSchema, adminDocumentReviewSchema, adjudicationRequestSchema } from "@/lib/validators";
-import { ONBOARDING_INVITE_EXPIRY_HOURS, PRESIGNED_DOWNLOAD_EXPIRY_ADMIN, CHECKR_DASHBOARD_BASE_URL } from "@/lib/constants";
-import { onboardingSteps } from "@/db/schema/onboarding-steps";
-import { providerDocuments } from "@/db/schema/provider-documents";
-import { isValidProviderTransition, isValidStepTransition } from "../lib/onboarding-state-machine";
-import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
-import { getPresignedUrl } from "@/lib/s3";
-import { notifyDocumentReviewed, notifyAdjudicationResult, notifyProviderRejected, notifyAdminProviderReadyForReview } from "@/lib/notifications";
-import { createAdverseAction, CheckrApiError } from "../lib/checkr";
+import { createProviderSchema, updateProviderSchema, betaInviteSchema } from "@/lib/validators";
 import { geocodeAddress } from "@/lib/geocoding";
 import {
   createProviderInviteToken,
   sendProviderInviteEmail,
+  sendBetaInviteEmail,
 } from "@/lib/auth/provider-invite";
-import { sendEmail } from "@/lib/notifications/email";
+import { platformSettings } from "@/db/schema/platform-settings";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { encrypt, decrypt } from "../lib/encryption";
 import { generateCSV } from "@/lib/csv";
 import { PROVIDER_STATUSES, IRS_1099_THRESHOLD_CENTS } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 import type { ProviderStatus } from "@/lib/constants";
 
 type AuthEnv = {
@@ -156,125 +150,6 @@ app.get("/1099-count", async (c) => {
   return c.json({ count: Number(result[0]?.providerCount || 0), year });
 });
 
-// Pipeline view — providers in onboarding statuses grouped by stage
-app.get("/pipeline", async (c) => {
-  const search = c.req.query("search");
-  const stage = c.req.query("stage");
-  const sort = c.req.query("sort");
-
-  let query = db
-    .select({
-      provider: providers,
-      userName: users.name,
-      userEmail: users.email,
-    })
-    .from(providers)
-    .leftJoin(users, eq(providers.userId, users.id))
-    .where(inArray(providers.status, ["applied", "onboarding", "pending_review"]))
-    .$dynamic();
-
-  if (search) {
-    // Escape SQL LIKE wildcards to prevent pattern matching abuse
-    const escaped = search.replace(/%/g, "\\%").replace(/_/g, "\\_");
-    query = query.where(
-      and(
-        inArray(providers.status, ["applied", "onboarding", "pending_review"]),
-        or(
-          ilike(users.name, `%${escaped}%`),
-          ilike(users.email, `%${escaped}%`),
-          ilike(providers.name, `%${escaped}%`),
-          ilike(providers.email, `%${escaped}%`),
-        ),
-      )
-    );
-  }
-
-  const providerRows = await query.orderBy(
-    sort === "date_asc" ? asc(providers.createdAt) : desc(providers.createdAt)
-  );
-
-  // Batch-fetch all onboarding steps in a single query (avoids N+1)
-  const providerIds = providerRows.map((r) => r.provider.id);
-  const allSteps = providerIds.length > 0
-    ? await db.query.onboardingSteps.findMany({
-        where: inArray(onboardingSteps.providerId, providerIds),
-      })
-    : [];
-  const stepsByProvider = new Map<string, typeof allSteps>();
-  for (const step of allSteps) {
-    const existing = stepsByProvider.get(step.providerId) || [];
-    existing.push(step);
-    stepsByProvider.set(step.providerId, existing);
-  }
-
-  const stages: Record<string, unknown[]> = {
-    applied: [],
-    documents_pending: [],
-    background_check: [],
-    background_check_review: [],
-    stripe_setup: [],
-    training: [],
-    ready_for_review: [],
-  };
-
-  const stepPriority = ["background_check", "insurance", "certifications", "training", "stripe_connect"];
-
-  for (const row of providerRows) {
-    const steps = stepsByProvider.get(row.provider.id) || [];
-
-    const completedCount = steps.filter((s) => s.status === "complete").length;
-    const providerWithMeta = {
-      ...row.provider,
-      userName: row.userName,
-      userEmail: row.userEmail,
-      completedSteps: completedCount,
-      totalSteps: steps.length || 5,
-    };
-
-    if (row.provider.status === "applied") {
-      stages.applied.push(providerWithMeta);
-    } else if (row.provider.status === "pending_review") {
-      stages.ready_for_review.push(providerWithMeta);
-    } else {
-      // Check if background_check step is in pending_review (needs admin adjudication)
-      const bgStep = steps.find((s) => s.stepType === "background_check");
-      if (bgStep?.status === "pending_review") {
-        const bgMetadata = (bgStep.metadata || {}) as Record<string, unknown>;
-        const checkrReportId = bgMetadata.checkrReportId as string | undefined;
-        stages.background_check_review.push({
-          ...providerWithMeta,
-          checkrReportId: checkrReportId || null,
-          checkrDashboardUrl: checkrReportId ? `${CHECKR_DASHBOARD_BASE_URL}/${checkrReportId}` : null,
-          backgroundCheckUpdatedAt: bgStep.updatedAt,
-        });
-      } else {
-        const firstIncomplete = stepPriority.find((type) =>
-          steps.find((s) => s.stepType === type && s.status !== "complete")
-        );
-
-        if (firstIncomplete === "insurance" || firstIncomplete === "certifications") {
-          stages.documents_pending.push(providerWithMeta);
-        } else if (firstIncomplete === "background_check") {
-          stages.background_check.push(providerWithMeta);
-        } else if (firstIncomplete === "stripe_connect") {
-          stages.stripe_setup.push(providerWithMeta);
-        } else if (firstIncomplete === "training") {
-          stages.training.push(providerWithMeta);
-        } else {
-          stages.ready_for_review.push(providerWithMeta);
-        }
-      }
-    }
-  }
-
-  if (stage && stages[stage]) {
-    return c.json({ stages: { [stage]: stages[stage] }, total: stages[stage].length }, 200);
-  }
-
-  const total = Object.values(stages).reduce((sum, arr) => sum + arr.length, 0);
-  return c.json({ stages, total }, 200);
-});
-
 // List providers
 app.get("/", async (c) => {
   const status = c.req.query("status");
@@ -397,35 +272,6 @@ app.get("/:id", async (c) => {
     .from(providerPayouts)
     .where(eq(providerPayouts.providerId, providerId));
 
-  const onboardingStatuses = ["applied", "onboarding", "pending_review", "rejected", "suspended"];
-  let steps = null;
-  if (onboardingStatuses.includes(provider.status)) {
-    steps = await db.query.onboardingSteps.findMany({
-      where: eq(onboardingSteps.providerId, providerId),
-    });
-  }
-
-  // Enrich background check step with adjudication info and Checkr dashboard link
-  let backgroundCheckInfo = null;
-  if (steps) {
-    const bgStep = steps.find((s) => s.stepType === "background_check");
-    if (bgStep) {
-      const bgMetadata = (bgStep.metadata || {}) as Record<string, unknown>;
-      const checkrReportId = bgMetadata.checkrReportId as string | undefined;
-      backgroundCheckInfo = {
-        stepId: bgStep.id,
-        status: bgStep.status,
-        checkrReportId: checkrReportId || null,
-        checkrDashboardUrl: checkrReportId ? `${CHECKR_DASHBOARD_BASE_URL}/${checkrReportId}` : null,
-        adjudicationDecision: bgMetadata.adjudicationDecision || null,
-        adjudicationReason: bgMetadata.adjudicationReason || null,
-        adjudicatedBy: bgMetadata.adjudicatedBy || null,
-        adjudicatedAt: bgMetadata.adjudicatedAt || null,
-        updatedAt: bgStep.updatedAt,
-      };
-    }
-  }
-
   return c.json({
     provider,
     earnings: {
@@ -434,8 +280,6 @@ app.get("/:id", async (c) => {
       totalPending: Number(earningsSummary.totalPending),
       payoutCount: earningsSummary.payoutCount,
     },
-    ...(steps && { onboardingSteps: steps }),
-    ...(backgroundCheckInfo && { backgroundCheck: backgroundCheckInfo }),
   });
 });
 
@@ -591,13 +435,13 @@ app.post("/:id/invite", async (c) => {
 
   const token = await createProviderInviteToken(
     provider.email,
-    providerId,
-    adminUser.id
+    adminUser.id,
+    { providerId, inviteType: "admin" }
   );
 
   await sendProviderInviteEmail(provider.email, provider.name, token).catch(
     (err) => {
-      console.error("Failed to send provider invite email:", err);
+      logger.error("Failed to send provider invite email:", err);
     }
   );
 
@@ -647,1018 +491,118 @@ app.get("/:id/invite-status", async (c) => {
   });
 });
 
-// Send onboarding invite to a new prospective provider (by email)
-app.post("/invites", async (c) => {
+// Beta invite — admin sends a beta program invite
+app.post("/beta-invite", async (c) => {
   const body = await c.req.json();
-  const parsed = onboardingInviteSchema.safeParse(body);
+  const parsed = betaInviteSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
   }
 
-  const { email, name } = parsed.data;
-  const adminUser = c.get("user");
+  // Check beta is active
+  const { isBetaActive } = await import("../lib/beta");
+  const betaActive = await isBetaActive();
+  if (!betaActive) {
+    return c.json({ error: "Beta program is not currently active" }, 400);
+  }
 
-  // Check if email already has a user account
+  // Check beta slot availability
+  const [{ count: usedSlots }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.inviteType, "beta"),
+      eq(providerInviteTokens.status, "accepted"),
+    ));
+
+  const slotSetting = await db.query.platformSettings.findFirst({
+    where: eq(platformSettings.key, "beta_provider_slots"),
+  });
+  const totalSlots = slotSetting ? parseInt(slotSetting.value) : 50;
+
+  if (Number(usedSlots) >= totalSlots) {
+    return c.json({ error: "Beta program slots are full" }, 400);
+  }
+
+  // Check if email already has a pending invite or account
   const existingUser = await db.query.users.findFirst({
-    where: eq(users.email, email),
+    where: eq(users.email, parsed.data.email),
   });
   if (existingUser) {
-    return c.json({ error: "A user with this email already exists" }, 400);
+    return c.json({ error: "User with this email already exists" }, 400);
   }
 
-  // Check for existing pending (unexpired, unused) invite
-  const existingInvite = await db.query.providerInvites.findFirst({
+  const existingInvite = await db.query.providerInviteTokens.findFirst({
     where: and(
-      eq(providerInvites.email, email),
-      isNull(providerInvites.usedAt),
+      eq(providerInviteTokens.identifier, parsed.data.email),
+      eq(providerInviteTokens.status, "pending"),
     ),
   });
-  if (existingInvite && new Date() < existingInvite.expiresAt) {
-    return c.json({ error: "An active invite already exists for this email" }, 409);
+  if (existingInvite) {
+    return c.json({ error: "An invite is already pending for this email" }, 400);
   }
 
-  const token = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + ONBOARDING_INVITE_EXPIRY_HOURS * 60 * 60 * 1000);
-
-  const [invite] = await db
-    .insert(providerInvites)
-    .values({
-      email,
-      name,
-      token,
-      createdBy: adminUser.id,
-      expiresAt,
-    })
-    .returning();
-
-  // Send onboarding invite email (fire-and-forget)
-  // NOTE: Cannot use sendProviderInviteEmail — it hardcodes the OLD invite URL
-  // (/register/provider/invite). Onboarding invites use /become-provider?invite=.
-  const baseUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
-  const inviteUrl = `${baseUrl}/become-provider?invite=${token}`;
-  sendEmail({
-    to: email,
-    subject: "You're invited to join RoadSide GA as a provider",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: #18181b; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">RoadSide GA</h1>
-        </div>
-        <div style="padding: 30px 20px; background: #f9f9f9;">
-          <h2>You're Invited!</h2>
-          <p>Hi ${name},</p>
-          <p>You've been invited to apply as a roadside assistance provider with RoadSide GA.</p>
-          <p style="text-align: center;">
-            <a href="${inviteUrl}" style="display: inline-block; background: #18181b; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px;">Complete Application</a>
-          </p>
-          <p>Or copy and paste this link: <span style="word-break: break-all; font-size: 14px; color: #666;">${inviteUrl}</span></p>
-          <p>This link expires in ${ONBOARDING_INVITE_EXPIRY_HOURS} hours.</p>
-        </div>
-        <div style="padding: 20px; text-align: center; font-size: 12px; color: #666;">
-          <p>&copy; ${new Date().getFullYear()} RoadSide GA</p>
-        </div>
-      </div>
-    `,
-  }).catch((err) => {
-    console.error("[Notifications] Failed to send onboarding invite:", err);
-  });
-
-  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-  logAudit({
-    action: "onboarding.invite_sent",
-    userId: adminUser.id,
-    resourceType: "provider_invite",
-    resourceId: invite.id,
-    details: { email, name, inviteUrl },
-    ipAddress,
-    userAgent,
-  });
-
-  return c.json({ inviteToken: token, email }, 201);
-});
-
-// --- Onboarding state transition endpoints ---
-
-// Activate provider (pending_review → active)
-app.post("/:id/activate", async (c) => {
-  const { id } = c.req.param();
+  // Create invite token
   const user = c.get("user");
-
-  const provider = await db.query.providers.findFirst({
-    where: eq(providers.id, id),
-  });
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
-
-  if (!isValidProviderTransition(provider.status, "active")) {
-    return c.json({ error: `Invalid transition: ${provider.status} -> active` }, 400);
-  }
-
-  const [updated] = await db
-    .update(providers)
-    .set({
-      status: "active",
-      activatedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(providers.id, id), eq(providers.status, "pending_review")))
-    .returning();
-
-  if (!updated) return c.json({ error: "Provider not found or status changed" }, 409);
-
-  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-  logAudit({
-    action: "onboarding.activated",
-    userId: user.id,
-    resourceType: "provider",
-    resourceId: id,
-    details: { providerName: provider.name },
-    ipAddress,
-    userAgent,
-  });
-
-  if (provider.userId) {
-    broadcastToUser(provider.userId, {
-      type: "onboarding:activated",
-      data: { providerId: id, providerName: provider.name },
-    });
-
-    // Fire-and-forget activation notification
-    sendEmail({
-      to: provider.email,
-      subject: "Welcome to RoadSide GA — You're Approved!",
-      html: `<p>Hi ${provider.name},</p><p>Your provider application has been approved. You can now accept jobs on the platform.</p>`,
-    }).catch((err) => {
-      console.error("[Notifications] Failed:", err);
-    });
-  }
-
-  return c.json(updated, 200);
-});
-
-// Reject provider (pending_review → rejected)
-app.post("/:id/reject", async (c) => {
-  const { id } = c.req.param();
-  const user = c.get("user");
-  const body = await c.req.json();
-  const parsed = adminRejectProviderSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
-  }
-
-  const provider = await db.query.providers.findFirst({
-    where: eq(providers.id, id),
-  });
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
-
-  if (!isValidProviderTransition(provider.status, "rejected")) {
-    return c.json({ error: `Invalid transition: ${provider.status} -> rejected` }, 400);
-  }
-
-  const [updated] = await db
-    .update(providers)
-    .set({
-      status: "rejected",
-      suspendedReason: parsed.data.reason,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(providers.id, id), eq(providers.status, "pending_review")))
-    .returning();
-
-  if (!updated) return c.json({ error: "Provider not found or status changed" }, 409);
-
-  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-  logAudit({
-    action: "onboarding.rejected",
-    userId: user.id,
-    resourceType: "provider",
-    resourceId: id,
-    details: { reason: parsed.data.reason },
-    ipAddress,
-    userAgent,
-  });
-
-  if (provider.userId) {
-    broadcastToUser(provider.userId, {
-      type: "onboarding:step_updated",
-      data: { providerId: id, stepType: "all", newStatus: "rejected" },
-    });
-
-    notifyProviderRejected(id, parsed.data.reason).catch((err) => {
-      console.error("[Notifications] Failed:", err);
-    });
-  }
-
-  return c.json(updated, 200);
-});
-
-// Suspend provider (active → suspended)
-app.post("/:id/suspend", async (c) => {
-  const { id } = c.req.param();
-  const user = c.get("user");
-  const body = await c.req.json();
-  const parsed = adminSuspendProviderSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
-  }
-
-  const provider = await db.query.providers.findFirst({
-    where: eq(providers.id, id),
-  });
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
-
-  if (!isValidProviderTransition(provider.status, "suspended")) {
-    return c.json({ error: `Invalid transition: ${provider.status} -> suspended` }, 400);
-  }
-
-  const [updated] = await db
-    .update(providers)
-    .set({
-      status: "suspended",
-      suspendedAt: new Date(),
-      suspendedReason: parsed.data.reason,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(providers.id, id), eq(providers.status, "active")))
-    .returning();
-
-  if (!updated) return c.json({ error: "Provider not found or status changed" }, 409);
-
-  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-  logAudit({
-    action: "onboarding.suspended",
-    userId: user.id,
-    resourceType: "provider",
-    resourceId: id,
-    details: { reason: parsed.data.reason },
-    ipAddress,
-    userAgent,
-  });
-
-  return c.json(updated, 200);
-});
-
-// Reinstate provider (suspended → onboarding)
-app.post("/:id/reinstate", async (c) => {
-  const { id } = c.req.param();
-  const user = c.get("user");
-
-  const provider = await db.query.providers.findFirst({
-    where: eq(providers.id, id),
-  });
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
-
-  if (!isValidProviderTransition(provider.status, "onboarding")) {
-    return c.json({ error: `Invalid transition: ${provider.status} -> onboarding` }, 400);
-  }
-
-  // Transaction: update provider + reset rejected steps
-  await db.transaction(async (tx) => {
-    await tx
-      .update(providers)
-      .set({
-        status: "onboarding",
-        suspendedAt: null,
-        suspendedReason: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(providers.id, id));
-
-    // Reset rejected steps to pending (preserve completed steps)
-    await tx
-      .update(onboardingSteps)
-      .set({
-        status: "pending",
-        rejectionReason: null,
-        reviewedBy: null,
-        reviewedAt: null,
-        draftData: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(onboardingSteps.providerId, id),
-          eq(onboardingSteps.status, "rejected"),
-        ),
-      );
-  });
-
-  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-  logAudit({
-    action: "onboarding.status_changed",
-    userId: user.id,
-    resourceType: "provider",
-    resourceId: id,
-    details: {
-      previousStatus: "suspended",
-      newStatus: "onboarding",
-      reason: "admin_reinstatement",
-    },
-    ipAddress,
-    userAgent,
-  });
-
-  const updated = await db.query.providers.findFirst({
-    where: eq(providers.id, id),
-  });
-  return c.json(updated, 200);
-});
-
-// Admin review step (PATCH /:id/steps/:stepId)
-app.patch("/:id/steps/:stepId", async (c) => {
-  const { id, stepId } = c.req.param();
-  const user = c.get("user");
-  const body = await c.req.json();
-  const parsed = adminReviewStepSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
-  }
-
-  // Verify step belongs to this provider
-  const step = await db.query.onboardingSteps.findFirst({
-    where: and(eq(onboardingSteps.id, stepId), eq(onboardingSteps.providerId, id)),
-  });
-  if (!step) return c.json({ error: "Step not found" }, 404);
-
-  if (!isValidStepTransition(step.status, parsed.data.status)) {
-    return c.json({
-      error: `Invalid step transition: ${step.status} -> ${parsed.data.status}`,
-    }, 400);
-  }
-
-  const updateData: Record<string, unknown> = {
-    status: parsed.data.status,
-    reviewedBy: user.id,
-    reviewedAt: new Date(),
-    updatedAt: new Date(),
-  };
-  if (parsed.data.status === "complete") {
-    updateData.completedAt = new Date();
-    updateData.rejectionReason = null;
-  }
-  if (parsed.data.status === "rejected") {
-    updateData.rejectionReason = parsed.data.rejectionReason;
-    updateData.completedAt = null;
-  }
-
-  const [updated] = await db
-    .update(onboardingSteps)
-    .set(updateData)
-    .where(eq(onboardingSteps.id, stepId))
-    .returning();
-
-  const auditAction =
-    parsed.data.status === "complete"
-      ? "onboarding.step_completed"
-      : "onboarding.step_rejected";
-  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-  logAudit({
-    action: auditAction,
-    userId: user.id,
-    resourceType: "onboarding_step",
-    resourceId: stepId,
-    details: {
-      providerId: id,
-      stepType: step.stepType,
-      newStatus: parsed.data.status,
-      ...(parsed.data.rejectionReason && { reason: parsed.data.rejectionReason }),
-    },
-    ipAddress,
-    userAgent,
-  });
-
-  // Broadcast WebSocket event
-  const provider = await db.query.providers.findFirst({
-    where: eq(providers.id, id),
-  });
-  if (provider?.userId) {
-    broadcastToUser(provider.userId, {
-      type: "onboarding:step_updated",
-      data: {
-        providerId: id,
-        stepType: step.stepType,
-        newStatus: parsed.data.status,
-        ...(parsed.data.rejectionReason && {
-          rejectionReason: parsed.data.rejectionReason,
-        }),
-      },
-    });
-  }
-
-  // Auto-transition check: if approving and all steps now complete
-  if (parsed.data.status === "complete" && provider?.status === "onboarding") {
-    const allSteps = await db.query.onboardingSteps.findMany({
-      where: eq(onboardingSteps.providerId, id),
-    });
-    const allComplete = allSteps.every((s) =>
-      s.id === stepId ? true : s.status === "complete",
-    );
-    if (allComplete) {
-      const [transitioned] = await db
-        .update(providers)
-        .set({ status: "pending_review", updatedAt: new Date() })
-        .where(and(eq(providers.id, id), eq(providers.status, "onboarding")))
-        .returning();
-
-      if (transitioned) {
-        logAudit({
-          action: "onboarding.status_changed",
-          userId: "system",
-          resourceType: "provider",
-          resourceId: id,
-          details: {
-            previousStatus: "onboarding",
-            newStatus: "pending_review",
-            trigger: "all_steps_complete",
-          },
-          ipAddress,
-          userAgent,
-        });
-      }
+  const token = await createProviderInviteToken(
+    parsed.data.email,
+    user.id,
+    {
+      inviteType: "beta",
+      name: parsed.data.name,
     }
-  }
-
-  return c.json(updated, 200);
-});
-
-// --- Admin document review endpoints ---
-
-// GET /:id/documents — returns all documents for a provider with presigned download URLs
-app.get("/:id/documents", async (c) => {
-  const { id } = c.req.param();
-
-  const provider = await db.query.providers.findFirst({
-    where: eq(providers.id, id),
-  });
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
-
-  const docs = await db.query.providerDocuments.findMany({
-    where: eq(providerDocuments.providerId, id),
-    orderBy: [desc(providerDocuments.createdAt)],
-  });
-
-  // Generate presigned download URLs for each document
-  const docsWithUrls = await Promise.all(
-    docs.map(async (doc) => ({
-      ...doc,
-      downloadUrl: await getPresignedUrl(doc.s3Key, PRESIGNED_DOWNLOAD_EXPIRY_ADMIN),
-    }))
   );
 
-  // Group by document type
-  const grouped = docsWithUrls.reduce((acc, doc) => {
-    const type = doc.documentType;
-    if (!acc[type]) acc[type] = [];
-    acc[type].push(doc);
-    return acc;
-  }, {} as Record<string, typeof docsWithUrls>);
-
-  return c.json({ documents: grouped }, 200);
-});
-
-// PATCH /:id/documents/:documentId — admin approve or reject a document
-app.patch("/:id/documents/:documentId", async (c) => {
-  const { id, documentId } = c.req.param();
-  const user = c.get("user");
-  const body = await c.req.json();
-  const parsed = adminDocumentReviewSchema.safeParse(body);
-  if (!parsed.success) return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
-
-  const doc = await db.query.providerDocuments.findFirst({
-    where: and(eq(providerDocuments.id, documentId), eq(providerDocuments.providerId, id)),
-  });
-  if (!doc) return c.json({ error: "Document not found" }, 404);
-  if (doc.status !== "pending_review") {
-    return c.json({ error: `Cannot review document with status: ${doc.status}` }, 400);
-  }
-
-  const updateData: Record<string, unknown> = {
-    status: parsed.data.status,
-    reviewedBy: user.id,
-    reviewedAt: new Date(),
-    updatedAt: new Date(),
-  };
-  if (parsed.data.status === "rejected") {
-    updateData.rejectionReason = parsed.data.rejectionReason;
-  }
-  if (parsed.data.status === "approved") {
-    updateData.rejectionReason = null;
-  }
-
-  // TOCTOU guard: only update if still pending_review (prevents concurrent double-review)
-  const [updated] = await db.update(providerDocuments)
-    .set(updateData)
-    .where(and(eq(providerDocuments.id, documentId), eq(providerDocuments.status, "pending_review")))
-    .returning();
-
-  if (!updated) {
-    return c.json({ error: "Document was already reviewed" }, 409);
-  }
+  // Send beta invite email
+  await sendBetaInviteEmail(parsed.data.email, parsed.data.name, token);
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-  const auditAction = parsed.data.status === "approved" ? "document.approved" : "document.rejected";
   logAudit({
-    action: auditAction,
+    action: "provider.invite",
     userId: user.id,
-    resourceType: "provider_document",
-    resourceId: documentId,
-    details: {
-      providerId: id,
-      documentType: doc.documentType,
-      ...(parsed.data.rejectionReason && { reason: parsed.data.rejectionReason }),
-    },
+    resourceType: "provider",
+    resourceId: "beta-invite",
+    details: { email: parsed.data.email, inviteType: "beta" },
     ipAddress,
     userAgent,
   });
 
-  // Broadcast WebSocket event to provider
-  const provider = await db.query.providers.findFirst({ where: eq(providers.id, id) });
-  if (provider?.userId) {
-    broadcastToUser(provider.userId, {
-      type: "onboarding:document_reviewed",
-      data: {
-        providerId: id,
-        documentType: doc.documentType,
-        status: parsed.data.status,
-        ...(parsed.data.rejectionReason && { rejectionReason: parsed.data.rejectionReason }),
-      },
-    });
-  }
-
-  // Fire-and-forget notification
-  notifyDocumentReviewed(provider?.userId ?? undefined, doc.documentType, parsed.data.status, parsed.data.rejectionReason ?? undefined)
-    .catch((err) => { console.error("[Notifications] Failed:", err); });
-
-  // Auto-complete check: if all docs for this step are now approved
-  if (parsed.data.status === "approved") {
-    const stepDocs = await db.query.providerDocuments.findMany({
-      where: and(
-        eq(providerDocuments.onboardingStepId, doc.onboardingStepId),
-        eq(providerDocuments.providerId, id),
-      ),
-    });
-    const allApproved = stepDocs.every((d) =>
-      d.id === documentId ? true : d.status === "approved"
-    );
-    if (allApproved) {
-      const step = await db.query.onboardingSteps.findFirst({
-        where: eq(onboardingSteps.id, doc.onboardingStepId),
-      });
-      if (step && isValidStepTransition(step.status, "complete")) {
-        await db.update(onboardingSteps).set({
-          status: "complete",
-          completedAt: new Date(),
-          reviewedBy: user.id,
-          reviewedAt: new Date(),
-          updatedAt: new Date(),
-        }).where(eq(onboardingSteps.id, doc.onboardingStepId));
-
-        logAudit({
-          action: "onboarding.step_completed",
-          userId: user.id,
-          resourceType: "onboarding_step",
-          resourceId: doc.onboardingStepId,
-          details: { providerId: id, stepType: step.stepType, trigger: "all_documents_approved" },
-          ipAddress,
-          userAgent,
-        });
-
-        // Run all-steps-complete auto-transition check
-        if (provider?.status === "onboarding") {
-          const allSteps = await db.query.onboardingSteps.findMany({
-            where: eq(onboardingSteps.providerId, id),
-          });
-          const allComplete = allSteps.every((s) =>
-            s.id === doc.onboardingStepId ? true : s.status === "complete"
-          );
-          if (allComplete) {
-            const [transitioned] = await db.update(providers).set({
-              status: "pending_review",
-              updatedAt: new Date(),
-            }).where(and(eq(providers.id, id), eq(providers.status, "onboarding"))).returning();
-
-            if (transitioned) {
-              broadcastToAdmins({
-                type: "onboarding:ready_for_review",
-                data: { providerId: id, providerName: provider.name },
-              });
-
-              notifyAdminProviderReadyForReview(id, provider.name || "").catch((err) => {
-                console.error("[Notifications] Failed:", err);
-              });
-
-              logAudit({
-                action: "onboarding.status_changed",
-                userId: user.id,
-                resourceType: "provider",
-                resourceId: id,
-                details: {
-                  previousStatus: "onboarding",
-                  newStatus: "pending_review",
-                  trigger: "all_steps_complete",
-                },
-              ipAddress,
-              userAgent,
-            });
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return c.json(updated, 200);
+  return c.json({ success: true, inviteType: "beta" }, 201);
 });
 
-// POST /:id/adjudicate — Admin adjudication of "consider" background check
-app.post("/:id/adjudicate", async (c) => {
-  const providerId = c.req.param("id");
-  const user = c.get("user");
-  const body = await c.req.json();
-  const parsed = adjudicationRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
-  }
+// Beta stats — slot usage and invite counts
+app.get("/beta-stats", async (c) => {
+  const { isBetaActive } = await import("../lib/beta");
+  const betaActive = await isBetaActive();
 
-  // Find background_check step in pending_review
-  const [step] = await db
-    .select()
-    .from(onboardingSteps)
-    .where(
-      and(
-        eq(onboardingSteps.providerId, providerId),
-        eq(onboardingSteps.stepType, "background_check"),
-        eq(onboardingSteps.status, "pending_review"),
-      ),
-    )
-    .limit(1);
+  const [{ count: usedSlots }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.inviteType, "beta"),
+      eq(providerInviteTokens.status, "accepted"),
+    ));
 
-  if (!step) {
-    return c.json({ error: "No pending adjudication found for this provider" }, 409);
-  }
+  const [{ count: pendingInvites }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.inviteType, "beta"),
+      eq(providerInviteTokens.status, "pending"),
+    ));
 
-  const metadata = (step.metadata || {}) as Record<string, unknown>;
-  const reportId = metadata.checkrReportId as string | undefined;
-  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-
-  if (parsed.data.decision === "approve") {
-    if (!isValidStepTransition(step.status, "complete")) {
-      return c.json({ error: "Invalid status transition" }, 409);
-    }
-
-    const [updated] = await db
-      .update(onboardingSteps)
-      .set({
-        status: "complete",
-        completedAt: new Date(),
-        metadata: {
-          ...metadata,
-          adjudicationDecision: "approved",
-          adjudicationReason: parsed.data.reason,
-          adjudicatedBy: user.id,
-          adjudicatedAt: new Date().toISOString(),
-        },
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(onboardingSteps.id, step.id),
-          eq(onboardingSteps.status, "pending_review"), // TOCTOU guard
-        ),
-      )
-      .returning();
-
-    if (!updated) {
-      return c.json({ error: "Step status changed concurrently" }, 409);
-    }
-
-    logAudit({
-      action: "checkr.adjudication_approved",
-      userId: user.id,
-      resourceType: "onboarding_step",
-      resourceId: step.id,
-      details: { providerId, reason: parsed.data.reason, reportId },
-      ipAddress,
-      userAgent,
-    });
-
-    // Broadcast to provider
-    const provider = await db.query.providers.findFirst({
-      where: eq(providers.id, providerId),
-    });
-    if (provider?.userId) {
-      broadcastToUser(provider.userId, {
-        type: "onboarding:step_updated",
-        data: { providerId, stepType: "background_check", newStatus: "complete" },
-      });
-    }
-
-    // Fire-and-forget notification
-    notifyAdjudicationResult(providerId, "approve")
-      .catch((err) => { console.error("[Notifications] Failed:", err); });
-
-    // All-steps-complete auto-transition check
-    if (provider?.status === "onboarding") {
-      const allSteps = await db.query.onboardingSteps.findMany({
-        where: eq(onboardingSteps.providerId, providerId),
-      });
-      const allComplete = allSteps.every((s) =>
-        s.id === step.id ? true : s.status === "complete",
-      );
-      if (allComplete) {
-        const [transitioned] = await db
-          .update(providers)
-          .set({ status: "pending_review", updatedAt: new Date() })
-          .where(and(eq(providers.id, providerId), eq(providers.status, "onboarding")))
-          .returning();
-
-        if (transitioned) {
-          broadcastToAdmins({
-            type: "onboarding:ready_for_review",
-            data: { providerId, providerName: provider.name },
-          });
-
-          notifyAdminProviderReadyForReview(providerId, provider.name || "").catch((err) => {
-            console.error("[Notifications] Failed:", err);
-          });
-
-          logAudit({
-            action: "onboarding.status_changed",
-            userId: user.id,
-            resourceType: "provider",
-            resourceId: providerId,
-            details: {
-              previousStatus: "onboarding",
-              newStatus: "pending_review",
-              trigger: "all_steps_complete",
-            },
-            ipAddress,
-            userAgent,
-          });
-        }
-      }
-    }
-
-    return c.json({ success: true, step: updated }, 200);
-
-  } else if (parsed.data.decision === "adverse_action") {
-    if (!reportId) {
-      return c.json({ error: "No Checkr report ID found for this step" }, 409);
-    }
-
-    // Call Checkr API first — if it fails, don't transition
-    let adverseAction;
-    try {
-      adverseAction = await createAdverseAction(reportId);
-    } catch (err) {
-      console.error("[Adjudication] Checkr adverse action failed:", err instanceof CheckrApiError ? `${err.statusCode}: ${err.message}` : err);
-      logAudit({
-        action: "checkr.adverse_action_initiated",
-        userId: user.id,
-        resourceType: "onboarding_step",
-        resourceId: step.id,
-        details: { providerId, reportId, error: err instanceof Error ? err.message : "Unknown error", failed: true },
-        ipAddress,
-        userAgent,
-      });
-      return c.json({ error: "Checkr service temporarily unavailable" }, 503);
-    }
-
-    if (!isValidStepTransition(step.status, "rejected")) {
-      return c.json({ error: "Invalid status transition" }, 409);
-    }
-
-    const [updated] = await db
-      .update(onboardingSteps)
-      .set({
-        status: "rejected",
-        rejectionReason: parsed.data.reason,
-        metadata: {
-          ...metadata,
-          adjudicationDecision: "adverse_action",
-          adjudicationReason: parsed.data.reason,
-          adjudicatedBy: user.id,
-          adjudicatedAt: new Date().toISOString(),
-          checkrAdverseActionId: adverseAction.id,
-        },
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(onboardingSteps.id, step.id),
-          eq(onboardingSteps.status, "pending_review"), // TOCTOU guard
-        ),
-      )
-      .returning();
-
-    if (!updated) {
-      return c.json({ error: "Step status changed concurrently" }, 409);
-    }
-
-    logAudit({
-      action: "checkr.adverse_action_initiated",
-      userId: user.id,
-      resourceType: "onboarding_step",
-      resourceId: step.id,
-      details: {
-        providerId,
-        reason: parsed.data.reason,
-        reportId,
-        checkrAdverseActionId: adverseAction.id,
-      },
-      ipAddress,
-      userAgent,
-    });
-
-    // Broadcast to provider
-    const provider = await db.query.providers.findFirst({
-      where: eq(providers.id, providerId),
-    });
-    if (provider?.userId) {
-      broadcastToUser(provider.userId, {
-        type: "onboarding:step_updated",
-        data: { providerId, stepType: "background_check", newStatus: "rejected" },
-      });
-    }
-
-    // Fire-and-forget notification
-    notifyAdjudicationResult(providerId, "adverse_action")
-      .catch((err) => { console.error("[Notifications] Failed:", err); });
-
-    return c.json({ success: true, step: updated }, 200);
-  }
-
-  return c.json({ error: "Invalid decision" }, 400);
-});
-
-// POST /reconcile/checkr — manually trigger Checkr reconciliation
-app.post("/reconcile/checkr", async (c) => {
-  const { reconcileCheckrStatuses } = await import("../lib/reconciliation");
-  const result = await reconcileCheckrStatuses();
-  return c.json(result, 200);
-});
-
-// POST /reconcile/stripe-connect — manually trigger Stripe Connect reconciliation
-app.post("/reconcile/stripe-connect", async (c) => {
-  const { reconcileStripeConnectStatuses } = await import("../lib/reconciliation");
-  const result = await reconcileStripeConnectStatuses();
-  return c.json(result, 200);
-});
-
-// POST /reconcile/stripe-reminders — manually trigger Stripe Connect abandonment reminders
-app.post("/reconcile/stripe-reminders", async (c) => {
-  const { checkStripeConnectAbandonment } = await import("../lib/reconciliation");
-  const result = await checkStripeConnectAbandonment();
-  return c.json(result, 200);
-});
-
-// POST /reconcile/stripe-deadline — enforce Stripe Connect migration deadline
-app.post("/reconcile/stripe-deadline", async (c) => {
-  const { enforceStripeConnectDeadline } = await import("../lib/reconciliation");
-  const result = await enforceStripeConnectDeadline();
-  return c.json(result, 200);
-});
-
-// --- Migration endpoints ---
-
-// POST /migrate — initiate migration for existing active providers
-app.post("/migrate", async (c) => {
-  const user = c.get("user");
-  const body = await c.req.json().catch(() => ({}));
-  const providerIds: string[] | undefined = body.providerIds;
-  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-
-  const graceDays = 30;
-  const bypassExpiry = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000);
-  const deadlineDate = bypassExpiry.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-
-  // Find eligible providers: active, no onboarding steps yet
-  let eligibleQuery = db
-    .select({ provider: providers })
-    .from(providers)
-    .where(
-      and(
-        eq(providers.status, "active"),
-        isNull(providers.migrationBypassExpiresAt),
-      ),
-    )
-    .$dynamic();
-
-  if (providerIds && providerIds.length > 0) {
-    eligibleQuery = eligibleQuery.where(inArray(providers.id, providerIds));
-  }
-
-  const eligible = await eligibleQuery;
-
-  // Filter out providers that already have onboarding steps
-  const providerIdsToCheck = eligible.map((r) => r.provider.id);
-  let existingStepProviderIds = new Set<string>();
-  if (providerIdsToCheck.length > 0) {
-    const existingSteps = await db
-      .select({ providerId: onboardingSteps.providerId })
-      .from(onboardingSteps)
-      .where(inArray(onboardingSteps.providerId, providerIdsToCheck));
-    existingStepProviderIds = new Set(existingSteps.map((s) => s.providerId));
-  }
-
-  const toMigrate = eligible.filter((r) => !existingStepProviderIds.has(r.provider.id));
-
-  if (toMigrate.length === 0) {
-    return c.json({ migrated: 0, message: "No eligible providers to migrate" }, 200);
-  }
-
-  const stepTypes = ["background_check", "insurance", "certifications", "training", "stripe_connect"] as const;
-  let migrated = 0;
-
-  for (const { provider: prov } of toMigrate) {
-    // Create 5 onboarding step rows, all pending
-    const stepRows = stepTypes.map((stepType) => ({
-      providerId: prov.id,
-      stepType,
-      status: "pending" as const,
-    }));
-
-    await db.insert(onboardingSteps).values(stepRows);
-
-    // Set migration bypass expiry — provider stays active
-    await db
-      .update(providers)
-      .set({
-        migrationBypassExpiresAt: bypassExpiry,
-        updatedAt: new Date(),
-      })
-      .where(eq(providers.id, prov.id));
-
-    logAudit({
-      action: "migration.initiated",
-      userId: user.id,
-      resourceType: "provider",
-      resourceId: prov.id,
-      details: {
-        bypassExpiresAt: bypassExpiry.toISOString(),
-        graceDays,
-      },
-      ipAddress,
-      userAgent,
-    });
-
-    // Day 0 notification (fire-and-forget)
-    const { notifyMigrationDay0 } = await import("@/lib/notifications");
-    notifyMigrationDay0(prov.id, deadlineDate).catch((err) => {
-      console.error("[Notifications] Failed:", err);
-    });
-
-    migrated++;
-  }
-
-  return c.json({ migrated, bypassExpiresAt: bypassExpiry.toISOString() }, 200);
-});
-
-// GET /migration-status — migration counts for admin dashboard
-app.get("/migration-status", async (c) => {
-  const allActive = await db
-    .select({ id: providers.id, migrationBypassExpiresAt: providers.migrationBypassExpiresAt })
-    .from(providers)
-    .where(eq(providers.status, "active"));
-
-  const withoutSteps = allActive.filter((p) => !p.migrationBypassExpiresAt);
-  const migrating = allActive.filter(
-    (p) => p.migrationBypassExpiresAt && p.migrationBypassExpiresAt > new Date(),
-  );
-  const completedMigration = allActive.filter(
-    (p) => !p.migrationBypassExpiresAt,
-  );
-
-  // Count suspended due to migration deadline
-  const suspendedMigration = await db
-    .select({ id: providers.id })
-    .from(providers)
-    .where(
-      and(
-        eq(providers.status, "suspended"),
-        eq(providers.suspendedReason, "migration_deadline_expired"),
-      ),
-    );
+  const slotSetting = await db.query.platformSettings.findFirst({
+    where: eq(platformSettings.key, "beta_provider_slots"),
+  });
+  const totalSlots = slotSetting ? parseInt(slotSetting.value) : 50;
 
   return c.json({
-    notStarted: withoutSteps.length,
-    migrating: migrating.length,
-    completed: completedMigration.length,
-    suspendedDueToDeadline: suspendedMigration.length,
-  }, 200);
-});
-
-// POST /reconcile/migration-reminders — check and send migration reminders
-app.post("/reconcile/migration-reminders", async (c) => {
-  const { checkMigrationReminders } = await import("../lib/reconciliation");
-  const result = await checkMigrationReminders();
-  return c.json(result, 200);
-});
-
-// POST /reconcile/migration-deadline — enforce migration deadline
-app.post("/reconcile/migration-deadline", async (c) => {
-  const { enforceMigrationDeadline } = await import("../lib/reconciliation");
-  const result = await enforceMigrationDeadline();
-  return c.json(result, 200);
+    betaActive,
+    totalSlots,
+    usedSlots: Number(usedSlots),
+    pendingInvites: Number(pendingInvites),
+    remainingSlots: totalSlots - Number(usedSlots),
+  });
 });
 
 export default app;

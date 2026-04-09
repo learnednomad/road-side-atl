@@ -1,0 +1,11 @@
+[  240124ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[  481132ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[  723139ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[  967142ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[ 1215146ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[ 1471168ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[ 1741179ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[ 2011188ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[ 2281194ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[ 2551204ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1
+[ 2821214ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/7610320a43bdb41b.js:1

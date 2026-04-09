@@ -6,6 +6,7 @@ import { requireProvider } from "../middleware/auth";
 import { createObservationSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { notifyObservationFollowUp } from "@/lib/notifications";
+import { getUpsellLinks } from "../lib/observation-upsell";
 
 type AuthEnv = {
   Variables: {
@@ -88,6 +89,13 @@ app.post("/", async (c) => {
       .map((i) => `${i.category}: ${i.description} (${i.severity})`)
       .join("; ");
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com";
+    const upsellLinks = getUpsellLinks(
+      parsed.data.items,
+      booking.vehicleInfo,
+      appUrl
+    );
+
     const notificationResults = await Promise.allSettled([
       notifyObservationFollowUp(
         {
@@ -95,7 +103,8 @@ app.post("/", async (c) => {
           email: booking.contactEmail,
           phone: booking.contactPhone,
         },
-        findings
+        findings,
+        upsellLinks.length > 0 ? upsellLinks : undefined
       ),
     ]);
 

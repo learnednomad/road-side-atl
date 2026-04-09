@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { ServiceAreaPicker } from "@/components/provider/service-area-picker";
 
 const SPECIALTIES_OPTIONS = [
   "Tire Change",
@@ -156,14 +157,13 @@ export function ApplicationForm() {
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="serviceArea">Service Area</Label>
-            <Input
-              id="serviceArea"
-              {...register("serviceArea.0")}
-              placeholder="e.g., Atlanta ITP, Midtown, Buckhead"
+          <div className="space-y-1.5">
+            <Label>Service Area</Label>
+            <ServiceAreaPicker
+              selected={(watch("serviceArea") || []) as string[]}
+              onChange={(areas) => setValue("serviceArea", areas)}
+              required
             />
-            <p className="text-xs text-muted-foreground">Enter your primary service area</p>
             {errors.serviceArea && (
               <p className="text-sm text-destructive">
                 {(errors.serviceArea as { message?: string })?.message || "At least one service area is required"}

@@ -1,9 +1,6 @@
 import { db } from "@/db";
 import { bookings, payments, providers, providerPayouts, services } from "@/db/schema";
-import { onboardingSteps } from "@/db/schema/onboarding-steps";
-import { eq, and, sql } from "drizzle-orm";
-import { stripe } from "@/lib/stripe";
-import { logAudit } from "./audit-logger";
+import { eq, and } from "drizzle-orm";
 import { createInvoiceForBooking } from "./invoice-generator";
 
 /**
@@ -96,78 +93,6 @@ export async function createPayoutIfEligible(bookingId: string) {
     })
     .returning();
 
-  // Determine payout routing: Stripe Connect vs manual batch
-  const stripeStep = await db.query.onboardingSteps.findFirst({
-    where: and(
-      eq(onboardingSteps.providerId, provider.id),
-      eq(onboardingSteps.stepType, "stripe_connect"),
-      eq(onboardingSteps.status, "complete"),
-    ),
-  });
-
-  if (provider.stripeConnectAccountId && stripeStep) {
-    // Route via Stripe Connect — attempt transfer
-    try {
-      const transfer = await stripe.transfers.create({
-        amount: providerAmount,
-        currency: "usd",
-        destination: provider.stripeConnectAccountId,
-        transfer_group: bookingId,
-        metadata: { payoutId: payout.id, bookingId },
-      });
-
-      await db
-        .update(providerPayouts)
-        .set({
-          status: "paid",
-          paidAt: new Date(),
-          payoutMethod: "stripe_connect",
-          metadata: { stripeTransferId: transfer.id },
-        })
-        .where(eq(providerPayouts.id, payout.id));
-
-      logAudit({
-        action: "payout.stripe_connect_transfer",
-        resourceType: "payout",
-        resourceId: payout.id,
-        details: {
-          providerId: provider.id,
-          bookingId,
-          amount: providerAmount,
-          stripeTransferId: transfer.id,
-          destination: provider.stripeConnectAccountId,
-        },
-      });
-    } catch (err) {
-      // Fallback to manual batch on Stripe failure
-      await db
-        .update(providerPayouts)
-        .set({
-          payoutMethod: "manual_batch",
-          metadata: { stripeError: err instanceof Error ? err.message : String(err) },
-        })
-        .where(eq(providerPayouts.id, payout.id));
-
-      logAudit({
-        action: "payout.stripe_connect_failed",
-        resourceType: "payout",
-        resourceId: payout.id,
-        details: {
-          providerId: provider.id,
-          bookingId,
-          amount: providerAmount,
-          error: err instanceof Error ? err.message : String(err),
-        },
-      });
-    }
-  } else {
-    // No Connect account — mark as manual batch
-    await db
-      .update(providerPayouts)
-      .set({ payoutMethod: "manual_batch" })
-      .where(eq(providerPayouts.id, payout.id));
-  }
-
   // Generate invoice for this booking (fire-and-forget)
   createInvoiceForBooking(bookingId).catch((err) => {
     console.error("[Payout] Failed to generate invoice for booking:", bookingId, err);
@@ -177,115 +102,15 @@ export async function createPayoutIfEligible(bookingId: string) {
 }
 
 /**
- * Auto-migrate pending manual_batch payouts to Stripe Connect
- * when a provider completes their Connect setup.
+ * Migrate pending manual_batch payouts to Stripe Connect transfers.
+ * Called when a provider completes Stripe Connect onboarding.
+ *
+ * Stub implementation — will be fully implemented when Stripe Connect
+ * payout migration is delivered.
  */
 export async function migratePendingPayoutsToConnect(
-  providerId: string,
+  providerId: string
 ): Promise<{ migrated: number; errors: number }> {
-  const provider = await db.query.providers.findFirst({
-    where: eq(providers.id, providerId),
-  });
-
-  if (!provider?.stripeConnectAccountId) {
-    return { migrated: 0, errors: 0 };
-  }
-
-  const pendingPayouts = await db
-    .select()
-    .from(providerPayouts)
-    .where(
-      and(
-        eq(providerPayouts.providerId, providerId),
-        eq(providerPayouts.status, "pending"),
-        eq(providerPayouts.payoutMethod, "manual_batch"),
-        eq(providerPayouts.payoutType, "standard"),
-      ),
-    );
-
-  let migrated = 0;
-  let errors = 0;
-
-  for (const payout of pendingPayouts) {
-    try {
-      // TOCTOU guard: claim the payout before sending money
-      const [claimed] = await db
-        .update(providerPayouts)
-        .set({
-          payoutMethod: "stripe_connect",
-          metadata: sql`coalesce(${providerPayouts.metadata}, '{}'::jsonb) || ${JSON.stringify({ migrationStartedAt: new Date().toISOString() })}::jsonb`,
-        })
-        .where(
-          and(
-            eq(providerPayouts.id, payout.id),
-            eq(providerPayouts.status, "pending"),
-            eq(providerPayouts.payoutMethod, "manual_batch"),
-          ),
-        )
-        .returning();
-
-      if (!claimed) {
-        // Another process already claimed this payout
-        continue;
-      }
-
-      const transfer = await stripe.transfers.create({
-        amount: payout.amount,
-        currency: "usd",
-        destination: provider.stripeConnectAccountId!,
-        transfer_group: payout.bookingId,
-        metadata: { payoutId: payout.id, bookingId: payout.bookingId },
-      }, {
-        idempotencyKey: `migrate_${payout.id}`,
-      });
-
-      await db
-        .update(providerPayouts)
-        .set({
-          status: "paid",
-          paidAt: new Date(),
-          metadata: sql`coalesce(${providerPayouts.metadata}, '{}'::jsonb) || ${JSON.stringify({ stripeTransferId: transfer.id })}::jsonb`,
-        })
-        .where(
-          and(
-            eq(providerPayouts.id, payout.id),
-            eq(providerPayouts.status, "pending"),
-          ),
-        );
-
-      logAudit({
-        action: "payout.auto_migrated",
-        resourceType: "payout",
-        resourceId: payout.id,
-        details: {
-          providerId,
-          bookingId: payout.bookingId,
-          amount: payout.amount,
-          stripeTransferId: transfer.id,
-        },
-      });
-
-      migrated++;
-    } catch (err) {
-      errors++;
-      logAudit({
-        action: "payout.stripe_connect_failed",
-        resourceType: "payout",
-        resourceId: payout.id,
-        details: {
-          providerId,
-          bookingId: payout.bookingId,
-          amount: payout.amount,
-          error: err instanceof Error ? err.message : String(err),
-          source: "auto_migration",
-        },
-      });
-      console.error(
-        `[Payout] Auto-migration failed for payout ${payout.id}:`,
-        err instanceof Error ? err.message : err,
-      );
-    }
-  }
-
-  return { migrated, errors };
+  console.log(`[Payout] migratePendingPayoutsToConnect called for provider: ${providerId}`);
+  return { migrated: 0, errors: 0 };
 }

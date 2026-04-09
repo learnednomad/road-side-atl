@@ -1,8 +1,12 @@
 #!/bin/sh
 set -e
 
+APP_ENV="${APP_ENV:-production}"
+
 echo "========================================"
 echo "RoadSide GA - Docker Startup"
+echo "  APP_ENV=${APP_ENV}"
+echo "  SEED_DB=${SEED_DB:-false}"
 echo "========================================"
 
 # Short delay to ensure database is fully ready
@@ -38,14 +42,14 @@ if [ "${SEED_DB:-false}" = "true" ]; then
     echo "Warning: Schema push may have failed, but continuing..."
   fi
 
-  echo "Seeding database with demo data..."
-  if npx tsx db/seed.ts 2>&1; then
+  echo "Seeding database (APP_ENV=${APP_ENV})..."
+  if APP_ENV="${APP_ENV}" npx tsx db/seed.ts 2>&1; then
     echo "Database seeded successfully!"
   else
     echo "Warning: Seed may have failed, but continuing..."
   fi
 else
-  # Production: use migrations for safe incremental updates
+  # No seed: use migrations for safe incremental updates
   echo "Running database migrations..."
   if npx drizzle-kit migrate 2>&1; then
     echo "Migrations completed successfully!"

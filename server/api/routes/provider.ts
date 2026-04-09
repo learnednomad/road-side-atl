@@ -8,11 +8,12 @@ import type { BookingStatus } from "@/lib/constants";
 import { updateBookingStatusSchema } from "@/lib/validators";
 import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
-import { autoDispatchBooking } from "../lib/auto-dispatch";
+import { dispatchBooking } from "../lib/dispatch-router";
 import { geocodeAddress } from "@/lib/geocoding";
-import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
+import { generateReferralCode, creditReferralOnFirstBooking, creditProviderReferralOnFirstJob } from "../lib/referral-credits";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
 import { logAudit } from "../lib/audit-logger";
+import { logger } from "@/lib/logger";
 import { sendDelayNotificationSMS } from "@/lib/notifications/sms";
 import { ETA_DELAY_THRESHOLD_MINUTES } from "@/lib/constants";
 import { markDelayNotified, hasDelayNotification, clearDelayNotification } from "../lib/delay-tracker";
@@ -136,12 +137,12 @@ app.patch("/jobs/:id/accept", async (c) => {
 
   const [updated] = await db
     .update(bookings)
-    .set({ status: "in_progress", updatedAt: new Date() })
+    .set({ status: "in_progress", offerExpiresAt: null, updatedAt: new Date() })
     .where(eq(bookings.id, bookingId))
     .returning();
 
   // Fire-and-forget notifications
-  notifyStatusChange(booking, "in_progress").catch((err) => { console.error("[Notifications] Failed:", err); });
+  notifyStatusChange(booking, "in_progress").catch(() => {});
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
   if (booking.userId) {
     broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
@@ -178,9 +179,19 @@ app.patch("/jobs/:id/reject", async (c) => {
   // Unassign provider and revert to confirmed
   const [updated] = await db
     .update(bookings)
-    .set({ providerId: null, status: "confirmed", updatedAt: new Date() })
+    .set({ providerId: null, status: "confirmed", offerExpiresAt: null, updatedAt: new Date() })
     .where(eq(bookings.id, bookingId))
     .returning();
+
+  // Log rejection outcome
+  await db.insert(dispatchLogs).values({
+    bookingId,
+    assignedProviderId: provider.id,
+    algorithm: "auto",
+    reason: `Provider ${provider.name} rejected the offer`,
+    attemptNumber: booking.dispatchAttempt || 1,
+    outcome: "rejected",
+  });
 
   // Build exclusion list from previous dispatch attempts, then re-dispatch
   const previousDispatches = await db.query.dispatchLogs.findMany({
@@ -189,7 +200,10 @@ app.patch("/jobs/:id/reject", async (c) => {
   const excludeProviderIds = previousDispatches
     .filter((d) => d.assignedProviderId)
     .map((d) => d.assignedProviderId!);
-  autoDispatchBooking(bookingId, { excludeProviderIds }).catch((err) => { console.error("[Dispatch] Failed:", err); });
+  dispatchBooking(bookingId, {
+    excludeProviderIds,
+    attempt: (booking.dispatchAttempt || 0) + 1,
+  }).catch(() => {});
 
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
   if (booking.userId) {
@@ -197,111 +211,6 @@ app.patch("/jobs/:id/reject", async (c) => {
   }
 
   return c.json(updated);
-});
-
-// Cancel mid-job — unassign provider and trigger automatic re-dispatch
-app.patch("/jobs/:id/cancel", async (c) => {
-  const user = c.get("user");
-  const bookingId = c.req.param("id");
-  const body = await c.req.json().catch(() => ({}));
-  const reason = (body as { reason?: string }).reason || "Provider cancelled";
-
-  const provider = await db.query.providers.findFirst({
-    where: eq(providers.userId, user.id),
-  });
-
-  if (!provider) {
-    return c.json({ error: "Provider profile not found" }, 404);
-  }
-
-  const booking = await db.query.bookings.findFirst({
-    where: and(eq(bookings.id, bookingId), eq(bookings.providerId, provider.id)),
-  });
-
-  if (!booking) {
-    return c.json({ error: "Job not found" }, 404);
-  }
-
-  // Allow cancellation from dispatched or in_progress
-  if (booking.status !== "dispatched" && booking.status !== "in_progress") {
-    return c.json({ error: "Job can only be cancelled when dispatched or in progress" }, 400);
-  }
-
-  // Unassign provider and revert to pending for re-dispatch
-  const [updated] = await db
-    .update(bookings)
-    .set({
-      providerId: null,
-      status: "pending",
-      notes: booking.notes
-        ? `${booking.notes}\n[Provider cancelled: ${reason}]`
-        : `[Provider cancelled: ${reason}]`,
-      updatedAt: new Date(),
-    })
-    .where(eq(bookings.id, bookingId))
-    .returning();
-
-  // Clear provider tracking state
-  await db
-    .update(providers)
-    .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
-    .where(eq(providers.id, provider.id));
-  clearDelayNotification(bookingId);
-
-  logAudit({
-    action: "booking.cancel",
-    userId: user.id,
-    resourceType: "booking",
-    resourceId: bookingId,
-    details: {
-      type: "provider_cancellation",
-      previousStatus: booking.status,
-      providerId: provider.id,
-      providerName: provider.name,
-      reason,
-    },
-  });
-
-  // Build exclusion list and trigger automatic re-dispatch
-  const previousDispatches = await db.query.dispatchLogs.findMany({
-    where: eq(dispatchLogs.bookingId, bookingId),
-  });
-  const excludeProviderIds = [
-    ...previousDispatches
-      .filter((d) => d.assignedProviderId)
-      .map((d) => d.assignedProviderId!),
-    provider.id,
-  ];
-
-  const dispatchResult = await autoDispatchBooking(bookingId, { excludeProviderIds }).catch((err) => {
-    console.error("[Dispatch] Re-dispatch after provider cancellation failed:", err);
-    return null;
-  });
-
-  notifyStatusChange(booking, "provider_cancelled").catch((err) => {
-    console.error("[Notifications] Failed:", err);
-  });
-  broadcastToAdmins({
-    type: "booking:provider_cancelled",
-    data: {
-      bookingId,
-      previousProviderId: provider.id,
-      previousProviderName: provider.name,
-      reason,
-      reDispatched: dispatchResult?.success || false,
-    },
-  });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, {
-      type: "booking:status_changed",
-      data: { bookingId, status: "pending" },
-    });
-  }
-
-  return c.json({
-    ...updated,
-    reDispatchResult: dispatchResult,
-  });
 });
 
 // Update job status
@@ -347,7 +256,7 @@ app.patch("/jobs/:id/status", async (c) => {
     .where(eq(bookings.id, bookingId))
     .returning();
 
-  notifyStatusChange(booking, parsed.data.status).catch((err) => { console.error("[Notifications] Failed:", err); });
+  notifyStatusChange(booking, parsed.data.status).catch(() => {});
   broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
   if (booking.userId) {
     broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
@@ -358,7 +267,7 @@ app.patch("/jobs/:id/status", async (c) => {
       db.update(providers)
         .set({ currentLocation: null, lastLocationUpdate: null, updatedAt: new Date() })
         .where(eq(providers.id, booking.providerId))
-        .catch((err) => { console.error("[Error]", err); });
+        .catch(() => {});
     }
     clearDelayNotification(bookingId);
   }
@@ -380,15 +289,22 @@ app.patch("/jobs/:id/status", async (c) => {
             referralCode = await generateReferralCode(bookingUser.id);
           }
           const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || ""}/register?ref=${referralCode}`;
-          notifyReferralLink(booking.contactPhone, referralLink).catch((err) => { console.error("[Notifications] Failed:", err); });
+          notifyReferralLink(booking.contactPhone, referralLink).catch(() => {});
         }
-      })().catch((err) => { console.error("[Notifications] Failed:", err); });
+      })().catch(() => {});
     }
 
     // Credit referral on first booking completion (fire-and-forget)
     (async () => {
       await creditReferralOnFirstBooking(booking.userId!, bookingId);
-    })().catch((err) => { console.error("[Error]", err); });
+    })().catch(() => {});
+  }
+
+  // Provider referral reward on first completed job (fire-and-forget)
+  if (parsed.data.status === "completed" && booking.providerId) {
+    creditProviderReferralOnFirstJob(booking.providerId, bookingId).catch((err) => {
+      logger.error("[Notifications] Failed:", err);
+    });
   }
 
   return c.json(updated);
@@ -456,14 +372,14 @@ app.post("/location", async (c) => {
       markDelayNotified(activeBooking.id);
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "";
       const trackingUrl = `${baseUrl}/track/${activeBooking.id}`;
-      sendDelayNotificationSMS(activeBooking.contactPhone, provider.name, etaMinutes, trackingUrl).catch((err) => { console.error("[Notifications] Failed:", err); });
+      sendDelayNotificationSMS(activeBooking.contactPhone, provider.name, etaMinutes, trackingUrl).catch(() => {});
       logAudit({
         action: "booking.delay_notification",
         userId: user.id,
         resourceType: "booking",
         resourceId: activeBooking.id,
         details: { etaMinutes, providerLat: latitude, providerLng: longitude },
-      }).catch((err) => { console.error("[Error]", err); });
+      }).catch(() => {});
     }
   }
 
@@ -572,6 +488,7 @@ app.patch("/profile", async (c) => {
     address: string;
     latitude: number;
     longitude: number;
+    serviceAreas: string[];
     updatedAt: Date;
   }> = { updatedAt: new Date() };
 
@@ -580,6 +497,7 @@ app.patch("/profile", async (c) => {
   if (body.address && typeof body.address === "string") updates.address = body.address;
   if (typeof body.latitude === "number") updates.latitude = body.latitude;
   if (typeof body.longitude === "number") updates.longitude = body.longitude;
+  if (Array.isArray(body.serviceAreas)) updates.serviceAreas = body.serviceAreas;
 
   // Geocode if address provided without coordinates
   if (updates.address && !updates.latitude && !updates.longitude) {

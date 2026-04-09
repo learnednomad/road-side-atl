@@ -15,8 +15,14 @@ export type AuditAction =
   | "provider.update"
   | "provider.delete"
   | "provider.status_change"
+  | "provider.reactivated"
   | "payout.create"
   | "payout.mark_paid"
+  | "payout.auto_migrated"
+  | "payout.stripe_connect_failed"
+  | "payout.manual_deprecated"
+  | "payout.transfer_confirmed"
+  | "payout.transfer_failed"
   | "payment.confirm"
   | "payment.refund"
   | "payment.dispute"
@@ -68,49 +74,22 @@ export type AuditAction =
   | "invoice.send"
   | "invoice.mark_paid"
   | "invoice.mark_overdue"
+  | "migration.completed"
+  | "onboarding.status_changed"
+  | "onboarding.migration_bypass"
   | "onboarding.fcra_consent"
   | "onboarding.step_started"
-  | "onboarding.step_completed"
-  | "onboarding.step_rejected"
-  | "onboarding.activated"
-  | "onboarding.suspended"
-  | "onboarding.rejected"
-  | "onboarding.migration_bypass"
-  | "onboarding.status_changed"
-  | "onboarding.invite_sent"
   | "onboarding.invite_accepted"
-  | "document.uploaded"
-  | "document.approved"
-  | "document.rejected"
-  | "document.resubmitted"
   | "checkr.candidate_created"
-  | "checkr.report_received"
-  | "checkr.adjudication_approved"
-  | "checkr.adverse_action_initiated"
   | "checkr.webhook_invalid_signature"
-  | "checkr.reconciliation_run"
-  | "stripe_connect.account_created"
-  | "stripe_connect.onboarding_completed"
-  | "stripe_connect.link_generated"
-  | "stripe_connect.reconciliation_run"
-  | "stripe_connect.reminder_sent"
+  | "checkr.report_received"
+  | "document.uploaded"
+  | "document.resubmitted"
   | "training.card_acknowledged"
   | "training.module_completed"
-  | "migration.initiated"
-  | "migration.completed"
-  | "migration.suspended_deadline"
-  | "migration.reminder_sent"
-  | "migration.reminder_check_run"
-  | "migration.deadline_enforcement_run"
-  | "payout.stripe_connect_transfer"
-  | "payout.stripe_connect_failed"
-  | "payout.auto_migrated"
-  | "payout.manual_deprecated"
-  | "payout.transfer_confirmed"
-  | "payout.transfer_failed"
-  | "provider.reactivated"
-  | "provider.suspended"
-  | "stripe_connect.deadline_enforcement_run";
+  | "stripe_connect.account_created"
+  | "stripe_connect.link_generated"
+  | "stripe_connect.onboarding_completed";
 
 export interface AuditLogEntry {
   action: AuditAction;
@@ -176,11 +155,6 @@ async function flushLogs(): Promise<void> {
           created_at TIMESTAMP DEFAULT NOW()
         )
       `);
-      // Create indexes for common query patterns
-      await db.execute(sql`CREATE INDEX IF NOT EXISTS audit_logs_user_id_idx ON audit_logs (user_id)`);
-      await db.execute(sql`CREATE INDEX IF NOT EXISTS audit_logs_action_idx ON audit_logs (action)`);
-      await db.execute(sql`CREATE INDEX IF NOT EXISTS audit_logs_created_at_idx ON audit_logs (created_at)`);
-      await db.execute(sql`CREATE INDEX IF NOT EXISTS audit_logs_resource_idx ON audit_logs (resource_type, resource_id)`);
       tableEnsured = true;
     }
 
@@ -243,8 +217,9 @@ export async function queryAuditLogs(filters: {
 
     if (filters.action) {
       conditions.push(sql`action = ${filters.action}`);
-    } else if (filters.actionPrefix) {
-      conditions.push(sql`action LIKE ${filters.actionPrefix + ".%"}`);
+    }
+    if (filters.actionPrefix) {
+      conditions.push(sql`action LIKE ${filters.actionPrefix + "%"}`);
     }
     if (filters.userId) {
       conditions.push(sql`user_id = ${filters.userId}`);

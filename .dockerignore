@@ -40,6 +40,9 @@ _bmad*
 .playwright-mcp
 playwright-report
 test-results
+playwright.config.ts
+e2e-tests
+sentry.*.config.ts
 
 # Screenshots and temporary files
 *.png

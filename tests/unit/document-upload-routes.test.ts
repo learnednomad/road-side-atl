@@ -31,7 +31,7 @@ vi.mock("@/db", () => {
       query: {
         users: { findFirst: vi.fn() },
         providers: { findFirst: vi.fn() },
-        providerInvites: { findFirst: vi.fn() },
+        providerInviteTokens: { findFirst: vi.fn() },
         onboardingSteps: { findFirst: vi.fn(), findMany: vi.fn() },
         providerDocuments: { findFirst: vi.fn(), findMany: vi.fn() },
       },
@@ -55,7 +55,7 @@ vi.mock("@/db/schema/onboarding-steps", () => ({
 }));
 
 vi.mock("@/db/schema/provider-invites", () => ({
-  providerInvites: { id: "id", token: "token", usedAt: "usedAt", email: "email" },
+  providerInviteTokens: { id: "id", token: "token", usedAt: "usedAt", email: "email" },
 }));
 
 vi.mock("@/db/schema/provider-documents", () => ({
