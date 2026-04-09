@@ -37,6 +37,7 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - RESEND_FROM=${RESEND_FROM:-noreply@roadsidega.com}
       - SEED_DB=${SEED_DB:-false}
+      - APP_ENV=${APP_ENV:-production}
     depends_on:
       db:
         condition: service_healthy

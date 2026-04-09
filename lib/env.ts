@@ -34,6 +34,7 @@ const envSchema = z.object({
 
   // Server config
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  APP_ENV: z.enum(["development", "staging", "production"]).default("production"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   TRUST_PROXY: z.string().optional(),
   DISABLE_CRON: z.string().optional(),
