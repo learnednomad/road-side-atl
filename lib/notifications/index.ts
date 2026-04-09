@@ -1,4 +1,5 @@
 import { sendBookingConfirmation, sendProviderAssignment, sendStatusUpdate, sendObservationFollowUpEmail, sendReferralCreditEmail, sendPreServiceConfirmationEmail, sendInspectionReportEmail, sendTierPromotionEmail, sendPaymentReceiptEmail, sendB2bServiceDispatchedEmail, sendB2bInvoiceEmail } from "./email";
+import { logger } from "@/lib/logger";
 
 /** Escape HTML special characters to prevent XSS in email templates */
 function escapeHtml(str: string): string {
@@ -66,10 +67,14 @@ export async function notifyStatusChange(booking: BookingInfo, newStatus: string
   await Promise.allSettled(tasks);
 }
 
-export async function notifyObservationFollowUp(customer: { name: string; email: string; phone: string }, findings: string) {
+export async function notifyObservationFollowUp(
+  customer: { name: string; email: string; phone: string },
+  findings: string,
+  upsellLinks?: { category: string; serviceSlug: string; deepLink: string }[]
+) {
   await Promise.allSettled([
-    sendObservationFollowUpEmail(customer.email, customer.name, findings),
-    sendObservationFollowUpSMS(customer.phone, findings),
+    sendObservationFollowUpEmail(customer.email, customer.name, findings, upsellLinks),
+    sendObservationFollowUpSMS(customer.phone, findings, upsellLinks),
   ]);
 }
 
@@ -237,7 +242,7 @@ export async function notifyBackgroundCheckResult(
 
   const message = statusMessages[checkrStatus];
   if (!message) {
-    console.warn("[Notifications] Unknown Checkr status for notification: %s (providerId: %s)", checkrStatus, providerId);
+    logger.warn("[Notifications] Unknown Checkr status for notification", { checkrStatus, providerId });
     return;
   }
   const { sendEmail } = await import("./email");

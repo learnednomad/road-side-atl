@@ -134,11 +134,18 @@ export async function sendDelayNotificationSMS(phone: string, providerName: stri
   );
 }
 
-export async function sendObservationFollowUpSMS(phone: string, findings: string) {
+export async function sendObservationFollowUpSMS(
+  phone: string,
+  findings: string,
+  upsellLinks?: { category: string; serviceSlug: string; deepLink: string }[]
+) {
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
+  const linkText = upsellLinks?.length
+    ? `Book a recommended service: ${upsellLinks[0].deepLink}`
+    : "Book a diagnostic inspection to learn more!";
   await sendSMS(
     phone,
-    `RoadSide GA: Our provider noticed some issues with your vehicle: ${findings}. Book a diagnostic inspection to learn more! Reply STOP to opt out.`,
+    `RoadSide ATL: Our provider noticed some issues with your vehicle: ${findings}. ${linkText} Reply STOP to opt out.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }

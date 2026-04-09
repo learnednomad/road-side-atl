@@ -189,7 +189,7 @@ vi.mock("@/db/schema/provider-documents", () => ({
 }));
 
 vi.mock("@/db/schema/provider-invites", () => ({
-  providerInvites: {},
+  providerInviteTokens: {},
 }));
 
 vi.mock("@/db/schema/users", () => ({

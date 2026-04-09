@@ -37,6 +37,7 @@ export default async function BookPage() {
     basePrice: number;
     pricePerMile: number | null;
     category: string;
+    schedulingMode?: string;
   };
 
   let allServices: Service[] = [];
