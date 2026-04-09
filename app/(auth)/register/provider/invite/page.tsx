@@ -63,8 +63,10 @@ function AcceptInviteContent() {
 
   useEffect(() => {
     if (!token) {
-      setVerifying(false);
-      setError("No invite token provided");
+      queueMicrotask(() => {
+        setVerifying(false);
+        setError("No invite token provided");
+      });
       return;
     }
 

@@ -16,7 +16,6 @@ import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast
 import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
-import { logger } from "@/lib/logger";
 
 const app = new Hono();
 

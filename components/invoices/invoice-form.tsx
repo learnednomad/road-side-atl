@@ -65,7 +65,6 @@ export function InvoiceForm({ role, invoiceId }: InvoiceFormProps) {
 
   // Save customer dialog
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [pendingSaveCustomer, setPendingSaveCustomer] = useState(false);
 
   // Load business settings defaults
   useEffect(() => {

@@ -2,14 +2,12 @@
  * Base seed — safe for ALL environments (production, staging, development).
  * Seeds: services catalog, platform settings, time-block configs, admin user(s).
  */
-import { drizzle } from "drizzle-orm/postgres-js";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import bcrypt from "bcryptjs";
 import {
   services,
   users,
   timeBlockConfigs,
-  platformSettings,
 } from "./schema";
 
 export async function seedBase(db: PostgresJsDatabase) {

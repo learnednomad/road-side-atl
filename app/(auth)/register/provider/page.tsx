@@ -27,6 +27,7 @@ export default function ProviderRegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [serviceAreas, setServiceAreas] = useState<string[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [address, setAddress] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

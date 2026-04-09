@@ -8,7 +8,7 @@
  */
 
 import { autoDispatchBooking } from "./auto-dispatch";
-import { autoDispatchBookingV2, type DispatchV2Result } from "./auto-dispatch-v2";
+import { autoDispatchBookingV2 } from "./auto-dispatch-v2";
 
 interface DispatchResult {
   success: boolean;

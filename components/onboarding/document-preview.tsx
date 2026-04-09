@@ -15,6 +15,7 @@ export function DocumentPreview({ previewUrl, fileName, onRetake, onSubmit, uplo
   return (
     <div className="space-y-4">
       <div className="relative rounded-lg overflow-hidden border bg-muted">
+        {/* eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL */}
         <img
           src={previewUrl}
           alt={`Preview of ${fileName}`}

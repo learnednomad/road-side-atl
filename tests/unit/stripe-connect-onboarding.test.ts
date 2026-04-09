@@ -201,7 +201,6 @@ vi.mock("@/db/schema/users", () => ({
 import { db } from "@/db";
 import { logAudit } from "@/server/api/lib/audit-logger";
 import { isValidStepTransition } from "@/server/api/lib/onboarding-state-machine";
-import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 
 // ── Shared fixtures ──────────────────────────────────────────────
 

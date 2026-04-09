@@ -109,7 +109,7 @@ describe("scoreAndRankCandidates", () => {
     });
 
     // In normal mode, closer might win
-    const normalResult = scoreAndRankCandidates([specialist, closer], undefined, 3, false);
+    scoreAndRankCandidates([specialist, closer], undefined, 3, false);
     // In B2B mode, specialist should win due to doubled specialty weight
     const b2bResult = scoreAndRankCandidates([specialist, closer], undefined, 3, true);
     expect(b2bResult[0].providerId).toBe("specialist");
