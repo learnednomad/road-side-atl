@@ -96,7 +96,7 @@ export function Navbar() {
             <>
               <Button asChild variant="ghost" size="sm">
                 <Link href="/become-provider">
-                  <Truck className="mr-2 h-4 w-4" />
+                  <Wrench className="mr-2 h-4 w-4" />
                   Become a Provider
                 </Link>
               </Button>

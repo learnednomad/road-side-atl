@@ -45,7 +45,7 @@ export function ProviderReferralForm({ onSuccess }: { onSuccess: () => void }) {
     <Card>
       <CardHeader>
         <CardTitle>Refer a Provider</CardTitle>
-        <CardDescription>Refer another provider and earn $10 credit when they complete their first job.</CardDescription>
+        <CardDescription>Refer another provider and earn a $50 bonus when they complete their first job. An invite email will be sent automatically.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -62,10 +62,10 @@ export function ProviderReferralForm({ onSuccess }: { onSuccess: () => void }) {
             <Input id="ref-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {success && <p className="text-sm text-green-600">Referral submitted successfully!</p>}
+          {success && <p className="text-sm text-green-600">Invite email sent! They&apos;ll receive a link to join the team.</p>}
           <Button type="submit" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Submit Referral
+            Send Invite
           </Button>
         </form>
       </CardContent>

@@ -1,0 +1,12 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e236]:
+    - img [ref=e237]
+    - heading "Something went wrong" [level=2] [ref=e239]
+    - paragraph [ref=e240]: An unexpected error occurred. Please try again.
+    - button "Try Again" [ref=e241]:
+      - img
+      - text: Try Again
+  - region "Notifications alt+T"
+  - alert [ref=e116]

@@ -4,8 +4,8 @@ import { users } from "@/db/schema/users";
 import { providers } from "@/db/schema/providers";
 import { onboardingSteps } from "@/db/schema/onboarding-steps";
 import { providerDocuments } from "@/db/schema/provider-documents";
-import { providerInvites } from "@/db/schema/provider-invites";
-import { eq, and, isNull, asc } from "drizzle-orm";
+import { providerInviteTokens } from "@/db/schema/auth";
+import { eq, and, asc } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { providerApplicationSchema, inviteAcceptSchema, providerStepUpdateSchema, documentUploadUrlSchema, documentCreateSchema } from "@/lib/validators";
 import { ONBOARDING_STEP_TYPES, REAPPLY_COOLDOWN_DAYS, PRESIGNED_UPLOAD_EXPIRY, PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER, MIN_DOCUMENTS_PER_STEP, CHECKR_PACKAGE } from "@/lib/constants";
@@ -18,6 +18,7 @@ import { getPresignedUploadUrl, getPresignedUrl } from "@/lib/s3";
 import { createCandidate, createInvitation, CheckrApiError } from "../lib/checkr";
 import { stripe } from "@/lib/stripe";
 import { checkAllStepsCompleteAndTransition } from "../lib/all-steps-complete";
+import { logger } from "@/lib/logger";
 import { notifyApplicationReceived, notifyTrainingCompleted, notifyStripeConnectCompleted, notifyAdminProviderReadyForReview, notifyAdminNewDocumentSubmitted } from "@/lib/notifications";
 
 const app = new Hono();
@@ -101,7 +102,7 @@ app.get("/dashboard", requireProvider, async (c) => {
       // Admin notification is handled by checkAllStepsCompleteAndTransition in step-completion endpoints.
       // Dashboard GET is a fallback transition — only fires if no step endpoint triggered it first.
       notifyAdminProviderReadyForReview(provider.id, provider.name || "").catch((err) => {
-        console.error("[Notifications] Failed:", err);
+        logger.error("[Notifications] Failed:", err);
       });
     }
 
@@ -212,7 +213,7 @@ async function initiateCheckrBackgroundCheck(
 ): Promise<boolean> {
   try {
     if (!providerData.dob) {
-      console.warn("[Checkr] No DOB provided for provider %s — deferring background check initiation", providerId);
+      logger.warn("[Checkr] No DOB provided — deferring background check initiation", { providerId });
       return false;
     }
 
@@ -254,7 +255,7 @@ async function initiateCheckrBackgroundCheck(
     return true;
   } catch (err) {
     // Log failure but don't throw — step stays in_progress with null metadata
-    console.error("[Checkr] Failed to initiate background check:", err);
+    logger.error("[Checkr] Failed to initiate background check:", err);
     logAudit({
       action: "checkr.candidate_created",
       userId,
@@ -327,6 +328,7 @@ app.post("/apply", async (c) => {
           phone,
           specialties: specialties ?? [],
           address: serviceArea.join(", "),
+          serviceAreas: serviceArea,
           status: "applied",
         })
         .returning();
@@ -379,13 +381,13 @@ app.post("/apply", async (c) => {
       ipAddress,
       userAgent,
     ).catch((err) => {
-      console.error("[Checkr] Background check initiation failed:", err);
+      logger.error("[Checkr] Background check initiation failed:", err);
     });
   }
 
   // FR55: Application received notification
   notifyApplicationReceived(result.user.id, name, email, phone).catch((err) => {
-    console.error("[Notifications] Failed:", err);
+    logger.error("[Notifications] Failed:", err);
   });
 
   return c.json(
@@ -412,10 +414,10 @@ app.post("/invite-accept", async (c) => {
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
 
   // Look up invite
-  const invite = await db.query.providerInvites.findFirst({
+  const invite = await db.query.providerInviteTokens.findFirst({
     where: and(
-      eq(providerInvites.token, inviteToken),
-      isNull(providerInvites.usedAt),
+      eq(providerInviteTokens.token, inviteToken),
+      eq(providerInviteTokens.status, "pending"),
     ),
   });
 
@@ -423,13 +425,13 @@ app.post("/invite-accept", async (c) => {
     return c.json({ error: "Invalid or already used invite token" }, 400);
   }
 
-  if (new Date() > invite.expiresAt) {
+  if (new Date() > invite.expires) {
     return c.json({ error: "Invite token has expired" }, 400);
   }
 
   // Check for existing user
   const existingUser = await db.query.users.findFirst({
-    where: eq(users.email, invite.email),
+    where: eq(users.email, invite.identifier),
   });
   if (existingUser) {
     return c.json({ error: "An account with this email already exists" }, 409);
@@ -437,7 +439,7 @@ app.post("/invite-accept", async (c) => {
 
   // Check for existing provider
   const existingProvider = await db.query.providers.findFirst({
-    where: eq(providers.email, invite.email),
+    where: eq(providers.email, invite.identifier),
   });
   if (existingProvider) {
     return c.json({ error: "A provider with this email already exists" }, 409);
@@ -452,8 +454,8 @@ app.post("/invite-accept", async (c) => {
       const [newUser] = await tx
         .insert(users)
         .values({
-          name: invite.name,
-          email: invite.email,
+          name: invite.name ?? invite.identifier,
+          email: invite.identifier,
           phone,
           password: hashedPassword,
           role: "provider",
@@ -465,20 +467,21 @@ app.post("/invite-accept", async (c) => {
         .insert(providers)
         .values({
           userId: newUser.id,
-          name: invite.name,
-          email: invite.email,
+          name: invite.name ?? invite.identifier,
+          email: invite.identifier,
           phone,
           specialties: specialties ?? [],
           address: serviceArea.join(", "),
+          serviceAreas: serviceArea,
           status: "applied",
         })
         .returning();
 
       // Mark invite as used
       await tx
-        .update(providerInvites)
-        .set({ usedAt: new Date() })
-        .where(eq(providerInvites.id, invite.id));
+        .update(providerInviteTokens)
+        .set({ status: "accepted", acceptedAt: new Date() })
+        .where(eq(providerInviteTokens.token, inviteToken));
 
       const { steps, bgStep } = await initializeOnboardingPipeline(tx, newProvider.id);
 
@@ -502,7 +505,7 @@ app.post("/invite-accept", async (c) => {
       timestamp: new Date().toISOString(),
       ipAddress,
       consentVersion: "1.0",
-      inviteId: invite.id,
+      inviteToken: invite.token,
     },
     ipAddress,
     userAgent,
@@ -525,7 +528,7 @@ app.post("/invite-accept", async (c) => {
     userId: result.user.id,
     resourceType: "provider",
     resourceId: result.provider.id,
-    details: { inviteId: invite.id },
+    details: { inviteToken: invite.token },
     ipAddress,
     userAgent,
   });
@@ -536,17 +539,17 @@ app.post("/invite-accept", async (c) => {
       result.bgStep.id,
       result.provider.id,
       result.user.id,
-      { ...splitName(invite.name), email: invite.email },
+      { ...splitName(invite.name ?? invite.identifier), email: invite.identifier },
       ipAddress,
       userAgent,
     ).catch((err) => {
-      console.error("[Checkr] Background check initiation failed:", err);
+      logger.error("[Checkr] Background check initiation failed:", err);
     });
   }
 
   // FR55: Application received notification
-  notifyApplicationReceived(result.user.id, invite.name, invite.email, phone).catch((err) => {
-    console.error("[Notifications] Failed:", err);
+  notifyApplicationReceived(result.user.id, invite.name ?? invite.identifier, invite.identifier, phone).catch((err) => {
+    logger.error("[Notifications] Failed:", err);
   });
 
   return c.json(
@@ -850,7 +853,7 @@ app.post("/training/acknowledge/:cardId", requireProvider, async (c) => {
     });
 
     notifyTrainingCompleted(provider.id).catch((err) => {
-      console.error("[Notifications] Failed:", err);
+      logger.error("[Notifications] Failed:", err);
     });
 
     // Check if all steps are now complete
@@ -1104,7 +1107,7 @@ app.post("/steps/:stepId/submit", requireProvider, async (c) => {
   });
 
   notifyAdminNewDocumentSubmitted(provider.id, provider.name, step.stepType).catch((err) => {
-    console.error("[Notifications] Failed:", err);
+    logger.error("[Notifications] Failed:", err);
   });
 
   return c.json(updated, 200);
@@ -1200,7 +1203,7 @@ app.post("/stripe-link", requireProvider, async (c) => {
 
     return c.json({ url: link.url });
   } catch (err) {
-    console.error("[Stripe Connect] Account creation/link generation failed:", err);
+    logger.error("[Stripe Connect] Account creation/link generation failed:", err);
     return c.json({ error: "Payment setup temporarily unavailable" }, 503);
   }
 });
@@ -1276,7 +1279,7 @@ app.get("/stripe-status", requireProvider, async (c) => {
           });
 
           notifyStripeConnectCompleted(provider.id).catch((err) => {
-            console.error("[Notifications] Failed:", err);
+            logger.error("[Notifications] Failed:", err);
           });
 
           // All-steps-complete auto-transition check
@@ -1301,7 +1304,7 @@ app.get("/stripe-status", requireProvider, async (c) => {
       details_submitted: account.details_submitted || false,
     });
   } catch (err) {
-    console.error("[Stripe Connect] Status check failed:", err);
+    logger.error("[Stripe Connect] Status check failed:", err);
     return c.json({ error: "Payment status check temporarily unavailable" }, 503);
   }
 });
@@ -1337,7 +1340,7 @@ app.get("/stripe-dashboard", requireProvider, async (c) => {
     );
     return c.json({ url: loginLink.url });
   } catch (err) {
-    console.error("[Stripe Connect] Dashboard link generation failed:", err);
+    logger.error("[Stripe Connect] Dashboard link generation failed:", err);
     return c.json({ error: "Unable to generate dashboard link" }, 503);
   }
 });
