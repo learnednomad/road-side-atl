@@ -1,7 +1,5 @@
 import { Metadata } from "next";
 import { BusinessSettingsForm } from "@/components/admin/business-settings-form";
-import { BetaModeToggle } from "@/components/admin/beta-mode-toggle";
-
 export const metadata: Metadata = {
   title: "Settings | Admin | RoadSide GA",
 };
@@ -15,7 +13,6 @@ export default function AdminSettingsPage() {
           Manage your company profile, banking details, and invoice defaults.
         </p>
       </div>
-      <BetaModeToggle />
       <BusinessSettingsForm />
     </div>
   );

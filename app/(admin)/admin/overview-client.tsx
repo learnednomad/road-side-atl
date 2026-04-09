@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatsCards } from "@/components/admin/stats-cards";
 import { HealthWidget } from "@/components/admin/health-widget";
-import { BetaStatsCards } from "@/components/admin/beta-stats-cards";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BookingStatus } from "@/lib/constants";
@@ -58,7 +57,6 @@ export function AdminOverviewClient({ stats, recentBookings }: Props) {
 
       <HealthWidget />
 
-      <BetaStatsCards />
 
       <Card>
         <CardHeader>

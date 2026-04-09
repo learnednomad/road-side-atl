@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, payments, betaUsers } from "@/db/schema";
+import { bookings, services, payments } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { requireAuth } from "../middleware/auth";
@@ -16,7 +16,6 @@ import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast
 import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
-import { isBetaActive } from "../lib/beta";
 import { logger } from "@/lib/logger";
 
 const app = new Hono();
@@ -133,21 +132,6 @@ app.post("/", async (c) => {
     dispatchResult = await autoDispatchBooking(booking.id).catch(() => null);
   }
 
-  // Beta user auto-enrollment (fire-and-forget)
-  if (userId) {
-    isBetaActive().then((active) => {
-      if (active) {
-        db.insert(betaUsers)
-          .values({ userId, source: "booking" })
-          .onConflictDoNothing()
-          .catch((err) => {
-            logger.error("[Beta] Enrollment failed:", err);
-          });
-      }
-    }).catch((err) => {
-      logger.error("[Beta] Enrollment failed:", err);
-    });
-  }
 
   return c.json({
     ...booking,

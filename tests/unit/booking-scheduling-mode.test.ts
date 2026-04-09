@@ -65,10 +65,6 @@ vi.mock("@/server/api/middleware/auth", () => ({
   requireAuth: vi.fn((_c: unknown, next: () => Promise<void>) => next()),
 }));
 
-vi.mock("@/server/api/lib/beta", () => ({
-  isBetaActive: vi.fn(() => Promise.resolve(false)),
-}));
-
 import { db } from "@/db";
 import app from "@/server/api/routes/bookings";
 
@@ -183,83 +179,3 @@ describe("Booking schedulingMode validation", () => {
   });
 });
 
-describe("Beta user auto-enrollment", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("enrolls user in beta when beta is active and user is logged in", async () => {
-    const { isBetaActive } = await import("@/server/api/lib/beta");
-    const mockIsBetaActive = isBetaActive as ReturnType<typeof vi.fn>;
-    mockIsBetaActive.mockResolvedValue(true);
-
-    const { auth } = await import("@/lib/auth");
-    const mockAuth = auth as ReturnType<typeof vi.fn>;
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } });
-
-    mockServiceFindFirst.mockResolvedValue({
-      id: TEST_SERVICE_ID,
-      name: "Towing",
-      slug: "towing",
-      schedulingMode: "both",
-      basePrice: 5000,
-    });
-
-    // Track insert calls
-    const mockOnConflictDoNothing = vi.fn(() => Promise.resolve());
-    const mockValues = vi.fn(() => ({
-      returning: vi.fn(() =>
-        Promise.resolve([{
-          id: "booking-1",
-          userId: "user-1",
-          serviceId: "svc-1",
-          status: "pending",
-          contactName: "Test User",
-          scheduledAt: null,
-        }])
-      ),
-      onConflictDoNothing: mockOnConflictDoNothing,
-    }));
-    const mockInsert = db.insert as ReturnType<typeof vi.fn>;
-    mockInsert.mockReturnValue({ values: mockValues });
-
-    const req = makeRequest(makeBookingBody());
-    const res = await app.request(req);
-
-    expect(res.status).toBe(201);
-
-    // Wait for fire-and-forget to settle
-    await new Promise((r) => setTimeout(r, 50));
-
-    // Verify beta enrollment was attempted
-    expect(mockIsBetaActive).toHaveBeenCalled();
-  });
-
-  it("does not enroll guest users (no userId)", async () => {
-    const { isBetaActive } = await import("@/server/api/lib/beta");
-    const mockIsBetaActive = isBetaActive as ReturnType<typeof vi.fn>;
-    mockIsBetaActive.mockResolvedValue(true);
-
-    const { auth } = await import("@/lib/auth");
-    const mockAuth = auth as ReturnType<typeof vi.fn>;
-    mockAuth.mockResolvedValue(null); // guest user
-
-    mockServiceFindFirst.mockResolvedValue({
-      id: TEST_SERVICE_ID,
-      name: "Towing",
-      slug: "towing",
-      schedulingMode: "both",
-      basePrice: 5000,
-    });
-
-    const req = makeRequest(makeBookingBody());
-    const res = await app.request(req);
-
-    expect(res.status).toBe(201);
-
-    await new Promise((r) => setTimeout(r, 50));
-
-    // isBetaActive should NOT have been called because userId is null
-    expect(mockIsBetaActive).not.toHaveBeenCalled();
-  });
-});

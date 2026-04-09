@@ -14,7 +14,6 @@ import {
   sendProviderInviteEmail,
   sendBetaInviteEmail,
 } from "@/lib/auth/provider-invite";
-import { platformSettings } from "@/db/schema/platform-settings";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { encrypt, decrypt } from "../lib/encryption";
 import { generateCSV } from "@/lib/csv";
@@ -499,31 +498,6 @@ app.post("/beta-invite", async (c) => {
     return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
   }
 
-  // Check beta is active
-  const { isBetaActive } = await import("../lib/beta");
-  const betaActive = await isBetaActive();
-  if (!betaActive) {
-    return c.json({ error: "Beta program is not currently active" }, 400);
-  }
-
-  // Check beta slot availability
-  const [{ count: usedSlots }] = await db
-    .select({ count: count() })
-    .from(providerInviteTokens)
-    .where(and(
-      eq(providerInviteTokens.inviteType, "beta"),
-      eq(providerInviteTokens.status, "accepted"),
-    ));
-
-  const slotSetting = await db.query.platformSettings.findFirst({
-    where: eq(platformSettings.key, "beta_provider_slots"),
-  });
-  const totalSlots = slotSetting ? parseInt(slotSetting.value) : 50;
-
-  if (Number(usedSlots) >= totalSlots) {
-    return c.json({ error: "Beta program slots are full" }, 400);
-  }
-
   // Check if email already has a pending invite or account
   const existingUser = await db.query.users.findFirst({
     where: eq(users.email, parsed.data.email),
@@ -570,12 +544,9 @@ app.post("/beta-invite", async (c) => {
   return c.json({ success: true, inviteType: "beta" }, 201);
 });
 
-// Beta stats — slot usage and invite counts
+// Beta stats — invite counts
 app.get("/beta-stats", async (c) => {
-  const { isBetaActive } = await import("../lib/beta");
-  const betaActive = await isBetaActive();
-
-  const [{ count: usedSlots }] = await db
+  const [{ count: acceptedInvites }] = await db
     .select({ count: count() })
     .from(providerInviteTokens)
     .where(and(
@@ -591,17 +562,9 @@ app.get("/beta-stats", async (c) => {
       eq(providerInviteTokens.status, "pending"),
     ));
 
-  const slotSetting = await db.query.platformSettings.findFirst({
-    where: eq(platformSettings.key, "beta_provider_slots"),
-  });
-  const totalSlots = slotSetting ? parseInt(slotSetting.value) : 50;
-
   return c.json({
-    betaActive,
-    totalSlots,
-    usedSlots: Number(usedSlots),
+    acceptedInvites: Number(acceptedInvites),
     pendingInvites: Number(pendingInvites),
-    remainingSlots: totalSlots - Number(usedSlots),
   });
 });
 

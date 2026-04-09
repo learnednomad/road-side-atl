@@ -14,7 +14,7 @@ export type ServiceCategory = (typeof SERVICE_CATEGORIES)[number];
 export const SCHEDULING_MODES = ["immediate", "scheduled", "both"] as const;
 export type SchedulingMode = (typeof SCHEDULING_MODES)[number];
 
-export const COMMISSION_RATE_MECHANICS_BP = 3000; // 30% platform commission (mechanics beta)
+export const COMMISSION_RATE_BETA_PROVIDER_BP = 8000; // 80% provider share (beta invite perk)
 
 export const BOOKING_STATUSES = [
   "pending",
@@ -78,7 +78,6 @@ export const REFERRAL_SMS_DELAY_MINUTES = 30;
 export const PROVIDER_REFERRAL_REWARD_CENTS = 5000; // $50.00
 export const PROVIDER_REFERRAL_INVITE_LIMIT = 5; // per 30-day rolling window
 export const INVITE_TOKEN_EXPIRY_MS = 72 * 60 * 60 * 1000; // 72 hours
-export const BETA_INVITE_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export const INSPECTION_CONDITIONS = ["good", "fair", "poor", "critical"] as const;
 export type InspectionCondition = (typeof INSPECTION_CONDITIONS)[number];

@@ -10,9 +10,8 @@ import bcrypt from "bcryptjs";
 import { sendEmail } from "@/lib/notifications/email";
 import {
   INVITE_TOKEN_EXPIRY_MS,
-  BETA_INVITE_TOKEN_EXPIRY_MS,
   ONBOARDING_STEP_TYPES,
-  COMMISSION_RATE_MECHANICS_BP,
+  COMMISSION_RATE_BETA_PROVIDER_BP,
 } from "@/lib/constants";
 
 function generateToken(): string {
@@ -31,9 +30,7 @@ export async function createProviderInviteToken(
 ): Promise<string> {
   const token = generateToken();
   const inviteType = options.inviteType ?? "admin";
-  const expiryMs =
-    inviteType === "beta" ? BETA_INVITE_TOKEN_EXPIRY_MS : INVITE_TOKEN_EXPIRY_MS;
-  const expires = new Date(Date.now() + expiryMs);
+  const expires = new Date(Date.now() + INVITE_TOKEN_EXPIRY_MS);
 
   // Delete any existing pending tokens for this email
   await db
@@ -182,7 +179,7 @@ export async function acceptProviderInvite(
     // Referral or beta invite: create a new provider record
     const commissionRate =
       verification.inviteType === "beta"
-        ? COMMISSION_RATE_MECHANICS_BP
+        ? COMMISSION_RATE_BETA_PROVIDER_BP
         : undefined;
 
     const [newProvider] = await db
