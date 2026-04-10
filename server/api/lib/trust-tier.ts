@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { users, platformSettings } from "@/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { logAudit } from "@/server/api/lib/audit-logger";
+import { logger } from "@/lib/logger";
 import { TRUST_TIER_PROMOTION_THRESHOLD, TIER_1_ALLOWED_METHODS, TIER_2_ALLOWED_METHODS } from "@/lib/constants";
 
 export { TIER_1_ALLOWED_METHODS, TIER_2_ALLOWED_METHODS };
@@ -161,4 +162,109 @@ export async function checkAndPromote(userId: string): Promise<boolean> {
   }
 
   return false;
+}
+
+/**
+ * Demote a user one trust tier (e.g., on dispute).
+ * Minimum tier is 1 — cannot go below.
+ */
+export async function demoteTrustTier(userId: string, reason: string): Promise<{
+  demoted: boolean;
+  newTier: number;
+}> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { id: true, trustTier: true },
+  });
+
+  if (!user || user.trustTier <= 1) {
+    return { demoted: false, newTier: user?.trustTier ?? 1 };
+  }
+
+  const newTier = user.trustTier - 1;
+
+  const [updated] = await db
+    .update(users)
+    .set({
+      trustTier: newTier,
+      trustTierUpdatedAt: new Date(),
+      trustTierReason: reason,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(users.id, userId), eq(users.trustTier, user.trustTier)))
+    .returning({ trustTier: users.trustTier });
+
+  if (!updated) {
+    return { demoted: false, newTier: user.trustTier };
+  }
+
+  logAudit({
+    action: "trust_tier.demote",
+    userId,
+    resourceType: "user",
+    resourceId: userId,
+    details: {
+      previousTier: user.trustTier,
+      newTier,
+      reason,
+    },
+  });
+
+  logger.info("[TrustTier] User demoted", { userId, previousTier: user.trustTier, newTier, reason });
+  return { demoted: true, newTier };
+}
+
+/**
+ * Batch evaluation: promote all eligible tier-1 users who have met the threshold.
+ * Called by daily cron job.
+ */
+export async function evaluateTrustTierPromotions(): Promise<{
+  evaluated: number;
+  promoted: number;
+}> {
+  const threshold = await getPromotionThreshold();
+
+  // Find all tier-1 users who have reached the threshold
+  const eligible = await db
+    .select({ id: users.id, cleanTransactionCount: users.cleanTransactionCount })
+    .from(users)
+    .where(
+      and(
+        eq(users.trustTier, 1),
+        sql`${users.cleanTransactionCount} >= ${threshold}`,
+      ),
+    );
+
+  let promoted = 0;
+  for (const user of eligible) {
+    const [updated] = await db
+      .update(users)
+      .set({
+        trustTier: 2,
+        trustTierUpdatedAt: new Date(),
+        trustTierReason: "auto_promotion_batch",
+        updatedAt: new Date(),
+      })
+      .where(and(eq(users.id, user.id), eq(users.trustTier, 1)))
+      .returning({ trustTier: users.trustTier });
+
+    if (updated?.trustTier === 2) {
+      logAudit({
+        action: "trust_tier.promote",
+        userId: user.id,
+        resourceType: "user",
+        resourceId: user.id,
+        details: {
+          previousTier: 1,
+          newTier: 2,
+          reason: "auto_promotion_batch",
+          cleanTransactionCount: user.cleanTransactionCount,
+        },
+      });
+      promoted++;
+    }
+  }
+
+  logger.info("[TrustTier] Batch evaluation complete", { evaluated: eligible.length, promoted });
+  return { evaluated: eligible.length, promoted };
 }

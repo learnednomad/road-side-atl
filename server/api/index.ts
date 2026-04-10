@@ -37,6 +37,10 @@ import pricingEstimateRoutes from "./routes/pricing-estimate";
 import financialReportsRoutes from "./routes/financial-reports";
 import b2bAccountsRoutes from "./routes/b2b-accounts";
 import onboardingRoutes from "./routes/onboarding";
+import adminFeatureFlagsRoutes from "./routes/admin-feature-flags";
+import paymentMethodsRoutes from "./routes/payment-methods";
+import adminPromotionsRoutes from "./routes/admin-promotions";
+import adminBundlesRoutes from "./routes/admin-bundles";
 import { requireOnboardingComplete } from "./middleware/onboarding";
 
 const app = new Hono().basePath("/api");
@@ -140,5 +144,9 @@ app.route("/pricing-estimate", pricingEstimateRoutes);
 app.route("/admin/financial-reports", financialReportsRoutes);
 app.route("/admin/b2b-accounts", b2bAccountsRoutes);
 app.route("/onboarding", onboardingRoutes);
+app.route("/admin/feature-flags", adminFeatureFlagsRoutes);
+app.route("/payment-methods", paymentMethodsRoutes);
+app.route("/admin/promotions", adminPromotionsRoutes);
+app.route("/admin/bundles", adminBundlesRoutes);
 
 export default app;

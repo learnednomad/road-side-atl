@@ -14,6 +14,7 @@ import { generateReferralCode, creditReferralOnFirstBooking, creditProviderRefer
 import { calculateEtaMinutes } from "../lib/eta-calculator";
 import { logAudit } from "../lib/audit-logger";
 import { logger } from "@/lib/logger";
+import { getStripe } from "@/lib/stripe";
 import { sendDelayNotificationSMS } from "@/lib/notifications/sms";
 import { ETA_DELAY_THRESHOLD_MINUTES } from "@/lib/constants";
 import { markDelayNotified, hasDelayNotification, clearDelayNotification } from "../lib/delay-tracker";
@@ -964,6 +965,340 @@ app.get("/earnings/by-service", async (c) => {
       jobCount: Number(b.jobCount),
     })),
   });
+});
+
+// ── Instant Payouts ──────────────────────────────────────────────
+
+// GET /provider/instant-payout/eligibility — check if provider can get instant payouts
+app.get("/instant-payout/eligibility", async (c) => {
+  const user = c.get("user");
+  const { isFeatureEnabled, FEATURE_FLAGS } = await import("../lib/feature-flags");
+
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.INSTANT_PAYOUTS))) {
+    return c.json({ eligible: false, reason: "Instant payouts not enabled" });
+  }
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true, stripeConnectAccountId: true },
+  });
+  if (!provider?.stripeConnectAccountId) {
+    return c.json({ eligible: false, reason: "Stripe Connect account required" });
+  }
+
+  try {
+    const stripe = (await import("@/lib/stripe")).getStripe();
+    const balance = await stripe.balance.retrieve({ stripeAccount: provider.stripeConnectAccountId });
+    const availableAmount = balance.instant_available?.reduce((sum, b) => sum + b.amount, 0) ?? 0;
+
+    return c.json({
+      eligible: availableAmount > 0,
+      availableAmount,
+      fee: "1.5%",
+      maxPerDay: 10,
+    });
+  } catch (err) {
+    logger.warn("[InstantPayout] Eligibility check failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json({ eligible: false, reason: "Unable to check eligibility" });
+  }
+});
+
+// POST /provider/instant-payout — trigger instant payout
+app.post("/instant-payout", async (c) => {
+  const user = c.get("user");
+  const { isFeatureEnabled, FEATURE_FLAGS } = await import("../lib/feature-flags");
+
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.INSTANT_PAYOUTS))) {
+    return c.json({ error: "Instant payouts not enabled" }, 400);
+  }
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true, stripeConnectAccountId: true },
+  });
+  if (!provider?.stripeConnectAccountId) {
+    return c.json({ error: "Stripe Connect account required" }, 400);
+  }
+
+  const body = await c.req.json<{ amount?: number }>();
+
+  try {
+    const stripe = (await import("@/lib/stripe")).getStripe();
+    const balance = await stripe.balance.retrieve({ stripeAccount: provider.stripeConnectAccountId });
+    const availableAmount = balance.instant_available?.reduce((sum, b) => sum + b.amount, 0) ?? 0;
+
+    const payoutAmount = body.amount ?? availableAmount;
+    if (payoutAmount <= 0 || payoutAmount > availableAmount) {
+      return c.json({ error: `Invalid amount. Available: $${(availableAmount / 100).toFixed(2)}` }, 400);
+    }
+
+    const payout = await stripe.payouts.create(
+      {
+        amount: payoutAmount,
+        currency: "usd",
+        method: "instant",
+        metadata: { providerId: provider.id, userId: user.id },
+      },
+      { stripeAccount: provider.stripeConnectAccountId },
+    );
+
+    logAudit({
+      action: "payout.create",
+      userId: user.id,
+      resourceType: "instant_payout",
+      resourceId: payout.id,
+      details: { amount: payoutAmount, method: "instant", providerId: provider.id },
+    });
+
+    return c.json({
+      payoutId: payout.id,
+      amount: payoutAmount,
+      status: payout.status,
+      arrivalDate: payout.arrival_date ? new Date(payout.arrival_date * 1000).toISOString() : null,
+    });
+  } catch (err) {
+    logger.error("[InstantPayout] Failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json({ error: err instanceof Error ? err.message : "Instant payout failed" }, 500);
+  }
+});
+
+// ── Payout Schedule Preferences ─────────────────────────────────
+
+// GET /provider/payout-settings — current payout schedule
+app.get("/payout-settings", async (c) => {
+  const user = c.get("user");
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true, stripeConnectAccountId: true },
+  });
+  if (!provider?.stripeConnectAccountId) {
+    return c.json({ error: "Stripe Connect account required" }, 400);
+  }
+
+  try {
+    const stripe = (await import("@/lib/stripe")).getStripe();
+    const account = await stripe.accounts.retrieve(provider.stripeConnectAccountId);
+    const schedule = account.settings?.payouts?.schedule;
+
+    return c.json({
+      interval: schedule?.interval ?? "daily",
+      weeklyAnchor: schedule?.weekly_anchor ?? null,
+      monthlyAnchor: schedule?.monthly_anchor ?? null,
+    });
+  } catch (err) {
+    logger.warn("[PayoutSettings] Failed to retrieve", { error: err instanceof Error ? err.message : String(err) });
+    return c.json({ error: "Unable to retrieve payout settings" }, 503);
+  }
+});
+
+// PUT /provider/payout-settings — update payout schedule
+app.put("/payout-settings", async (c) => {
+  const user = c.get("user");
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true, stripeConnectAccountId: true },
+  });
+  if (!provider?.stripeConnectAccountId) {
+    return c.json({ error: "Stripe Connect account required" }, 400);
+  }
+
+  const body = await c.req.json<{
+    interval: "daily" | "weekly" | "monthly";
+    weeklyAnchor?: string;
+    monthlyAnchor?: number;
+  }>();
+
+  if (!["daily", "weekly", "monthly"].includes(body.interval)) {
+    return c.json({ error: "Invalid interval. Must be daily, weekly, or monthly" }, 400);
+  }
+
+  try {
+    const stripe = (await import("@/lib/stripe")).getStripe();
+    await stripe.accounts.update(provider.stripeConnectAccountId, {
+      settings: {
+        payouts: {
+          schedule: {
+            interval: body.interval,
+            ...(body.interval === "weekly" && body.weeklyAnchor ? { weekly_anchor: body.weeklyAnchor as "monday" } : {}),
+            ...(body.interval === "monthly" && body.monthlyAnchor ? { monthly_anchor: body.monthlyAnchor } : {}),
+          },
+        },
+      },
+    });
+
+    logAudit({
+      action: "settings.update",
+      userId: user.id,
+      resourceType: "payout_schedule",
+      resourceId: provider.stripeConnectAccountId,
+      details: { interval: body.interval, weeklyAnchor: body.weeklyAnchor, monthlyAnchor: body.monthlyAnchor },
+    });
+
+    return c.json({ ok: true, interval: body.interval });
+  } catch (err) {
+    logger.error("[PayoutSettings] Update failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json({ error: "Unable to update payout schedule" }, 500);
+  }
+});
+
+// ── Tax Forms (1099-K) ───────────────────────────────────────────
+
+// GET /provider/tax-forms — tax form access via Stripe Express Dashboard
+// 1099-K forms are managed by Stripe and accessible through the Express Dashboard.
+// This endpoint generates a login link to the tax section.
+app.get("/tax-forms", async (c) => {
+  const user = c.get("user");
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true, stripeConnectAccountId: true },
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+  if (!provider.stripeConnectAccountId) {
+    return c.json({ error: "Stripe Connect account required for tax forms", dashboardUrl: null }, 400);
+  }
+
+  try {
+    const loginLink = await getStripe().accounts.createLoginLink(
+      provider.stripeConnectAccountId,
+    );
+
+    logAudit({
+      action: "provider.1099_export",
+      userId: user.id,
+      resourceType: "tax_form",
+      resourceId: provider.stripeConnectAccountId,
+      details: { providerId: provider.id },
+    });
+
+    return c.json({
+      dashboardUrl: loginLink.url,
+      message: "Access your 1099-K tax forms through the Stripe Dashboard",
+    });
+  } catch (err) {
+    logger.warn("[TaxForms] Failed to generate dashboard link:", { error: err instanceof Error ? err.message : String(err) });
+    return c.json({ error: "Unable to generate tax dashboard link" }, 503);
+  }
+});
+
+// ── Provider Earnings Dashboard ───────────────────────────────────
+
+// GET /provider/earnings/summary — aggregated earnings
+app.get("/earnings/summary", async (c) => {
+  const user = c.get("user");
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true },
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [summary] = await db
+    .select({
+      totalEarnings: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'paid' and ${providerPayouts.payoutType} = 'standard' then ${providerPayouts.amount} else 0 end), 0)`,
+      totalPending: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'pending' and ${providerPayouts.payoutType} = 'standard' then ${providerPayouts.amount} else 0 end), 0)`,
+      totalHeld: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'held' then ${providerPayouts.amount} else 0 end), 0)`,
+      totalClawback: sql<number>`coalesce(sum(case when ${providerPayouts.payoutType} = 'clawback' then abs(${providerPayouts.amount}) else 0 end), 0)`,
+      jobCount: sql<number>`count(case when ${providerPayouts.payoutType} = 'standard' then 1 end)`,
+      weekEarnings: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'paid' and ${providerPayouts.payoutType} = 'standard' and ${providerPayouts.paidAt} >= ${startOfWeek} then ${providerPayouts.amount} else 0 end), 0)`,
+      monthEarnings: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'paid' and ${providerPayouts.payoutType} = 'standard' and ${providerPayouts.paidAt} >= ${startOfMonth} then ${providerPayouts.amount} else 0 end), 0)`,
+    })
+    .from(providerPayouts)
+    .where(eq(providerPayouts.providerId, provider.id));
+
+  return c.json({
+    thisWeek: Number(summary?.weekEarnings ?? 0),
+    thisMonth: Number(summary?.monthEarnings ?? 0),
+    allTime: Number(summary?.totalEarnings ?? 0),
+    pending: Number(summary?.totalPending ?? 0),
+    held: Number(summary?.totalHeld ?? 0),
+    clawbacks: Number(summary?.totalClawback ?? 0),
+    totalJobs: Number(summary?.jobCount ?? 0),
+  });
+});
+
+// GET /provider/earnings/history — paginated payout list
+app.get("/earnings/history", async (c) => {
+  const user = c.get("user");
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true },
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const page = Math.max(1, parseInt(c.req.query("page") || "1", 10));
+  const limit = Math.min(50, Math.max(1, parseInt(c.req.query("limit") || "20", 10)));
+  const offset = (page - 1) * limit;
+
+  const [totalResult] = await db
+    .select({ total: count() })
+    .from(providerPayouts)
+    .where(eq(providerPayouts.providerId, provider.id));
+
+  const payoutsList = await db
+    .select({
+      id: providerPayouts.id,
+      bookingId: providerPayouts.bookingId,
+      amount: providerPayouts.amount,
+      status: providerPayouts.status,
+      payoutMethod: providerPayouts.payoutMethod,
+      payoutType: providerPayouts.payoutType,
+      paidAt: providerPayouts.paidAt,
+      heldAt: providerPayouts.heldAt,
+      holdReason: providerPayouts.holdReason,
+      createdAt: providerPayouts.createdAt,
+    })
+    .from(providerPayouts)
+    .where(eq(providerPayouts.providerId, provider.id))
+    .orderBy(desc(providerPayouts.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return c.json({
+    payouts: payoutsList,
+    pagination: {
+      page,
+      limit,
+      total: Number(totalResult?.total ?? 0),
+      totalPages: Math.ceil(Number(totalResult?.total ?? 0) / limit),
+    },
+  });
+});
+
+// GET /provider/earnings/pending — pending/held payouts
+app.get("/earnings/pending", async (c) => {
+  const user = c.get("user");
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true },
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const pendingPayouts = await db
+    .select({
+      id: providerPayouts.id,
+      bookingId: providerPayouts.bookingId,
+      amount: providerPayouts.amount,
+      status: providerPayouts.status,
+      payoutMethod: providerPayouts.payoutMethod,
+      holdReason: providerPayouts.holdReason,
+      createdAt: providerPayouts.createdAt,
+    })
+    .from(providerPayouts)
+    .where(
+      and(
+        eq(providerPayouts.providerId, provider.id),
+        sql`${providerPayouts.status} IN ('pending', 'held')`,
+        sql`${providerPayouts.payoutType} = 'standard'`,
+      ),
+    )
+    .orderBy(desc(providerPayouts.createdAt));
+
+  return c.json({ payouts: pendingPayouts });
 });
 
 export default app;

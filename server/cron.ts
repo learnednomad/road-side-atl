@@ -95,6 +95,38 @@ const jobs: CronJob[] = [
       return expireInviteTokens();
     },
   },
+  {
+    name: "process-pending-payouts",
+    intervalMs: 24 * HOUR,
+    run: async () => {
+      const { processPendingPayouts } = await import("./api/lib/reconciliation");
+      return processPendingPayouts();
+    },
+  },
+  {
+    name: "reconcile-payments-payouts",
+    intervalMs: 24 * HOUR,
+    run: async () => {
+      const { reconcilePaymentsAndPayouts } = await import("./api/lib/reconciliation");
+      return reconcilePaymentsAndPayouts();
+    },
+  },
+  {
+    name: "trust-tier-evaluation",
+    intervalMs: 24 * HOUR,
+    run: async () => {
+      const { evaluateTrustTierPromotions } = await import("./api/lib/trust-tier");
+      return evaluateTrustTierPromotions();
+    },
+  },
+  {
+    name: "provider-reverification",
+    intervalMs: 24 * HOUR,
+    run: async () => {
+      const { checkProviderReverification } = await import("./api/lib/reconciliation");
+      return checkProviderReverification();
+    },
+  },
 ];
 
 function runJob(job: CronJob) {

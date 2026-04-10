@@ -19,4 +19,7 @@ export * from "./time-block-configs";
 export * from "./b2b-accounts";
 export * from "./onboarding-steps";
 export * from "./provider-documents";
+export * from "./surge-pricing";
+export * from "./pricing-zones";
+export * from "./service-bundles";
 // provider-invites consolidated into providerInviteTokens in auth.ts
