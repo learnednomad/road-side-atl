@@ -4,8 +4,8 @@ import { users } from "@/db/schema/users";
 import { providers } from "@/db/schema/providers";
 import { onboardingSteps } from "@/db/schema/onboarding-steps";
 import { providerDocuments } from "@/db/schema/provider-documents";
-import { providerInvites } from "@/db/schema/provider-invites";
-import { eq, and, isNull, asc } from "drizzle-orm";
+import { providerInviteTokens } from "@/db/schema/auth";
+import { eq, and, asc } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { providerApplicationSchema, inviteAcceptSchema, providerStepUpdateSchema, documentUploadUrlSchema, documentCreateSchema } from "@/lib/validators";
 import { ONBOARDING_STEP_TYPES, REAPPLY_COOLDOWN_DAYS, PRESIGNED_UPLOAD_EXPIRY, PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER, MIN_DOCUMENTS_PER_STEP, CHECKR_PACKAGE } from "@/lib/constants";
@@ -16,8 +16,10 @@ import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { getPresignedUploadUrl, getPresignedUrl } from "@/lib/s3";
 import { createCandidate, createInvitation, CheckrApiError } from "../lib/checkr";
-import { stripe } from "@/lib/stripe";
+import { stripe, getStripe } from "@/lib/stripe";
 import { checkAllStepsCompleteAndTransition } from "../lib/all-steps-complete";
+import { isFeatureEnabled, FEATURE_FLAGS } from "../lib/feature-flags";
+import { logger } from "@/lib/logger";
 import { notifyApplicationReceived, notifyTrainingCompleted, notifyStripeConnectCompleted, notifyAdminProviderReadyForReview, notifyAdminNewDocumentSubmitted } from "@/lib/notifications";
 
 const app = new Hono();
@@ -101,7 +103,7 @@ app.get("/dashboard", requireProvider, async (c) => {
       // Admin notification is handled by checkAllStepsCompleteAndTransition in step-completion endpoints.
       // Dashboard GET is a fallback transition — only fires if no step endpoint triggered it first.
       notifyAdminProviderReadyForReview(provider.id, provider.name || "").catch((err) => {
-        console.error("[Notifications] Failed:", err);
+        logger.error("[Notifications] Failed:", err);
       });
     }
 
@@ -212,7 +214,7 @@ async function initiateCheckrBackgroundCheck(
 ): Promise<boolean> {
   try {
     if (!providerData.dob) {
-      console.warn("[Checkr] No DOB provided for provider %s — deferring background check initiation", providerId);
+      logger.warn("[Checkr] No DOB provided — deferring background check initiation", { providerId });
       return false;
     }
 
@@ -254,7 +256,7 @@ async function initiateCheckrBackgroundCheck(
     return true;
   } catch (err) {
     // Log failure but don't throw — step stays in_progress with null metadata
-    console.error("[Checkr] Failed to initiate background check:", err);
+    logger.error("[Checkr] Failed to initiate background check:", err);
     logAudit({
       action: "checkr.candidate_created",
       userId,
@@ -327,6 +329,7 @@ app.post("/apply", async (c) => {
           phone,
           specialties: specialties ?? [],
           address: serviceArea.join(", "),
+          serviceAreas: serviceArea,
           status: "applied",
         })
         .returning();
@@ -379,13 +382,13 @@ app.post("/apply", async (c) => {
       ipAddress,
       userAgent,
     ).catch((err) => {
-      console.error("[Checkr] Background check initiation failed:", err);
+      logger.error("[Checkr] Background check initiation failed:", err);
     });
   }
 
   // FR55: Application received notification
   notifyApplicationReceived(result.user.id, name, email, phone).catch((err) => {
-    console.error("[Notifications] Failed:", err);
+    logger.error("[Notifications] Failed:", err);
   });
 
   return c.json(
@@ -412,10 +415,10 @@ app.post("/invite-accept", async (c) => {
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
 
   // Look up invite
-  const invite = await db.query.providerInvites.findFirst({
+  const invite = await db.query.providerInviteTokens.findFirst({
     where: and(
-      eq(providerInvites.token, inviteToken),
-      isNull(providerInvites.usedAt),
+      eq(providerInviteTokens.token, inviteToken),
+      eq(providerInviteTokens.status, "pending"),
     ),
   });
 
@@ -423,13 +426,13 @@ app.post("/invite-accept", async (c) => {
     return c.json({ error: "Invalid or already used invite token" }, 400);
   }
 
-  if (new Date() > invite.expiresAt) {
+  if (new Date() > invite.expires) {
     return c.json({ error: "Invite token has expired" }, 400);
   }
 
   // Check for existing user
   const existingUser = await db.query.users.findFirst({
-    where: eq(users.email, invite.email),
+    where: eq(users.email, invite.identifier),
   });
   if (existingUser) {
     return c.json({ error: "An account with this email already exists" }, 409);
@@ -437,7 +440,7 @@ app.post("/invite-accept", async (c) => {
 
   // Check for existing provider
   const existingProvider = await db.query.providers.findFirst({
-    where: eq(providers.email, invite.email),
+    where: eq(providers.email, invite.identifier),
   });
   if (existingProvider) {
     return c.json({ error: "A provider with this email already exists" }, 409);
@@ -452,8 +455,8 @@ app.post("/invite-accept", async (c) => {
       const [newUser] = await tx
         .insert(users)
         .values({
-          name: invite.name,
-          email: invite.email,
+          name: invite.name ?? invite.identifier,
+          email: invite.identifier,
           phone,
           password: hashedPassword,
           role: "provider",
@@ -465,20 +468,21 @@ app.post("/invite-accept", async (c) => {
         .insert(providers)
         .values({
           userId: newUser.id,
-          name: invite.name,
-          email: invite.email,
+          name: invite.name ?? invite.identifier,
+          email: invite.identifier,
           phone,
           specialties: specialties ?? [],
           address: serviceArea.join(", "),
+          serviceAreas: serviceArea,
           status: "applied",
         })
         .returning();
 
       // Mark invite as used
       await tx
-        .update(providerInvites)
-        .set({ usedAt: new Date() })
-        .where(eq(providerInvites.id, invite.id));
+        .update(providerInviteTokens)
+        .set({ status: "accepted", acceptedAt: new Date() })
+        .where(eq(providerInviteTokens.token, inviteToken));
 
       const { steps, bgStep } = await initializeOnboardingPipeline(tx, newProvider.id);
 
@@ -502,7 +506,7 @@ app.post("/invite-accept", async (c) => {
       timestamp: new Date().toISOString(),
       ipAddress,
       consentVersion: "1.0",
-      inviteId: invite.id,
+      inviteToken: invite.token,
     },
     ipAddress,
     userAgent,
@@ -525,7 +529,7 @@ app.post("/invite-accept", async (c) => {
     userId: result.user.id,
     resourceType: "provider",
     resourceId: result.provider.id,
-    details: { inviteId: invite.id },
+    details: { inviteToken: invite.token },
     ipAddress,
     userAgent,
   });
@@ -536,17 +540,17 @@ app.post("/invite-accept", async (c) => {
       result.bgStep.id,
       result.provider.id,
       result.user.id,
-      { ...splitName(invite.name), email: invite.email },
+      { ...splitName(invite.name ?? invite.identifier), email: invite.identifier },
       ipAddress,
       userAgent,
     ).catch((err) => {
-      console.error("[Checkr] Background check initiation failed:", err);
+      logger.error("[Checkr] Background check initiation failed:", err);
     });
   }
 
   // FR55: Application received notification
-  notifyApplicationReceived(result.user.id, invite.name, invite.email, phone).catch((err) => {
-    console.error("[Notifications] Failed:", err);
+  notifyApplicationReceived(result.user.id, invite.name ?? invite.identifier, invite.identifier, phone).catch((err) => {
+    logger.error("[Notifications] Failed:", err);
   });
 
   return c.json(
@@ -850,7 +854,7 @@ app.post("/training/acknowledge/:cardId", requireProvider, async (c) => {
     });
 
     notifyTrainingCompleted(provider.id).catch((err) => {
-      console.error("[Notifications] Failed:", err);
+      logger.error("[Notifications] Failed:", err);
     });
 
     // Check if all steps are now complete
@@ -1104,7 +1108,7 @@ app.post("/steps/:stepId/submit", requireProvider, async (c) => {
   });
 
   notifyAdminNewDocumentSubmitted(provider.id, provider.name, step.stepType).catch((err) => {
-    console.error("[Notifications] Failed:", err);
+    logger.error("[Notifications] Failed:", err);
   });
 
   return c.json(updated, 200);
@@ -1200,7 +1204,7 @@ app.post("/stripe-link", requireProvider, async (c) => {
 
     return c.json({ url: link.url });
   } catch (err) {
-    console.error("[Stripe Connect] Account creation/link generation failed:", err);
+    logger.error("[Stripe Connect] Account creation/link generation failed:", err);
     return c.json({ error: "Payment setup temporarily unavailable" }, 503);
   }
 });
@@ -1276,7 +1280,7 @@ app.get("/stripe-status", requireProvider, async (c) => {
           });
 
           notifyStripeConnectCompleted(provider.id).catch((err) => {
-            console.error("[Notifications] Failed:", err);
+            logger.error("[Notifications] Failed:", err);
           });
 
           // All-steps-complete auto-transition check
@@ -1301,7 +1305,7 @@ app.get("/stripe-status", requireProvider, async (c) => {
       details_submitted: account.details_submitted || false,
     });
   } catch (err) {
-    console.error("[Stripe Connect] Status check failed:", err);
+    logger.error("[Stripe Connect] Status check failed:", err);
     return c.json({ error: "Payment status check temporarily unavailable" }, 503);
   }
 });
@@ -1337,9 +1341,132 @@ app.get("/stripe-dashboard", requireProvider, async (c) => {
     );
     return c.json({ url: loginLink.url });
   } catch (err) {
-    console.error("[Stripe Connect] Dashboard link generation failed:", err);
+    logger.error("[Stripe Connect] Dashboard link generation failed:", err);
     return c.json({ error: "Unable to generate dashboard link" }, 503);
   }
+});
+
+// ── Stripe Identity Verification ──────────────────────────────────
+
+// POST /identity/start — create VerificationSession and return hosted URL
+app.post("/identity/start", requireProvider, async (c) => {
+  const user = c.get("user");
+
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.STRIPE_IDENTITY))) {
+    return c.json({ error: "Identity verification is not enabled" }, 400);
+  }
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  // Find or create identity_verification step
+  let step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "identity_verification"),
+    ),
+  });
+
+  if (!step) {
+    const [created] = await db
+      .insert(onboardingSteps)
+      .values({
+        providerId: provider.id,
+        stepType: "identity_verification",
+        status: "pending",
+      })
+      .returning();
+    step = created!;
+  }
+
+  if (step.status === "complete") {
+    return c.json({ error: "Identity already verified" }, 400);
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
+
+  try {
+    const session = await getStripe().identity.verificationSessions.create({
+      type: "document",
+      options: {
+        document: {
+          require_matching_selfie: true,
+        },
+      },
+      metadata: {
+        providerId: provider.id,
+        stepId: step.id,
+        userId: user.id,
+      },
+      return_url: `${appUrl}/provider/onboarding?identity=complete`,
+    });
+
+    // Store session ID in step metadata
+    const metadata = (step.metadata || {}) as Record<string, unknown>;
+    await db
+      .update(onboardingSteps)
+      .set({
+        status: "in_progress",
+        metadata: { ...metadata, stripeVerificationSessionId: session.id },
+        updatedAt: new Date(),
+      })
+      .where(eq(onboardingSteps.id, step.id));
+
+    logAudit({
+      action: "onboarding.step_started",
+      userId: user.id,
+      resourceType: "onboarding_step",
+      resourceId: step.id,
+      details: { stepType: "identity_verification", sessionId: session.id },
+    });
+
+    return c.json({ url: session.url });
+  } catch (err) {
+    logger.error("[Identity] Failed to create verification session:", err);
+    return c.json({ error: "Unable to start identity verification" }, 503);
+  }
+});
+
+// GET /identity/status — check current verification status
+app.get("/identity/status", requireProvider, async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true },
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "identity_verification"),
+    ),
+  });
+
+  if (!step) {
+    return c.json({ status: "not_started" });
+  }
+
+  const metadata = (step.metadata || {}) as Record<string, unknown>;
+  const sessionId = metadata.stripeVerificationSessionId as string | undefined;
+
+  if (sessionId && step.status === "in_progress") {
+    try {
+      const session = await getStripe().identity.verificationSessions.retrieve(sessionId);
+      return c.json({
+        status: step.status,
+        stripeStatus: session.status,
+        lastError: session.last_error?.code || null,
+      });
+    } catch {
+      return c.json({ status: step.status, stripeStatus: "unknown" });
+    }
+  }
+
+  return c.json({ status: step.status });
 });
 
 export default app;

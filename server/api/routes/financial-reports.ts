@@ -6,6 +6,9 @@ import { sql, eq, and } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import { rateLimitStandard } from "../middleware/rate-limit";
 import { generateCSV } from "@/lib/csv";
+import { getStripe } from "@/lib/stripe";
+import { reconcilePaymentsAndPayouts } from "../lib/reconciliation";
+import { logger } from "@/lib/logger";
 
 type AuthEnv = {
   Variables: {
@@ -336,6 +339,55 @@ app.get("/overview", async (c) => {
     activeBookings: Number(activeBookings.count),
     onlineProviders: Number(onlineProviders.count),
   }, 200);
+});
+
+// ── Payment-Payout Reconciliation ────────────────────────────────
+
+// GET /admin/financial-reports/reconciliation — run payment-payout match check
+app.get("/reconciliation", async (c) => {
+  const result = await reconcilePaymentsAndPayouts();
+  return c.json(result);
+});
+
+// GET /admin/financial-reports/stripe-balance — compare DB totals vs Stripe balance
+app.get("/stripe-balance", async (c) => {
+  try {
+    const balance = await getStripe().balance.retrieve();
+
+    // DB totals
+    const [dbTotals] = await db
+      .select({
+        confirmedRevenue: sql<number>`coalesce(sum(case when ${payments.status} = 'confirmed' and ${payments.method} = 'stripe' then ${payments.amount} else 0 end), 0)`,
+        pendingPayouts: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'pending' and ${providerPayouts.payoutMethod} = 'stripe_connect' then ${providerPayouts.amount} else 0 end), 0)`,
+        paidPayouts: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'paid' and ${providerPayouts.payoutMethod} = 'stripe_connect' then ${providerPayouts.amount} else 0 end), 0)`,
+        heldPayouts: sql<number>`coalesce(sum(case when ${providerPayouts.status} = 'held' then ${providerPayouts.amount} else 0 end), 0)`,
+        applicationFees: sql<number>`coalesce(sum(case when ${payments.applicationFeeAmount} IS NOT NULL and ${payments.status} = 'confirmed' then ${payments.applicationFeeAmount} else 0 end), 0)`,
+      })
+      .from(payments)
+      .leftJoin(providerPayouts, eq(payments.bookingId, providerPayouts.bookingId));
+
+    const stripeAvailable = balance.available.reduce((sum, b) => sum + b.amount, 0);
+    const stripePending = balance.pending.reduce((sum, b) => sum + b.amount, 0);
+
+    return c.json({
+      stripe: {
+        available: stripeAvailable,
+        pending: stripePending,
+        total: stripeAvailable + stripePending,
+      },
+      database: {
+        confirmedRevenue: Number(dbTotals?.confirmedRevenue ?? 0),
+        applicationFees: Number(dbTotals?.applicationFees ?? 0),
+        pendingPayouts: Number(dbTotals?.pendingPayouts ?? 0),
+        paidPayouts: Number(dbTotals?.paidPayouts ?? 0),
+        heldPayouts: Number(dbTotals?.heldPayouts ?? 0),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error("[FinancialReports] Stripe balance retrieval failed:", err);
+    return c.json({ error: "Unable to retrieve Stripe balance" }, 503);
+  }
 });
 
 export default app;

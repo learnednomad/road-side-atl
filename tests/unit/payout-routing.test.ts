@@ -29,7 +29,6 @@ vi.mock("@/lib/notifications", () => ({
 }));
 
 // DB mock with chainable queries
-const mockQueryResults: Record<string, unknown> = {};
 let mockInsertReturnValues: unknown[][] = [];
 let mockUpdateReturnValues: unknown[][] = [];
 
@@ -137,7 +136,6 @@ vi.mock("@/server/api/lib/checkr", () => ({
 
 import { db } from "@/db";
 import { logAudit } from "@/server/api/lib/audit-logger";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
 
 // ── Tests ────────────────────────────────────────────────────────
 

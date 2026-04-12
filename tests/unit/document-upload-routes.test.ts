@@ -31,7 +31,7 @@ vi.mock("@/db", () => {
       query: {
         users: { findFirst: vi.fn() },
         providers: { findFirst: vi.fn() },
-        providerInvites: { findFirst: vi.fn() },
+        providerInviteTokens: { findFirst: vi.fn() },
         onboardingSteps: { findFirst: vi.fn(), findMany: vi.fn() },
         providerDocuments: { findFirst: vi.fn(), findMany: vi.fn() },
       },
@@ -55,7 +55,7 @@ vi.mock("@/db/schema/onboarding-steps", () => ({
 }));
 
 vi.mock("@/db/schema/provider-invites", () => ({
-  providerInvites: { id: "id", token: "token", usedAt: "usedAt", email: "email" },
+  providerInviteTokens: { id: "id", token: "token", usedAt: "usedAt", email: "email" },
 }));
 
 vi.mock("@/db/schema/provider-documents", () => ({
@@ -188,7 +188,6 @@ import { getPresignedUploadUrl, getPresignedUrl } from "@/lib/s3";
 
 const mockProvidersFindFirst = db.query.providers.findFirst as ReturnType<typeof vi.fn>;
 const mockOnboardingStepsFindFirst = (db.query as unknown as { onboardingSteps: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).onboardingSteps.findFirst;
-const mockOnboardingStepsFindMany = (db.query as unknown as { onboardingSteps: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).onboardingSteps.findMany;
 const mockDocsFindFirst = (db.query as unknown as { providerDocuments: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).providerDocuments.findFirst;
 const mockDocsFindMany = (db.query as unknown as { providerDocuments: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).providerDocuments.findMany;
 const mockDbInsert = db.insert as ReturnType<typeof vi.fn>;

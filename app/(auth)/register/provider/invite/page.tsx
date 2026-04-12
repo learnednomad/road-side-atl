@@ -5,9 +5,43 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, CheckCircle2, AlertCircle, Wrench } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, CheckCircle2, AlertCircle, Wrench, Sparkles, Users } from "lucide-react";
 import Link from "next/link";
+import { ServiceAreaPicker } from "@/components/provider/service-area-picker";
+
+type InviteType = "admin" | "beta" | "referral";
+
+const INVITE_CONFIG: Record<InviteType, {
+  icon: typeof Wrench;
+  title: string;
+  description: string;
+  badge?: string;
+  badgeVariant?: "default" | "secondary" | "destructive" | "outline";
+  successMessage: string;
+}> = {
+  admin: {
+    icon: Wrench,
+    title: "Complete Registration",
+    description: "Set up your provider account to start accepting jobs.",
+    successMessage: "Your provider account has been created. Log in to begin the onboarding process.",
+  },
+  beta: {
+    icon: Sparkles,
+    title: "Welcome to the Beta Program",
+    description: "You've been selected for early access to the RoadSide ATL provider platform.",
+    badge: "Beta Program",
+    badgeVariant: "default",
+    successMessage: "Welcome to the beta! Log in to begin your onboarding and get started before the public launch.",
+  },
+  referral: {
+    icon: Users,
+    title: "You've Been Referred!",
+    description: "A fellow provider thinks you'd be a great fit for the team.",
+    successMessage: "Your account has been created. Log in to start the onboarding process and begin earning.",
+  },
+};
 
 function AcceptInviteContent() {
   const searchParams = useSearchParams();
@@ -18,17 +52,21 @@ function AcceptInviteContent() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [serviceAreas, setServiceAreas] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [inviteType, setInviteType] = useState<InviteType>("admin");
+  const [referrerName, setReferrerName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- token check short-circuit
-      setVerifying(false);
-      setError("No invite token provided");
+      queueMicrotask(() => {
+        setVerifying(false);
+        setError("No invite token provided");
+      });
       return;
     }
 
@@ -41,11 +79,16 @@ function AcceptInviteContent() {
         const data = await res.json();
         if (res.ok && data.valid) {
           setTokenValid(true);
+          setInviteType(data.inviteType || "admin");
+          if (data.referrerName) setReferrerName(data.referrerName);
           if (data.providerData) {
             setName(data.providerData.name || "");
-            setEmail(data.providerData.email || "");
+            setEmail(data.providerData.email || data.email || "");
             setPhone(data.providerData.phone || "");
+          } else if (data.email) {
+            setEmail(data.email);
           }
+          if (data.name) setName(data.name);
         } else {
           setError(data.error || "Invalid invite link");
         }
@@ -78,7 +121,7 @@ function AcceptInviteContent() {
       const res = await fetch("/api/provider-registration/accept-invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password, name, phone }),
+        body: JSON.stringify({ token, password, name, phone, serviceAreas }),
       });
 
       const data = await res.json();
@@ -126,6 +169,9 @@ function AcceptInviteContent() {
     );
   }
 
+  const config = INVITE_CONFIG[inviteType];
+  const IconComponent = config.icon;
+
   if (success) {
     return (
       <Card className="w-full max-w-sm">
@@ -136,10 +182,7 @@ function AcceptInviteContent() {
           <CardTitle>Account Created</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-center">
-          <p className="text-muted-foreground">
-            Your provider account has been created successfully. You can now
-            log in and start accepting jobs.
-          </p>
+          <p className="text-muted-foreground">{config.successMessage}</p>
           <Button asChild className="w-full">
             <Link href="/login">Log In</Link>
           </Button>
@@ -152,15 +195,22 @@ function AcceptInviteContent() {
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-          <Wrench className="h-6 w-6 text-primary" />
+          <IconComponent className="h-6 w-6 text-primary" />
         </div>
         <Link href="/" className="text-xl font-bold">
           RoadSide GA
         </Link>
-        <CardTitle>Complete Registration</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Set up your provider account
-        </p>
+        {config.badge && (
+          <Badge variant={config.badgeVariant} className="mx-auto w-fit">
+            {config.badge}
+          </Badge>
+        )}
+        <CardTitle>{config.title}</CardTitle>
+        <CardDescription>
+          {inviteType === "referral" && referrerName
+            ? `${referrerName} thinks you'd be a great fit for the RoadSide ATL team.`
+            : config.description}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {error && (
@@ -199,6 +249,10 @@ function AcceptInviteContent() {
               onChange={(e) => setPhone(e.target.value)}
               required
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Service Area</Label>
+            <ServiceAreaPicker selected={serviceAreas} onChange={setServiceAreas} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">Password</Label>

@@ -40,6 +40,11 @@ app.post("/", async (c) => {
     return c.json({ error: "Service not found" }, 404);
   }
 
+  // Enforce scheduled-only for mechanic services (FR-1.4)
+  if (service.schedulingMode === "scheduled" && !data.scheduledAt) {
+    return c.json({ error: "Mechanic services require a scheduled date" }, 400);
+  }
+
   // Calculate price via centralized pricing engine
   const pricing = await calculateBookingPrice(
     data.serviceId,
@@ -125,6 +130,7 @@ app.post("/", async (c) => {
   if (!booking.scheduledAt && process.env.AUTO_DISPATCH_ENABLED === "true") {
     dispatchResult = await autoDispatchBooking(booking.id).catch(() => null);
   }
+
 
   return c.json({
     ...booking,

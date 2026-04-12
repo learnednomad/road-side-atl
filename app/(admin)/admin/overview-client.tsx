@@ -57,6 +57,7 @@ export function AdminOverviewClient({ stats, recentBookings }: Props) {
 
       <HealthWidget />
 
+
       <Card>
         <CardHeader>
           <CardTitle>Recent Bookings</CardTitle>

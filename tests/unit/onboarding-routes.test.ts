@@ -32,7 +32,7 @@ vi.mock("@/db", () => {
       query: {
         users: { findFirst: vi.fn() },
         providers: { findFirst: vi.fn() },
-        providerInvites: { findFirst: vi.fn() },
+        providerInviteTokens: { findFirst: vi.fn() },
         onboardingSteps: { findFirst: vi.fn(), findMany: vi.fn() },
         providerDocuments: { findFirst: vi.fn(), findMany: vi.fn() },
       },
@@ -56,7 +56,7 @@ vi.mock("@/db/schema/onboarding-steps", () => ({
 }));
 
 vi.mock("@/db/schema/provider-invites", () => ({
-  providerInvites: { id: "id", token: "token", usedAt: "usedAt", email: "email" },
+  providerInviteTokens: { id: "id", token: "token", usedAt: "usedAt", email: "email" },
 }));
 
 vi.mock("@/db/schema/provider-documents", () => ({
@@ -178,7 +178,7 @@ import { broadcastToUser } from "@/server/websocket/broadcast";
 
 const mockUsersFindFirst = db.query.users.findFirst as ReturnType<typeof vi.fn>;
 const mockProvidersFindFirst = db.query.providers.findFirst as ReturnType<typeof vi.fn>;
-const mockProviderInvitesFindFirst = db.query.providerInvites.findFirst as ReturnType<typeof vi.fn>;
+const mockProviderInvitesFindFirst = db.query.providerInviteTokens.findFirst as ReturnType<typeof vi.fn>;
 const mockOnboardingStepsFindFirst = (db.query as unknown as { onboardingSteps: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).onboardingSteps.findFirst;
 const mockOnboardingStepsFindMany = (db.query as unknown as { onboardingSteps: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).onboardingSteps.findMany;
 const mockTransaction = db.transaction as ReturnType<typeof vi.fn>;
@@ -342,7 +342,6 @@ describe("POST /apply — Provider Application", () => {
     await app.fetch(makeRequest("/apply", validApplyData));
 
     // The first tx.insert call is for the users table
-    const txInsert = mockTransaction.mock.calls[0]?.[0];
     // We can't directly inspect the tx mock values easily, but we verify
     // the source code sets emailVerified by checking the route module
     // The real validation is in the E2E test; this is a regression guard

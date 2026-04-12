@@ -23,6 +23,7 @@ import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import type { AuditAction } from "../lib/audit-logger";
 import { clearDelayNotification } from "../lib/delay-tracker";
+import { logger } from "@/lib/logger";
 import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
 import { BOOKING_STATUSES, SERVICE_CATEGORIES } from "@/lib/constants";
@@ -272,7 +273,7 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
 
   const [updated] = await db
     .update(bookings)
-    .set({ providerId: parsed.data.providerId, updatedAt: new Date() })
+    .set({ providerId: parsed.data.providerId, status: "dispatched", updatedAt: new Date() })
     .where(eq(bookings.id, bookingId))
     .returning();
 
@@ -304,8 +305,9 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
   if (provider.commissionType === "flat_per_job") {
     estimatedPayout = provider.flatFeeAmount || 0;
   } else if (service && service.commissionRate > 0) {
-    const platformCut = Math.round(estimatedPrice * service.commissionRate / 10000);
-    estimatedPayout = estimatedPrice - platformCut;
+    const serviceProviderAmount = estimatedPrice - Math.round(estimatedPrice * service.commissionRate / 10000);
+    const providerLevelAmount = Math.round(estimatedPrice * provider.commissionRate / 10000);
+    estimatedPayout = Math.max(serviceProviderAmount, providerLevelAmount);
   } else {
     estimatedPayout = Math.round(estimatedPrice * provider.commissionRate / 10000);
   }
@@ -313,20 +315,27 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
   // Notify provider
   notifyProviderAssigned(updated, provider, estimatedPrice, estimatedPayout, service?.name).catch((err) => { console.error("[Notifications] Failed:", err); });
   if (provider.userId) {
+    const loc = updated.location as { address: string; latitude?: number; longitude?: number };
     broadcastToProvider(provider.userId, {
       type: "provider:job_assigned",
       data: {
         bookingId,
         providerId: provider.id,
         contactName: updated.contactName,
-        address: (updated.location as { address: string }).address,
+        contactPhone: updated.contactPhone,
+        address: loc.address,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
         serviceName: service?.name,
         estimatedPrice,
         estimatedPayout,
       },
     });
   }
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: updated.status } });
+  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
+  if (updated.userId) {
+    broadcastToUser(updated.userId, { type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
+  }
 
   // Pre-service confirmation for diagnostic/inspection bookings (FR66)
   if (service && (service.category === "diagnostics" || service.slug.includes("inspection"))) {
@@ -548,7 +557,7 @@ app.patch("/payments/:id/confirm", async (c) => {
 
       // Create payout if eligible (was missing from this endpoint)
       createPayoutIfEligible(fullBooking.id).catch((err) => {
-        console.error("[Payment] Failed to create payout for booking:", fullBooking.id, err);
+        logger.error("[Payment] Failed to create payout for booking:", fullBooking.id, err);
       });
     }
 

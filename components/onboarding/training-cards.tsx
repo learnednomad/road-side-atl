@@ -59,7 +59,6 @@ export function TrainingModule({ onBack }: { onBack?: () => void }) {
     setIsLoading(false);
   }, []);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch
   useState(() => { void fetchTraining(); });
 
   const handleAcknowledge = async (cardId: string) => {

@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { formatPrice } from "@/lib/utils";
 import { escapeHtml } from "@/lib/escape-html";
+import { logger } from "@/lib/logger";
 
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY;
@@ -11,19 +12,26 @@ function getResend(): Resend | null {
 const FROM = process.env.RESEND_FROM || "noreply@roadsidega.com";
 
 // Generic email sender for verification/password reset emails
-export async function sendEmail(opts: { to: string; subject: string; html: string }) {
+export async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<{ success: boolean; error?: string }> {
   const resend = getResend();
   if (!resend) {
-    console.warn("Email sending skipped - RESEND_API_KEY not configured");
-    return;
+    logger.warn("Email sending skipped - RESEND_API_KEY not configured");
+    return { success: false, error: "Email service not configured (RESEND_API_KEY missing)" };
   }
 
-  await resend.emails.send({
-    from: FROM,
-    to: opts.to,
-    subject: opts.subject,
-    html: opts.html,
-  });
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+    });
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error("Email sending failed:", message);
+    return { success: false, error: message };
+  }
 }
 
 interface BookingInfo {
@@ -122,23 +130,35 @@ export async function sendStatusUpdate(booking: BookingInfo, newStatus: string, 
   });
 }
 
-export async function sendObservationFollowUpEmail(email: string, customerName: string, findings: string) {
+export async function sendObservationFollowUpEmail(
+  email: string,
+  customerName: string,
+  findings: string,
+  upsellLinks?: { category: string; serviceSlug: string; deepLink: string }[]
+) {
   const resend = getResend();
   if (!resend) return;
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com";
+  const upsellHtml = upsellLinks?.length
+    ? `<div style="margin: 16px 0;">
+        <p><strong>Recommended services based on our findings:</strong></p>
+        ${upsellLinks.map((link) => `<p><a href="${link.deepLink}" style="display:inline-block;padding:10px 20px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">Book ${escapeHtml(link.category)} Service</a></p>`).join("")}
+      </div>`
+    : `<p><a href="${appUrl}/book">Book an Inspection</a></p>`;
 
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: "Vehicle Observation - RoadSide GA",
+    subject: "Vehicle Observation - Action Recommended | RoadSide ATL",
     html: `
       <h2>Vehicle Observation Report</h2>
       <p>Hi ${escapeHtml(customerName)},</p>
       <p>During your recent service, our provider noticed some items that may need attention:</p>
       <p>${escapeHtml(findings)}</p>
-      <p>We recommend booking a diagnostic inspection for a thorough assessment.</p>
-      <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/book">Book an Inspection</a></p>
-      <p>— RoadSide GA</p>
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/unsubscribe">unsubscribe here</a>.</p>
+      ${upsellHtml}
+      <p>— RoadSide ATL</p>
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${appUrl}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });
 }
