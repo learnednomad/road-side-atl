@@ -25,7 +25,7 @@ interface BookingInfo {
   contactName: string;
   contactEmail: string;
   contactPhone: string;
-  location: { address: string };
+  location: { address: string; latitude?: number; longitude?: number };
   estimatedPrice: number;
 }
 

@@ -162,8 +162,9 @@ export async function autoDispatchBooking(
   if (assignedProvider.commissionType === "flat_per_job") {
     estimatedPayout = assignedProvider.flatFeeAmount || 0;
   } else if (service && service.commissionRate > 0) {
-    const platformCut = Math.round(estimatedPrice * service.commissionRate / 10000);
-    estimatedPayout = estimatedPrice - platformCut;
+    const serviceProviderAmount = estimatedPrice - Math.round(estimatedPrice * service.commissionRate / 10000);
+    const providerLevelAmount = Math.round(estimatedPrice * assignedProvider.commissionRate / 10000);
+    estimatedPayout = Math.max(serviceProviderAmount, providerLevelAmount);
   } else {
     estimatedPayout = Math.round(estimatedPrice * assignedProvider.commissionRate / 10000);
   }
@@ -176,7 +177,10 @@ export async function autoDispatchBooking(
         bookingId,
         providerId: assignedProvider.id,
         contactName: booking.contactName,
+        contactPhone: booking.contactPhone,
         address: location.address,
+        latitude: location.latitude,
+        longitude: location.longitude,
         serviceName: service?.name,
         estimatedPrice,
         estimatedPayout,

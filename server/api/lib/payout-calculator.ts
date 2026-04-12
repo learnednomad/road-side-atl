@@ -80,8 +80,12 @@ export async function createPayoutIfEligible(bookingId: string) {
     providerAmount = provider.flatFeeAmount || 0;
   } else if (service && service.commissionRate > 0) {
     // Service-level commission: commissionRate = platform's cut in basis points
-    const platformCut = Math.round(effectivePrice * service.commissionRate / 10000);
-    providerAmount = effectivePrice - platformCut;
+    const serviceProviderAmount = effectivePrice - Math.round(effectivePrice * service.commissionRate / 10000);
+    // Provider-level commission: commissionRate = provider's share in basis points
+    // (e.g., beta providers get 8000 = 80% share instead of default 70%)
+    const providerLevelAmount = Math.round((effectivePrice * provider.commissionRate) / 10000);
+    // Use whichever is higher — honors beta/special provider rates
+    providerAmount = Math.max(serviceProviderAmount, providerLevelAmount);
   } else {
     // Fallback: provider-level commission (commissionRate = provider's share in basis points)
     providerAmount = Math.round((effectivePrice * provider.commissionRate) / 10000);

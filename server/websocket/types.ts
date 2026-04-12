@@ -2,7 +2,7 @@ export type WSEvent =
   | { type: "booking:created"; data: { bookingId: string; contactName: string; status: string; serviceName: string; b2bAccountId?: string } }
   | { type: "booking:status_changed"; data: { bookingId: string; status: string } }
   | { type: "booking:rescheduled"; data: { bookingId: string; scheduledAt?: string } }
-  | { type: "provider:job_assigned"; data: { bookingId: string; providerId: string; contactName: string; address: string; serviceName?: string; estimatedPrice?: number; estimatedPayout?: number; offerExpiresAt?: string; etaMinutes?: number } }
+  | { type: "provider:job_assigned"; data: { bookingId: string; providerId: string; contactName: string; contactPhone?: string; address: string; latitude?: number; longitude?: number; serviceName?: string; estimatedPrice?: number; estimatedPayout?: number; offerExpiresAt?: string; etaMinutes?: number } }
   | { type: "provider:offer_expired"; data: { bookingId: string; reason: string } }
   | { type: "booking:offer_expired"; data: { bookingId: string; attemptNumber: number; providerId: string } }
   | { type: "provider:location_updated"; data: { providerId: string; lat: number; lng: number; etaMinutes?: number } }

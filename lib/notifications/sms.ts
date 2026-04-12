@@ -79,7 +79,8 @@ export async function sendSMS(
 interface BookingInfo {
   id: string;
   contactName: string;
-  location: { address: string };
+  contactPhone?: string;
+  location: { address: string; latitude?: number; longitude?: number };
   estimatedPrice: number;
 }
 
@@ -96,10 +97,14 @@ export async function sendProviderAssignmentSMS(phone: string, booking: BookingI
   const payoutInfo = estimatedPrice && estimatedPayout
     ? ` Price: ${formatPrice(estimatedPrice)}. Your payout: ${formatPrice(estimatedPayout)}.`
     : "";
+  const customerPhone = booking.contactPhone ? ` Phone: ${booking.contactPhone}.` : "";
+  const mapsLink = booking.location.latitude && booking.location.longitude
+    ? ` Map: https://maps.google.com/?q=${booking.location.latitude},${booking.location.longitude}`
+    : "";
   const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
   await sendSMS(
     phone,
-    `RoadSide GA: New job assigned! Booking #${booking.id.slice(0, 8)}. Customer: ${booking.contactName}. Location: ${booking.location.address}.${payoutInfo} Log in to accept.`,
+    `RoadSide GA: New job assigned! Booking #${booking.id.slice(0, 8)}. Customer: ${booking.contactName}.${customerPhone} Location: ${booking.location.address}.${payoutInfo}${mapsLink} Log in to accept.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }

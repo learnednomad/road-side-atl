@@ -8,6 +8,7 @@ import { eq, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { sendEmail } from "@/lib/notifications/email";
+import { sendSMS } from "@/lib/notifications/sms";
 import {
   INVITE_TOKEN_EXPIRY_MS,
   ONBOARDING_STEP_TYPES,
@@ -222,7 +223,7 @@ export async function sendProviderInviteEmail(
   email: string,
   name: string,
   token: string
-): Promise<void> {
+): Promise<{ emailSent: boolean; smsSent: boolean }> {
   const baseUrl =
     process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
   const inviteUrl = `${baseUrl}/register/provider/invite?token=${token}`;
@@ -265,18 +266,34 @@ export async function sendProviderInviteEmail(
     </html>
   `;
 
-  await sendEmail({
+  const emailResult = await sendEmail({
     to: email,
     subject: "You're invited to join RoadSide GA as a provider",
     html,
   });
+
+  // SMS fallback: also text the invite link to the provider's phone
+  let smsSent = false;
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.email, email),
+    columns: { phone: true },
+  });
+  if (provider?.phone) {
+    const smsResult = await sendSMS(
+      provider.phone,
+      `RoadSide GA: You're invited to join as a service provider! Set up your account here: ${inviteUrl} (Link expires in 72 hours)`
+    );
+    smsSent = smsResult.success;
+  }
+
+  return { emailSent: emailResult.success, smsSent };
 }
 
 export async function sendBetaInviteEmail(
   email: string,
   name: string,
   token: string
-): Promise<void> {
+): Promise<{ emailSent: boolean }> {
   const baseUrl =
     process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
   const inviteUrl = `${baseUrl}/register/provider/invite?token=${token}`;
@@ -319,11 +336,13 @@ export async function sendBetaInviteEmail(
     </html>
   `;
 
-  await sendEmail({
+  const emailResult = await sendEmail({
     to: email,
     subject: "You're Selected for the RoadSide ATL Beta Program",
     html,
   });
+
+  return { emailSent: emailResult.success };
 }
 
 export async function sendReferralInviteEmail(

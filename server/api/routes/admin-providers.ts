@@ -438,11 +438,12 @@ app.post("/:id/invite", async (c) => {
     { providerId, inviteType: "admin" }
   );
 
-  await sendProviderInviteEmail(provider.email, provider.name, token).catch(
-    (err) => {
-      logger.error("Failed to send provider invite email:", err);
-    }
-  );
+  let deliveryStatus = { emailSent: false, smsSent: false };
+  try {
+    deliveryStatus = await sendProviderInviteEmail(provider.email, provider.name, token);
+  } catch (err) {
+    logger.error("Failed to send provider invite:", err);
+  }
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
@@ -450,12 +451,26 @@ app.post("/:id/invite", async (c) => {
     userId: adminUser.id,
     resourceType: "provider",
     resourceId: providerId,
-    details: { email: provider.email },
+    details: { email: provider.email, ...deliveryStatus },
     ipAddress,
     userAgent,
   });
 
-  return c.json({ success: true, message: "Invite sent" });
+  if (!deliveryStatus.emailSent && !deliveryStatus.smsSent) {
+    return c.json({
+      success: true,
+      warning: "Invite token created but delivery failed. Check that RESEND_API_KEY and Twilio credentials are configured.",
+      emailSent: false,
+      smsSent: false,
+    });
+  }
+
+  return c.json({
+    success: true,
+    message: "Invite sent",
+    emailSent: deliveryStatus.emailSent,
+    smsSent: deliveryStatus.smsSent,
+  });
 });
 
 // Get invite status for provider
@@ -528,7 +543,13 @@ app.post("/beta-invite", async (c) => {
   );
 
   // Send beta invite email
-  await sendBetaInviteEmail(parsed.data.email, parsed.data.name, token);
+  let emailSent = false;
+  try {
+    const result = await sendBetaInviteEmail(parsed.data.email, parsed.data.name, token);
+    emailSent = result.emailSent;
+  } catch (err) {
+    logger.error("Failed to send beta invite email:", err);
+  }
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
@@ -536,12 +557,17 @@ app.post("/beta-invite", async (c) => {
     userId: user.id,
     resourceType: "provider",
     resourceId: "beta-invite",
-    details: { email: parsed.data.email, inviteType: "beta" },
+    details: { email: parsed.data.email, inviteType: "beta", emailSent },
     ipAddress,
     userAgent,
   });
 
-  return c.json({ success: true, inviteType: "beta" }, 201);
+  return c.json({
+    success: true,
+    inviteType: "beta",
+    emailSent,
+    ...(!emailSent && { warning: "Invite token created but email delivery failed. Check RESEND_API_KEY configuration." }),
+  }, 201);
 });
 
 // Beta stats — invite counts
