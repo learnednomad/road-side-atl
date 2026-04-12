@@ -20,6 +20,9 @@ export const users = pgTable("users", {
   referralCode: text("referralCode").unique(),
   taxId: text("taxId"),
   stripeCustomerId: text("stripeCustomerId"),
+  defaultPaymentMethodId: text("defaultPaymentMethodId"),
+  trustTierUpdatedAt: timestamp("trustTierUpdatedAt", { mode: "date" }),
+  trustTierReason: text("trustTierReason"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 });

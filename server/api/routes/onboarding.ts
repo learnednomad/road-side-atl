@@ -16,8 +16,9 @@ import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { getPresignedUploadUrl, getPresignedUrl } from "@/lib/s3";
 import { createCandidate, createInvitation, CheckrApiError } from "../lib/checkr";
-import { stripe } from "@/lib/stripe";
+import { stripe, getStripe } from "@/lib/stripe";
 import { checkAllStepsCompleteAndTransition } from "../lib/all-steps-complete";
+import { isFeatureEnabled, FEATURE_FLAGS } from "../lib/feature-flags";
 import { logger } from "@/lib/logger";
 import { notifyApplicationReceived, notifyTrainingCompleted, notifyStripeConnectCompleted, notifyAdminProviderReadyForReview, notifyAdminNewDocumentSubmitted } from "@/lib/notifications";
 
@@ -1343,6 +1344,129 @@ app.get("/stripe-dashboard", requireProvider, async (c) => {
     logger.error("[Stripe Connect] Dashboard link generation failed:", err);
     return c.json({ error: "Unable to generate dashboard link" }, 503);
   }
+});
+
+// ── Stripe Identity Verification ──────────────────────────────────
+
+// POST /identity/start — create VerificationSession and return hosted URL
+app.post("/identity/start", requireProvider, async (c) => {
+  const user = c.get("user");
+
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.STRIPE_IDENTITY))) {
+    return c.json({ error: "Identity verification is not enabled" }, 400);
+  }
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  // Find or create identity_verification step
+  let step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "identity_verification"),
+    ),
+  });
+
+  if (!step) {
+    const [created] = await db
+      .insert(onboardingSteps)
+      .values({
+        providerId: provider.id,
+        stepType: "identity_verification",
+        status: "pending",
+      })
+      .returning();
+    step = created!;
+  }
+
+  if (step.status === "complete") {
+    return c.json({ error: "Identity already verified" }, 400);
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
+
+  try {
+    const session = await getStripe().identity.verificationSessions.create({
+      type: "document",
+      options: {
+        document: {
+          require_matching_selfie: true,
+        },
+      },
+      metadata: {
+        providerId: provider.id,
+        stepId: step.id,
+        userId: user.id,
+      },
+      return_url: `${appUrl}/provider/onboarding?identity=complete`,
+    });
+
+    // Store session ID in step metadata
+    const metadata = (step.metadata || {}) as Record<string, unknown>;
+    await db
+      .update(onboardingSteps)
+      .set({
+        status: "in_progress",
+        metadata: { ...metadata, stripeVerificationSessionId: session.id },
+        updatedAt: new Date(),
+      })
+      .where(eq(onboardingSteps.id, step.id));
+
+    logAudit({
+      action: "onboarding.step_started",
+      userId: user.id,
+      resourceType: "onboarding_step",
+      resourceId: step.id,
+      details: { stepType: "identity_verification", sessionId: session.id },
+    });
+
+    return c.json({ url: session.url });
+  } catch (err) {
+    logger.error("[Identity] Failed to create verification session:", err);
+    return c.json({ error: "Unable to start identity verification" }, 503);
+  }
+});
+
+// GET /identity/status — check current verification status
+app.get("/identity/status", requireProvider, async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+    columns: { id: true },
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "identity_verification"),
+    ),
+  });
+
+  if (!step) {
+    return c.json({ status: "not_started" });
+  }
+
+  const metadata = (step.metadata || {}) as Record<string, unknown>;
+  const sessionId = metadata.stripeVerificationSessionId as string | undefined;
+
+  if (sessionId && step.status === "in_progress") {
+    try {
+      const session = await getStripe().identity.verificationSessions.retrieve(sessionId);
+      return c.json({
+        status: step.status,
+        stripeStatus: session.status,
+        lastError: session.last_error?.code || null,
+      });
+    } catch {
+      return c.json({ status: step.status, stripeStatus: "unknown" });
+    }
+  }
+
+  return c.json({ status: step.status });
 });
 
 export default app;

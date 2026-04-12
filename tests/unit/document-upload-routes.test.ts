@@ -188,7 +188,6 @@ import { getPresignedUploadUrl, getPresignedUrl } from "@/lib/s3";
 
 const mockProvidersFindFirst = db.query.providers.findFirst as ReturnType<typeof vi.fn>;
 const mockOnboardingStepsFindFirst = (db.query as unknown as { onboardingSteps: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).onboardingSteps.findFirst;
-const mockOnboardingStepsFindMany = (db.query as unknown as { onboardingSteps: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).onboardingSteps.findMany;
 const mockDocsFindFirst = (db.query as unknown as { providerDocuments: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).providerDocuments.findFirst;
 const mockDocsFindMany = (db.query as unknown as { providerDocuments: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).providerDocuments.findMany;
 const mockDbInsert = db.insert as ReturnType<typeof vi.fn>;

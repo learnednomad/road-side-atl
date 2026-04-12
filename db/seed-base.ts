@@ -2,14 +2,12 @@
  * Base seed — safe for ALL environments (production, staging, development).
  * Seeds: services catalog, platform settings, time-block configs, admin user(s).
  */
-import { drizzle } from "drizzle-orm/postgres-js";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import bcrypt from "bcryptjs";
 import {
   services,
   users,
   timeBlockConfigs,
-  platformSettings,
 } from "./schema";
 
 export async function seedBase(db: PostgresJsDatabase) {
@@ -103,7 +101,7 @@ export async function seedBase(db: PostgresJsDatabase) {
 
   console.log("Services seeded.");
 
-  // ── MECHANIC SERVICES (Beta) ──────────────────────────────
+  // ── MECHANIC SERVICES ─────────────────────────────────────
   console.log("Seeding mechanic services...");
   await db.insert(services).values([
     {
@@ -169,14 +167,6 @@ export async function seedBase(db: PostgresJsDatabase) {
   ]);
   console.log("Mechanic services seeded.");
 
-  // ── BETA CONFIGURATION ──────────────────────────────────────
-  console.log("Seeding beta configuration...");
-  await db.insert(platformSettings).values([
-    { key: "beta_active", value: "false" },
-    { key: "beta_start_date", value: "2026-04-07" },
-    { key: "beta_end_date", value: "2026-06-07" },
-  ]).onConflictDoNothing();
-  console.log("Beta configuration seeded.");
 
   // ── TIME-BLOCK PRICING CONFIGS ──────────────────────────────
   console.log("Seeding time-block pricing configs...");

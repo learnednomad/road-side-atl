@@ -342,7 +342,6 @@ describe("POST /apply — Provider Application", () => {
     await app.fetch(makeRequest("/apply", validApplyData));
 
     // The first tx.insert call is for the users table
-    const txInsert = mockTransaction.mock.calls[0]?.[0];
     // We can't directly inspect the tx mock values easily, but we verify
     // the source code sets emailVerified by checking the route module
     // The real validation is in the E2E test; this is a regression guard

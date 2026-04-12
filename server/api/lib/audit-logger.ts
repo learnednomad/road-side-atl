@@ -89,7 +89,12 @@ export type AuditAction =
   | "training.module_completed"
   | "stripe_connect.account_created"
   | "stripe_connect.link_generated"
-  | "stripe_connect.onboarding_completed";
+  | "stripe_connect.onboarding_completed"
+  | "reconciliation.checkr_status_sync"
+  | "reconciliation.stripe_connect_status_sync"
+  | "reconciliation.stripe_connect_abandonment_reminder"
+  | "reconciliation.stripe_connect_deadline_suspend"
+  | "reconciliation.migration_deadline_suspend";
 
 export interface AuditLogEntry {
   action: AuditAction;

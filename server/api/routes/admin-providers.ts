@@ -14,7 +14,6 @@ import {
   sendProviderInviteEmail,
   sendBetaInviteEmail,
 } from "@/lib/auth/provider-invite";
-import { platformSettings } from "@/db/schema/platform-settings";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { encrypt, decrypt } from "../lib/encryption";
 import { generateCSV } from "@/lib/csv";
@@ -439,11 +438,12 @@ app.post("/:id/invite", async (c) => {
     { providerId, inviteType: "admin" }
   );
 
-  await sendProviderInviteEmail(provider.email, provider.name, token).catch(
-    (err) => {
-      logger.error("Failed to send provider invite email:", err);
-    }
-  );
+  let deliveryStatus = { emailSent: false, smsSent: false };
+  try {
+    deliveryStatus = await sendProviderInviteEmail(provider.email, provider.name, token);
+  } catch (err) {
+    logger.error("Failed to send provider invite:", err);
+  }
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
@@ -451,12 +451,26 @@ app.post("/:id/invite", async (c) => {
     userId: adminUser.id,
     resourceType: "provider",
     resourceId: providerId,
-    details: { email: provider.email },
+    details: { email: provider.email, ...deliveryStatus },
     ipAddress,
     userAgent,
   });
 
-  return c.json({ success: true, message: "Invite sent" });
+  if (!deliveryStatus.emailSent && !deliveryStatus.smsSent) {
+    return c.json({
+      success: true,
+      warning: "Invite token created but delivery failed. Check that RESEND_API_KEY and Twilio credentials are configured.",
+      emailSent: false,
+      smsSent: false,
+    });
+  }
+
+  return c.json({
+    success: true,
+    message: "Invite sent",
+    emailSent: deliveryStatus.emailSent,
+    smsSent: deliveryStatus.smsSent,
+  });
 });
 
 // Get invite status for provider
@@ -499,31 +513,6 @@ app.post("/beta-invite", async (c) => {
     return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
   }
 
-  // Check beta is active
-  const { isBetaActive } = await import("../lib/beta");
-  const betaActive = await isBetaActive();
-  if (!betaActive) {
-    return c.json({ error: "Beta program is not currently active" }, 400);
-  }
-
-  // Check beta slot availability
-  const [{ count: usedSlots }] = await db
-    .select({ count: count() })
-    .from(providerInviteTokens)
-    .where(and(
-      eq(providerInviteTokens.inviteType, "beta"),
-      eq(providerInviteTokens.status, "accepted"),
-    ));
-
-  const slotSetting = await db.query.platformSettings.findFirst({
-    where: eq(platformSettings.key, "beta_provider_slots"),
-  });
-  const totalSlots = slotSetting ? parseInt(slotSetting.value) : 50;
-
-  if (Number(usedSlots) >= totalSlots) {
-    return c.json({ error: "Beta program slots are full" }, 400);
-  }
-
   // Check if email already has a pending invite or account
   const existingUser = await db.query.users.findFirst({
     where: eq(users.email, parsed.data.email),
@@ -554,7 +543,13 @@ app.post("/beta-invite", async (c) => {
   );
 
   // Send beta invite email
-  await sendBetaInviteEmail(parsed.data.email, parsed.data.name, token);
+  let emailSent = false;
+  try {
+    const result = await sendBetaInviteEmail(parsed.data.email, parsed.data.name, token);
+    emailSent = result.emailSent;
+  } catch (err) {
+    logger.error("Failed to send beta invite email:", err);
+  }
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
@@ -562,20 +557,22 @@ app.post("/beta-invite", async (c) => {
     userId: user.id,
     resourceType: "provider",
     resourceId: "beta-invite",
-    details: { email: parsed.data.email, inviteType: "beta" },
+    details: { email: parsed.data.email, inviteType: "beta", emailSent },
     ipAddress,
     userAgent,
   });
 
-  return c.json({ success: true, inviteType: "beta" }, 201);
+  return c.json({
+    success: true,
+    inviteType: "beta",
+    emailSent,
+    ...(!emailSent && { warning: "Invite token created but email delivery failed. Check RESEND_API_KEY configuration." }),
+  }, 201);
 });
 
-// Beta stats — slot usage and invite counts
+// Beta stats — invite counts
 app.get("/beta-stats", async (c) => {
-  const { isBetaActive } = await import("../lib/beta");
-  const betaActive = await isBetaActive();
-
-  const [{ count: usedSlots }] = await db
+  const [{ count: acceptedInvites }] = await db
     .select({ count: count() })
     .from(providerInviteTokens)
     .where(and(
@@ -591,17 +588,9 @@ app.get("/beta-stats", async (c) => {
       eq(providerInviteTokens.status, "pending"),
     ));
 
-  const slotSetting = await db.query.platformSettings.findFirst({
-    where: eq(platformSettings.key, "beta_provider_slots"),
-  });
-  const totalSlots = slotSetting ? parseInt(slotSetting.value) : 50;
-
   return c.json({
-    betaActive,
-    totalSlots,
-    usedSlots: Number(usedSlots),
+    acceptedInvites: Number(acceptedInvites),
     pendingInvites: Number(pendingInvites),
-    remainingSlots: totalSlots - Number(usedSlots),
   });
 });
 

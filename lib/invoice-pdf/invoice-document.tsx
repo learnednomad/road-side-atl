@@ -247,6 +247,7 @@ export function InvoiceDocument({
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             {settings?.logoUrl && (
+              // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image doesn't support alt
               <Image src={settings.logoUrl} style={styles.logo} />
             )}
             <View style={styles.companyInfo}>

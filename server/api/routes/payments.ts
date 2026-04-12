@@ -2,12 +2,14 @@ import { Hono } from "hono";
 import Stripe from "stripe";
 import { db } from "@/db";
 import { bookings, payments, services, users } from "@/db/schema";
+import { providers } from "@/db/schema/providers";
 import { eq, and } from "drizzle-orm";
 import { stripe, getStripe } from "@/lib/stripe";
 import { createStripeCheckoutSchema, isPaymentMethodAllowedForTier } from "@/lib/validators";
 import { requireAuth } from "@/server/api/middleware/auth";
 import { validatePaymentMethod } from "@/server/api/middleware/trust-tier";
 import { rateLimitStrict } from "@/server/api/middleware/rate-limit";
+import { isFeatureEnabled, FEATURE_FLAGS } from "@/server/api/lib/feature-flags";
 
 type AuthEnv = {
   Variables: {
@@ -111,6 +113,34 @@ app.post("/stripe/checkout", async (c) => {
   // Create or retrieve Stripe Customer for authenticated user
   const stripeCustomerId = await getOrCreateStripeCustomer(user.id);
 
+  // Resolve assigned provider's Stripe Connect account (if any)
+  let provider: { id: string; stripeConnectAccountId: string | null; commissionRate: number; commissionType: string; flatFeeAmount: number | null } | undefined;
+  if (booking.providerId) {
+    provider = await db.query.providers.findFirst({
+      where: eq(providers.id, booking.providerId),
+      columns: { id: true, stripeConnectAccountId: true, commissionRate: true, commissionType: true, flatFeeAmount: true },
+    });
+  }
+
+  const destinationChargesEnabled = await isFeatureEnabled(FEATURE_FLAGS.DESTINATION_CHARGES);
+  const useDestinationCharge = destinationChargesEnabled && !!provider?.stripeConnectAccountId;
+
+  // Calculate application fee for destination charges (platform's cut)
+  let applicationFeeAmount: number | undefined;
+  if (useDestinationCharge && service) {
+    if (provider!.commissionType === "flat_per_job") {
+      // Platform keeps everything minus the flat fee
+      applicationFeeAmount = Math.max(0, booking.estimatedPrice - (provider!.flatFeeAmount || 0));
+    } else if (service.commissionRate > 0) {
+      // Service-level commission: commissionRate = platform's cut in basis points
+      applicationFeeAmount = Math.round(booking.estimatedPrice * service.commissionRate / 10000);
+    } else {
+      // Fallback: provider-level commission (commissionRate = provider's share in BP)
+      const providerShare = Math.round(booking.estimatedPrice * provider!.commissionRate / 10000);
+      applicationFeeAmount = Math.max(0, booking.estimatedPrice - providerShare);
+    }
+  }
+
   // Build line item — use linked Stripe Product if available, otherwise inline product_data
   const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
     price_data: {
@@ -133,36 +163,45 @@ app.post("/stripe/checkout", async (c) => {
       ? ["us_bank_account", "cashapp", "card"]
       : ["us_bank_account", "cashapp"];
 
+  const sessionMetadata = {
+    bookingId: booking.id,
+    serviceSlug: service?.slug || "unknown",
+    userId: user.id,
+    ...(useDestinationCharge ? { chargeType: "destination" } : {}),
+  };
+
   const session = await stripe.checkout.sessions.create({
     payment_method_types: stripePaymentMethods,
     line_items: [lineItem],
     mode: "payment",
     customer: stripeCustomerId,
+    allow_promotion_codes: true,
     success_url: `${baseUrl}/book/confirmation?bookingId=${booking.id}&paid=true`,
     cancel_url: `${baseUrl}/book/confirmation?bookingId=${booking.id}`,
-    // Session-level metadata (available on checkout.session.completed)
-    metadata: {
-      bookingId: booking.id,
-      serviceSlug: service?.slug || "unknown",
-      userId: user.id,
-    },
-    // PaymentIntent-level metadata (available on charge.refunded, dispute, payment_failed events)
+    metadata: sessionMetadata,
     payment_intent_data: {
-      metadata: {
-        bookingId: booking.id,
-        serviceSlug: service?.slug || "unknown",
-        userId: user.id,
-      },
+      metadata: sessionMetadata,
+      // Destination charge: funds go to provider, platform keeps application fee
+      ...(useDestinationCharge
+        ? {
+            application_fee_amount: applicationFeeAmount,
+            transfer_data: { destination: provider!.stripeConnectAccountId! },
+            on_behalf_of: provider!.stripeConnectAccountId!,
+          }
+        : {}),
     },
   });
 
-  // Create pending payment record
+  // Create pending payment record with charge type metadata
   await db.insert(payments).values({
     bookingId: booking.id,
     amount: booking.estimatedPrice,
     method: "stripe",
     status: "pending",
     stripeSessionId: session.id,
+    chargeType: useDestinationCharge ? "destination" : "platform",
+    applicationFeeAmount: applicationFeeAmount ?? null,
+    stripeConnectAccountId: useDestinationCharge ? provider!.stripeConnectAccountId : null,
   });
 
   return c.json({ url: session.url });

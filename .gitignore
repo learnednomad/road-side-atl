@@ -41,6 +41,10 @@ yarn-error.log*
 .claude/
 .codex/
 _bmad/
+.playwright-mcp/
+
+# temp screenshots
+staging-login*.png
 
 # vercel
 .vercel

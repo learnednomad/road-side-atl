@@ -8,11 +8,11 @@ import { eq, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { sendEmail } from "@/lib/notifications/email";
+import { sendSMS } from "@/lib/notifications/sms";
 import {
   INVITE_TOKEN_EXPIRY_MS,
-  BETA_INVITE_TOKEN_EXPIRY_MS,
   ONBOARDING_STEP_TYPES,
-  COMMISSION_RATE_MECHANICS_BP,
+  COMMISSION_RATE_BETA_PROVIDER_BP,
 } from "@/lib/constants";
 
 function generateToken(): string {
@@ -31,9 +31,7 @@ export async function createProviderInviteToken(
 ): Promise<string> {
   const token = generateToken();
   const inviteType = options.inviteType ?? "admin";
-  const expiryMs =
-    inviteType === "beta" ? BETA_INVITE_TOKEN_EXPIRY_MS : INVITE_TOKEN_EXPIRY_MS;
-  const expires = new Date(Date.now() + expiryMs);
+  const expires = new Date(Date.now() + INVITE_TOKEN_EXPIRY_MS);
 
   // Delete any existing pending tokens for this email
   await db
@@ -182,7 +180,7 @@ export async function acceptProviderInvite(
     // Referral or beta invite: create a new provider record
     const commissionRate =
       verification.inviteType === "beta"
-        ? COMMISSION_RATE_MECHANICS_BP
+        ? COMMISSION_RATE_BETA_PROVIDER_BP
         : undefined;
 
     const [newProvider] = await db
@@ -225,7 +223,7 @@ export async function sendProviderInviteEmail(
   email: string,
   name: string,
   token: string
-): Promise<void> {
+): Promise<{ emailSent: boolean; smsSent: boolean }> {
   const baseUrl =
     process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
   const inviteUrl = `${baseUrl}/register/provider/invite?token=${token}`;
@@ -268,18 +266,34 @@ export async function sendProviderInviteEmail(
     </html>
   `;
 
-  await sendEmail({
+  const emailResult = await sendEmail({
     to: email,
     subject: "You're invited to join RoadSide GA as a provider",
     html,
   });
+
+  // SMS fallback: also text the invite link to the provider's phone
+  let smsSent = false;
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.email, email),
+    columns: { phone: true },
+  });
+  if (provider?.phone) {
+    const smsResult = await sendSMS(
+      provider.phone,
+      `RoadSide GA: You're invited to join as a service provider! Set up your account here: ${inviteUrl} (Link expires in 72 hours)`
+    );
+    smsSent = smsResult.success;
+  }
+
+  return { emailSent: emailResult.success, smsSent };
 }
 
 export async function sendBetaInviteEmail(
   email: string,
   name: string,
   token: string
-): Promise<void> {
+): Promise<{ emailSent: boolean }> {
   const baseUrl =
     process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
   const inviteUrl = `${baseUrl}/register/provider/invite?token=${token}`;
@@ -322,11 +336,13 @@ export async function sendBetaInviteEmail(
     </html>
   `;
 
-  await sendEmail({
+  const emailResult = await sendEmail({
     to: email,
     subject: "You're Selected for the RoadSide ATL Beta Program",
     html,
   });
+
+  return { emailSent: emailResult.success };
 }
 
 export async function sendReferralInviteEmail(

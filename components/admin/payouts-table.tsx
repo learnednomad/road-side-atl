@@ -31,7 +31,7 @@ interface Payout {
     providerId: string;
     bookingId: string;
     amount: number;
-    status: "pending" | "paid" | "clawback";
+    status: "pending" | "paid" | "clawback" | "held";
     payoutType: string;
     paidAt: string | null;
     createdAt: string;

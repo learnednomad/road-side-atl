@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Car, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Error | RoadSide GA",

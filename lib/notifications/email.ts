@@ -12,19 +12,26 @@ function getResend(): Resend | null {
 const FROM = process.env.RESEND_FROM || "noreply@roadsidega.com";
 
 // Generic email sender for verification/password reset emails
-export async function sendEmail(opts: { to: string; subject: string; html: string }) {
+export async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<{ success: boolean; error?: string }> {
   const resend = getResend();
   if (!resend) {
     logger.warn("Email sending skipped - RESEND_API_KEY not configured");
-    return;
+    return { success: false, error: "Email service not configured (RESEND_API_KEY missing)" };
   }
 
-  await resend.emails.send({
-    from: FROM,
-    to: opts.to,
-    subject: opts.subject,
-    html: opts.html,
-  });
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+    });
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error("Email sending failed:", message);
+    return { success: false, error: message };
+  }
 }
 
 interface BookingInfo {

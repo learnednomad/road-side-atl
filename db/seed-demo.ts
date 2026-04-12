@@ -1,10 +1,8 @@
 /**
  * Demo seed — dev/staging only. Fake customers, providers, bookings, payments, etc.
  */
-import { drizzle } from "drizzle-orm/postgres-js";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import bcrypt from "bcryptjs";
-import { sql } from "drizzle-orm";
 import {
   users,
   providers,

@@ -14,6 +14,7 @@ export const stepTypeEnum = pgEnum("step_type", [
   "certifications",
   "training",
   "stripe_connect",
+  "identity_verification",
 ]);
 
 export const stepStatusEnum = pgEnum("step_status", [

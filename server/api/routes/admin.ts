@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod/v4";
 import { db } from "@/db";
-import { bookings, services, payments, users, providers, platformSettings, betaUsers } from "@/db/schema";
-import { eq, desc, sql, and, gte, lte, count, or, ilike, inArray } from "drizzle-orm";
+import { bookings, services, payments, users, providers } from "@/db/schema";
+import { eq, desc, sql, and, gte, lte, count, or, ilike } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import {
@@ -273,7 +273,7 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
 
   const [updated] = await db
     .update(bookings)
-    .set({ providerId: parsed.data.providerId, updatedAt: new Date() })
+    .set({ providerId: parsed.data.providerId, status: "dispatched", updatedAt: new Date() })
     .where(eq(bookings.id, bookingId))
     .returning();
 
@@ -305,8 +305,9 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
   if (provider.commissionType === "flat_per_job") {
     estimatedPayout = provider.flatFeeAmount || 0;
   } else if (service && service.commissionRate > 0) {
-    const platformCut = Math.round(estimatedPrice * service.commissionRate / 10000);
-    estimatedPayout = estimatedPrice - platformCut;
+    const serviceProviderAmount = estimatedPrice - Math.round(estimatedPrice * service.commissionRate / 10000);
+    const providerLevelAmount = Math.round(estimatedPrice * provider.commissionRate / 10000);
+    estimatedPayout = Math.max(serviceProviderAmount, providerLevelAmount);
   } else {
     estimatedPayout = Math.round(estimatedPrice * provider.commissionRate / 10000);
   }
@@ -314,20 +315,27 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
   // Notify provider
   notifyProviderAssigned(updated, provider, estimatedPrice, estimatedPayout, service?.name).catch((err) => { console.error("[Notifications] Failed:", err); });
   if (provider.userId) {
+    const loc = updated.location as { address: string; latitude?: number; longitude?: number };
     broadcastToProvider(provider.userId, {
       type: "provider:job_assigned",
       data: {
         bookingId,
         providerId: provider.id,
         contactName: updated.contactName,
-        address: (updated.location as { address: string }).address,
+        contactPhone: updated.contactPhone,
+        address: loc.address,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
         serviceName: service?.name,
         estimatedPrice,
         estimatedPayout,
       },
     });
   }
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: updated.status } });
+  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
+  if (updated.userId) {
+    broadcastToUser(updated.userId, { type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
+  }
 
   // Pre-service confirmation for diagnostic/inspection bookings (FR66)
   if (service && (service.category === "diagnostics" || service.slug.includes("inspection"))) {
@@ -1250,74 +1258,6 @@ app.put("/services/:id/checklist", async (c) => {
   });
 
   return c.json(updated, 200);
-});
-
-// ── BETA MANAGEMENT ─────────────────────────────────────────────
-
-// PATCH /admin/settings/beta — toggle beta mode on/off
-app.patch("/settings/beta", async (c) => {
-  const user = c.get("user");
-  const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
-
-  // Read old value for audit trail
-  const oldSetting = await db.query.platformSettings.findFirst({
-    where: eq(platformSettings.key, "beta_active"),
-  });
-  const oldValue = oldSetting?.value ?? "false";
-  const newValue = active ? "true" : "false";
-
-  await db
-    .update(platformSettings)
-    .set({ value: newValue, updatedAt: new Date() })
-    .where(eq(platformSettings.key, "beta_active"));
-
-  // Clear cache so the change takes effect immediately
-  const { clearBetaCache } = await import("@/server/api/lib/beta");
-  clearBetaCache();
-
-  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
-  logAudit({
-    action: "settings.update",
-    userId: user.id,
-    resourceType: "platform_settings",
-    resourceId: "beta_active",
-    details: { setting: "beta_active", oldValue, newValue },
-    ipAddress,
-    userAgent,
-  });
-
-  return c.json({ success: true, betaActive: active });
-});
-
-// GET /admin/beta/stats — beta dashboard metrics
-app.get("/beta/stats", async (c) => {
-  const { isBetaActive } = await import("@/server/api/lib/beta");
-
-  const [betaUserCount] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(betaUsers);
-
-  const [mechanicBookingCount] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(bookings)
-    .innerJoin(services, eq(bookings.serviceId, services.id))
-    .where(eq(services.category, "mechanics"));
-
-  const active = await isBetaActive();
-
-  const settings = await db.query.platformSettings.findMany({
-    where: inArray(platformSettings.key, ["beta_start_date", "beta_end_date"]),
-  });
-  const startDate = settings.find((s) => s.key === "beta_start_date")?.value ?? null;
-  const endDate = settings.find((s) => s.key === "beta_end_date")?.value ?? null;
-
-  return c.json({
-    betaActive: active,
-    betaUserCount: betaUserCount?.count ?? 0,
-    mechanicBookingCount: mechanicBookingCount?.count ?? 0,
-    startDate,
-    endDate,
-  });
 });
 
 export default app;
