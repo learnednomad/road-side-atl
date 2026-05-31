@@ -143,7 +143,7 @@ export function OnboardingDashboard() {
   }
 
   // Order steps by step type to ensure consistent display
-  const stepOrder = ["background_check", "insurance", "certifications", "training", "stripe_connect"];
+  const stepOrder = ["ic_agreement", "background_check", "insurance", "certifications", "training", "stripe_connect"];
   const orderedSteps = [...steps].sort(
     (a, b) => stepOrder.indexOf(a.stepType) - stepOrder.indexOf(b.stepType),
   );

@@ -87,6 +87,7 @@ export type AuditAction =
   | "document.resubmitted"
   | "training.card_acknowledged"
   | "training.module_completed"
+  | "ic_agreement.accepted"
   | "stripe_connect.account_created"
   | "stripe_connect.link_generated"
   | "stripe_connect.onboarding_completed"

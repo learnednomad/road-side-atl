@@ -9,6 +9,7 @@ import { createId } from "./utils";
 import { providers } from "./providers";
 
 export const stepTypeEnum = pgEnum("step_type", [
+  "ic_agreement",
   "background_check",
   "insurance",
   "certifications",

@@ -117,9 +117,14 @@ export const OFFER_EXPIRY_CHECK_INTERVAL_MS = 15_000; // 15s cron interval
 
 // Onboarding
 export const ONBOARDING_STEP_TYPES = [
-  "background_check", "insurance", "certifications", "training", "stripe_connect",
+  "ic_agreement", "background_check", "insurance", "certifications", "training", "stripe_connect",
 ] as const;
 export type OnboardingStepType = (typeof ONBOARDING_STEP_TYPES)[number];
+
+// Independent Contractor agreement — bump version when terms change.
+// Providers who accepted a prior version are NOT auto-blocked; an admin
+// must trigger a re-acceptance flow if a new version requires it.
+export const IC_AGREEMENT_VERSION = "v1.0.0";
 
 export const ONBOARDING_STEP_STATUSES = [
   "not_started", "in_progress", "submitted", "pending_review", "complete", "rejected",

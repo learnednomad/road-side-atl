@@ -12,6 +12,7 @@ import {
   CreditCard,
   Check,
   AlertCircle,
+  FileSignature,
 } from "lucide-react";
 
 export interface OnboardingStep {
@@ -25,6 +26,11 @@ const STEP_CONFIG: Record<
   string,
   { icon: typeof Shield; label: string; description: string }
 > = {
+  ic_agreement: {
+    icon: FileSignature,
+    label: "Contractor Agreement",
+    description: "Review and sign the Independent Contractor agreement",
+  },
   background_check: {
     icon: Shield,
     label: "Background Check",
@@ -82,7 +88,7 @@ function getActionLabel(status: string): string | null {
 
 // Step types that support navigation
 const DOCUMENT_STEP_TYPES = new Set(["insurance", "certifications"]);
-const NAVIGABLE_STEP_TYPES = new Set(["insurance", "certifications", "training"]);
+const NAVIGABLE_STEP_TYPES = new Set(["ic_agreement", "insurance", "certifications", "training"]);
 
 export function StepCard({ step }: { step: OnboardingStep }) {
   const router = useRouter();
@@ -103,6 +109,8 @@ export function StepCard({ step }: { step: OnboardingStep }) {
       router.push(`/provider/onboarding/documents?stepId=${step.id}&type=${step.stepType}`);
     } else if (step.stepType === "training") {
       router.push("/provider/onboarding/training");
+    } else if (step.stepType === "ic_agreement") {
+      router.push("/provider/onboarding/agreement");
     }
   };
 
