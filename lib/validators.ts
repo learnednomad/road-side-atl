@@ -433,6 +433,16 @@ export const providerStepUpdateSchema = z.object({
 });
 export type ProviderStepUpdateInput = z.infer<typeof providerStepUpdateSchema>;
 
+export const icAgreementAcceptSchema = z.object({
+  version: z.string().min(1, "Version is required"),
+  signedName: z
+    .string()
+    .trim()
+    .min(2, "Type your full legal name to sign")
+    .max(100, "Name is too long"),
+});
+export type IcAgreementAcceptInput = z.infer<typeof icAgreementAcceptSchema>;
+
 export const documentUploadUrlSchema = z.object({
   documentType: z.enum(["insurance", "certification", "vehicle_doc"]),
   mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]),

@@ -7,8 +7,9 @@ import { providerDocuments } from "@/db/schema/provider-documents";
 import { providerInviteTokens } from "@/db/schema/auth";
 import { eq, and, asc } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { providerApplicationSchema, inviteAcceptSchema, providerStepUpdateSchema, documentUploadUrlSchema, documentCreateSchema } from "@/lib/validators";
-import { ONBOARDING_STEP_TYPES, REAPPLY_COOLDOWN_DAYS, PRESIGNED_UPLOAD_EXPIRY, PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER, MIN_DOCUMENTS_PER_STEP, CHECKR_PACKAGE } from "@/lib/constants";
+import { providerApplicationSchema, inviteAcceptSchema, providerStepUpdateSchema, documentUploadUrlSchema, documentCreateSchema, icAgreementAcceptSchema } from "@/lib/validators";
+import { ONBOARDING_STEP_TYPES, REAPPLY_COOLDOWN_DAYS, PRESIGNED_UPLOAD_EXPIRY, PRESIGNED_DOWNLOAD_EXPIRY_PROVIDER, MIN_DOCUMENTS_PER_STEP, CHECKR_PACKAGE, IC_AGREEMENT_VERSION } from "@/lib/constants";
+import { getIcAgreement } from "@/lib/ic-agreement-content";
 import { isValidProviderTransition, isValidStepTransition } from "../lib/onboarding-state-machine";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { requireProvider } from "../middleware/auth";
@@ -1467,6 +1468,128 @@ app.get("/identity/status", requireProvider, async (c) => {
   }
 
   return c.json({ status: step.status });
+});
+
+// GET /ic-agreement — return current Independent Contractor agreement text + acceptance status
+app.get("/ic-agreement", requireProvider, async (c) => {
+  const user = c.get("user");
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "ic_agreement"),
+    ),
+  });
+  if (!step) return c.json({ error: "IC agreement step not found" }, 404);
+
+  const acceptance = (step.draftData as {
+    version?: string;
+    acceptedAt?: string;
+    signedName?: string;
+  } | null) ?? null;
+
+  return c.json({
+    agreement: getIcAgreement(),
+    step: {
+      id: step.id,
+      status: step.status,
+      acceptedVersion: acceptance?.version ?? null,
+      acceptedAt: acceptance?.acceptedAt ?? null,
+      signedName: acceptance?.signedName ?? null,
+    },
+  });
+});
+
+// POST /ic-agreement/accept — record acceptance of current IC agreement version
+app.post("/ic-agreement/accept", requireProvider, async (c) => {
+  const user = c.get("user");
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = icAgreementAcceptSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  if (parsed.data.version !== IC_AGREEMENT_VERSION) {
+    return c.json(
+      {
+        error: "Agreement version mismatch — please reload and review the current agreement.",
+        currentVersion: IC_AGREEMENT_VERSION,
+      },
+      409,
+    );
+  }
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "ic_agreement"),
+    ),
+  });
+  if (!step) return c.json({ error: "IC agreement step not found" }, 404);
+
+  if (step.status === "complete") {
+    return c.json({ error: "Agreement already accepted" }, 400);
+  }
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  const acceptedAt = new Date();
+
+  const [updated] = await db
+    .update(onboardingSteps)
+    .set({
+      status: "complete",
+      completedAt: acceptedAt,
+      draftData: {
+        version: IC_AGREEMENT_VERSION,
+        acceptedAt: acceptedAt.toISOString(),
+        signedName: parsed.data.signedName,
+        ipAddress,
+        userAgent,
+      },
+      updatedAt: acceptedAt,
+    })
+    .where(eq(onboardingSteps.id, step.id))
+    .returning();
+
+  logAudit({
+    action: "ic_agreement.accepted",
+    userId: user.id,
+    resourceType: "onboarding_step",
+    resourceId: step.id,
+    details: {
+      providerId: provider.id,
+      version: IC_AGREEMENT_VERSION,
+      signedName: parsed.data.signedName,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  broadcastToUser(user.id, {
+    type: "onboarding:step_updated",
+    data: { providerId: provider.id, stepType: "ic_agreement", newStatus: "complete" },
+  });
+
+  await checkAllStepsCompleteAndTransition(
+    provider.id,
+    step.id,
+    "ic_agreement.accepted",
+    { userId: user.id, ipAddress, userAgent },
+    { id: provider.id, name: provider.name, status: provider.status },
+  );
+
+  return c.json({ step: updated });
 });
 
 export default app;

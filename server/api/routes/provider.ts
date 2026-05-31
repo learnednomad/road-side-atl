@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { bookings, services, providers, payments, providerPayouts, users, dispatchLogs } from "@/db/schema";
 import { eq, desc, and, count, sql, inArray } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
+import { requireIcAgreementAccepted } from "../middleware/onboarding";
 import { BOOKING_STATUSES } from "@/lib/constants";
 import type { BookingStatus } from "@/lib/constants";
 import { updateBookingStatusSchema } from "@/lib/validators";
@@ -111,8 +112,8 @@ app.get("/jobs/:id", async (c) => {
   return c.json({ booking, service, payments: bookingPayments });
 });
 
-// Accept assignment
-app.patch("/jobs/:id/accept", async (c) => {
+// Accept assignment — gated by IC agreement acceptance
+app.patch("/jobs/:id/accept", requireIcAgreementAccepted, async (c) => {
   const user = c.get("user");
   const bookingId = c.req.param("id");
 
