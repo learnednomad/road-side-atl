@@ -115,9 +115,6 @@ export function DocumentUploader({ documentType, stepId, guidance, onUploadCompl
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
-  };
 
   const handleSubmit = async () => {
     if (!selectedFile) return;

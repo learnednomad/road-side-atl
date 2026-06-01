@@ -1,6 +1,6 @@
 {
-  "id": "70775242-9fcb-44d3-8e55-d9a0ac4d861e",
-  "prevId": "67797ecd-fc49-41c6-ad91-b9e65b1a8bbc",
+  "id": "eabd4e7f-f17a-4fdb-9e17-b85777a8a206",
+  "prevId": "8621ad13-1e18-49b6-ab5f-feb4641c8903",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -86,12 +86,6 @@
         },
         "taxId": {
           "name": "taxId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stripeCustomerId": {
-          "name": "stripeCustomerId",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -194,18 +188,20 @@
           "primaryKey": false,
           "notNull": false
         },
+        "schedulingMode": {
+          "name": "schedulingMode",
+          "type": "scheduling_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'both'"
+        },
         "commissionRate": {
           "name": "commissionRate",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "default": 2500
-        },
-        "stripeProductId": {
-          "name": "stripeProductId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "tenantId": {
           "name": "tenantId",
@@ -366,42 +362,6 @@
         },
         "tenantId": {
           "name": "tenantId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stripeConnectAccountId": {
-          "name": "stripeConnectAccountId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "migrationBypassExpiresAt": {
-          "name": "migrationBypassExpiresAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "activatedAt": {
-          "name": "activatedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "suspendedAt": {
-          "name": "suspendedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "suspendedReason": {
-          "name": "suspendedReason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "previousApplicationId": {
-          "name": "previousApplicationId",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -569,6 +529,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "offerExpiresAt": {
+          "name": "offerExpiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dispatchAttempt": {
+          "name": "dispatchAttempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "createdAt": {
           "name": "createdAt",
           "type": "timestamp",
@@ -658,12 +631,6 @@
         },
         "stripeSessionId": {
           "name": "stripeSessionId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stripePaymentIntentId": {
-          "name": "stripePaymentIntentId",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -920,6 +887,30 @@
         "reason": {
           "name": "reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score": {
+          "name": "score",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attemptNumber": {
+          "name": "attemptNumber",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scoringWeights": {
+          "name": "scoringWeights",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -1636,7 +1627,7 @@
           "name": "createdById",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "customerId": {
           "name": "customerId",
@@ -2432,8 +2423,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.onboarding_steps": {
-      "name": "onboarding_steps",
+    "public.beta_users": {
+      "name": "beta_users",
       "schema": "",
       "columns": {
         "id": {
@@ -2442,72 +2433,20 @@
           "primaryKey": true,
           "notNull": true
         },
-        "providerId": {
-          "name": "providerId",
+        "userId": {
+          "name": "userId",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "stepType": {
-          "name": "stepType",
-          "type": "step_type",
-          "typeSchema": "public",
+        "source": {
+          "name": "source",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "step_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "draftData": {
-          "name": "draftData",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completedAt": {
-          "name": "completedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reviewedBy": {
-          "name": "reviewedBy",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reviewedAt": {
-          "name": "reviewedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rejectionReason": {
-          "name": "rejectionReason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "createdAt": {
           "name": "createdAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updatedAt": {
-          "name": "updatedAt",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
@@ -2516,224 +2455,27 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "onboarding_steps_providerId_providers_id_fk": {
-          "name": "onboarding_steps_providerId_providers_id_fk",
-          "tableFrom": "onboarding_steps",
-          "tableTo": "providers",
+        "beta_users_userId_users_id_fk": {
+          "name": "beta_users_userId_users_id_fk",
+          "tableFrom": "beta_users",
+          "tableTo": "users",
           "columnsFrom": [
-            "providerId"
+            "userId"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.provider_documents": {
-      "name": "provider_documents",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "providerId": {
-          "name": "providerId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "onboardingStepId": {
-          "name": "onboardingStepId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "documentType": {
-          "name": "documentType",
-          "type": "document_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "s3Key": {
-          "name": "s3Key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "originalFileName": {
-          "name": "originalFileName",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fileSize": {
-          "name": "fileSize",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mimeType": {
-          "name": "mimeType",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "document_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending_review'"
-        },
-        "rejectionReason": {
-          "name": "rejectionReason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reviewedBy": {
-          "name": "reviewedBy",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reviewedAt": {
-          "name": "reviewedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "expiresAt": {
-          "name": "expiresAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "createdAt": {
-          "name": "createdAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updatedAt": {
-          "name": "updatedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "provider_documents_providerId_providers_id_fk": {
-          "name": "provider_documents_providerId_providers_id_fk",
-          "tableFrom": "provider_documents",
-          "tableTo": "providers",
-          "columnsFrom": [
-            "providerId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "provider_documents_onboardingStepId_onboarding_steps_id_fk": {
-          "name": "provider_documents_onboardingStepId_onboarding_steps_id_fk",
-          "tableFrom": "provider_documents",
-          "tableTo": "onboarding_steps",
-          "columnsFrom": [
-            "onboardingStepId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.provider_invites": {
-      "name": "provider_invites",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token": {
-          "name": "token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "createdBy": {
-          "name": "createdBy",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "usedAt": {
-          "name": "usedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "expiresAt": {
-          "name": "expiresAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "createdAt": {
-          "name": "createdAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "provider_invites_token_unique": {
-          "name": "provider_invites_token_unique",
+        "beta_users_userId_unique": {
+          "name": "beta_users_userId_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "token"
+            "userId"
           ]
         }
       },
@@ -2752,12 +2494,22 @@
         "provider"
       ]
     },
+    "public.scheduling_mode": {
+      "name": "scheduling_mode",
+      "schema": "public",
+      "values": [
+        "immediate",
+        "scheduled",
+        "both"
+      ]
+    },
     "public.service_category": {
       "name": "service_category",
       "schema": "public",
       "values": [
         "roadside",
-        "diagnostics"
+        "diagnostics",
+        "mechanics"
       ]
     },
     "public.commission_type": {
@@ -2775,12 +2527,7 @@
         "active",
         "inactive",
         "pending",
-        "resubmission_requested",
-        "applied",
-        "onboarding",
-        "pending_review",
-        "rejected",
-        "suspended"
+        "resubmission_requested"
       ]
     },
     "public.booking_status": {
@@ -2812,8 +2559,7 @@
         "pending",
         "confirmed",
         "failed",
-        "refunded",
-        "disputed"
+        "refunded"
       ]
     },
     "public.payout_status": {
@@ -2880,48 +2626,6 @@
         "prepaid",
         "net_30",
         "net_60"
-      ]
-    },
-    "public.step_status": {
-      "name": "step_status",
-      "schema": "public",
-      "values": [
-        "pending",
-        "draft",
-        "in_progress",
-        "pending_review",
-        "complete",
-        "rejected",
-        "blocked"
-      ]
-    },
-    "public.step_type": {
-      "name": "step_type",
-      "schema": "public",
-      "values": [
-        "background_check",
-        "insurance",
-        "certifications",
-        "training",
-        "stripe_connect"
-      ]
-    },
-    "public.document_status": {
-      "name": "document_status",
-      "schema": "public",
-      "values": [
-        "pending_review",
-        "approved",
-        "rejected"
-      ]
-    },
-    "public.document_type": {
-      "name": "document_type",
-      "schema": "public",
-      "values": [
-        "insurance",
-        "certification",
-        "vehicle_doc"
       ]
     }
   },

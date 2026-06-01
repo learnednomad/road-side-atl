@@ -1,0 +1,72 @@
+# Sprint Execution Plan — Sprint Orchestrator
+# Generated: 2026-04-07
+# Project: road-side-atl
+
+generated: "2026-04-07"
+base_branch: development
+epics_in_scope: [17]
+max_parallelism: 3
+total_waves: 2
+total_stories: 4
+
+waves:
+  - id: 1
+    status: done
+    stories:
+      - key: 17-1-enforce-scheduled-at-for-mechanic-bookings
+        repo: web
+        branch: worktree-agent-ac2cf8e8
+        status: done
+        failure_reason: null
+        agent_result: "SUCCESS — 10 tests (7 booking + 3 beta), schedulingMode guard + beta enrollment"
+        review_result: approved
+        merge_result: success
+      - key: 17-3-observation-to-mechanic-upsell
+        repo: web
+        branch: worktree-agent-aec065ed
+        status: done
+        failure_reason: null
+        agent_result: "SUCCESS — 10 tests, upsell helper + notification integration"
+        review_result: approved
+        merge_result: success
+
+  - id: 2
+    status: done
+    stories:
+      - key: 17-2-mechanic-pre-dispatch-cron-job
+        repo: web
+        branch: worktree-agent-ab874580
+        status: done
+        failure_reason: null
+        agent_result: "SUCCESS — 7 tests, cron job + dispatch logic + WSEvent type"
+        review_result: approved
+        merge_result: success
+      - key: 17-4-web-mechanic-booking-ui
+        repo: web
+        branch: worktree-agent-aa8f13f9
+        status: done
+        failure_reason: null
+        agent_result: "SUCCESS — 24 tests, scheduling mode lock + mechanic services card + upsell params"
+        review_result: approved
+        merge_result: success
+
+execution_log:
+  - timestamp: "2026-04-07T08:10:00Z"
+    event: wave-1-started
+    details: "Launched 2 parallel agents (17-1, 17-3)"
+  - timestamp: "2026-04-07T08:17:00Z"
+    event: wave-1-completed
+    result: done
+    stories_merged: 2
+    stories_failed: 0
+    notes: "Minor conflict in email.ts resolved (escapeHtml). 80 tests pass."
+  - timestamp: "2026-04-07T08:25:00Z"
+    event: wave-2-started
+    details: "Launched 2 parallel agents (17-2, 17-4)"
+  - timestamp: "2026-04-07T08:36:00Z"
+    event: wave-2-completed
+    result: done
+    stories_merged: 2
+    stories_failed: 0
+    notes: "Clean cherry-picks. Applied review fix: reset bookingMode on service switch. 111 tests pass."
+blocked_stories: []

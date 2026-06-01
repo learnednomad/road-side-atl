@@ -62,15 +62,15 @@ export default async function ProviderDetailPage({
     .orderBy(desc(providerPayouts.createdAt));
 
   const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
-    active: "default",
-    pending: "secondary",
-    inactive: "destructive",
-    resubmission_requested: "secondary",
-    applied: "secondary",
-    onboarding: "secondary",
-    pending_review: "secondary",
-    rejected: "destructive",
-    suspended: "destructive",
+    active: "default" as const,
+    pending: "secondary" as const,
+    inactive: "destructive" as const,
+    resubmission_requested: "secondary" as const,
+    applied: "secondary" as const,
+    onboarding: "secondary" as const,
+    pending_review: "secondary" as const,
+    rejected: "destructive" as const,
+    suspended: "destructive" as const,
   };
 
   return (

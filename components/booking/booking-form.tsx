@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS, DEFAULT_MULTIPLIER_BP } from "@/lib/constants";
 import { AddressAutocomplete } from "@/components/maps/address-autocomplete";
-import { Check, ArrowRight, ArrowLeft, Loader2, AlertTriangle, MapPin } from "lucide-react";
+import { Check, ArrowRight, ArrowLeft, Loader2, AlertTriangle, MapPin, Clock } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
 import { PaymentMethodSelector } from "@/components/booking/payment-method-selector";
 import { ReferralCreditSelector } from "@/components/booking/referral-credit-selector";
@@ -23,6 +23,7 @@ interface Service {
   basePrice: number;
   pricePerMile: number | null;
   category: string;
+  schedulingMode?: string;
 }
 
 const STEPS = [
@@ -36,12 +37,15 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedSlug = searchParams.get("service");
+  const qpVehicleYear = searchParams.get("vehicleYear");
+  const qpVehicleMake = searchParams.get("vehicleMake");
+  const qpVehicleModel = searchParams.get("vehicleModel");
 
   const [step, setStep] = useState(1);
   const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [vehicleYear, setVehicleYear] = useState("");
-  const [vehicleMake, setVehicleMake] = useState("");
-  const [vehicleModel, setVehicleModel] = useState("");
+  const [vehicleYear, setVehicleYear] = useState(qpVehicleYear || "");
+  const [vehicleMake, setVehicleMake] = useState(qpVehicleMake || "");
+  const [vehicleModel, setVehicleModel] = useState(qpVehicleModel || "");
   const [vehicleColor, setVehicleColor] = useState("");
   const [address, setAddress] = useState("");
   const [locationNotes, setLocationNotes] = useState("");
@@ -78,6 +82,17 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
 
   const selectedService = services.find((s) => s.id === selectedServiceId);
   const isTowing = selectedService?.slug === "towing";
+  const isScheduledOnly = selectedService?.schedulingMode === "scheduled";
+
+  // Lock booking mode to "scheduled" when a scheduled-only service is selected;
+  // reset to "immediate" when switching back to a non-scheduled service
+  useEffect(() => {
+    if (isScheduledOnly) {
+      setBookingMode("scheduled");
+    } else if (selectedService) {
+      setBookingMode("immediate");
+    }
+  }, [isScheduledOnly, selectedService]);
 
   // Server-fetched pricing breakdown
   const [pricingBreakdown, setPricingBreakdown] = useState<{
@@ -351,40 +366,52 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
       {/* Step 1: Service Selection */}
       {step === 1 && (
         <>
-          {/* Booking Mode Toggle */}
-          <div className="flex gap-3" role="radiogroup" aria-label="Service timing">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={bookingMode === "immediate"}
-              onClick={() => {
-                setBookingMode("immediate");
-                setScheduledAt("");
-              }}
-              className={cn(
-                "flex-1 rounded-lg border p-4 text-center font-medium transition-colors min-h-[44px] min-w-[44px]",
-                bookingMode === "immediate"
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "border-border hover:border-muted-foreground/30 hover:bg-muted"
-              )}
-            >
-              Get Help Now
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={bookingMode === "scheduled"}
-              onClick={() => setBookingMode("scheduled")}
-              className={cn(
-                "flex-1 rounded-lg border p-4 text-center font-medium transition-colors min-h-[44px] min-w-[44px]",
-                bookingMode === "scheduled"
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "border-border hover:border-muted-foreground/30 hover:bg-muted"
-              )}
-            >
-              Schedule for Later
-            </button>
-          </div>
+          {/* Booking Mode Toggle — hidden when selected service is scheduled-only */}
+          {!isScheduledOnly && (
+            <div className="flex gap-3" role="radiogroup" aria-label="Service timing">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={bookingMode === "immediate"}
+                onClick={() => {
+                  setBookingMode("immediate");
+                  setScheduledAt("");
+                }}
+                className={cn(
+                  "flex-1 rounded-lg border p-4 text-center font-medium transition-colors min-h-[44px] min-w-[44px]",
+                  bookingMode === "immediate"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-border hover:border-muted-foreground/30 hover:bg-muted"
+                )}
+              >
+                Get Help Now
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={bookingMode === "scheduled"}
+                onClick={() => setBookingMode("scheduled")}
+                className={cn(
+                  "flex-1 rounded-lg border p-4 text-center font-medium transition-colors min-h-[44px] min-w-[44px]",
+                  bookingMode === "scheduled"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-border hover:border-muted-foreground/30 hover:bg-muted"
+                )}
+              >
+                Schedule for Later
+              </button>
+            </div>
+          )}
+
+          {/* Scheduled-only notice when toggle is hidden */}
+          {isScheduledOnly && (
+            <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-4">
+              <Clock className="h-4 w-4 text-primary" />
+              <p className="text-sm font-medium text-primary">
+                This service requires a scheduled appointment
+              </p>
+            </div>
+          )}
 
           {/* Emergency Roadside Services */}
           <Card>
@@ -419,6 +446,48 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
               </div>
             </CardContent>
           </Card>
+
+          {/* Mechanic Services */}
+          {services.some((s) => s.category === "mechanics") && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Mechanic Services</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {services.filter((s) => s.category === "mechanics").map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selectedServiceId === s.id}
+                      onClick={() => setSelectedServiceId(s.id)}
+                      className={cn(
+                        "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
+                        selectedServiceId === s.id
+                          ? "border-primary bg-primary/5"
+                          : "border-muted"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{s.name}</span>
+                        {s.schedulingMode === "scheduled" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                            <Clock className="h-3 w-3" />
+                            Scheduled Service
+                          </span>
+                        )}
+                      </div>
+                      <span className="mt-1 text-2xl font-bold">{formatPrice(s.basePrice)}</span>
+                      {s.description && (
+                        <p className="mt-2 text-sm text-muted-foreground">{s.description}</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Pre-Purchase Inspection Services */}
           <Card>
@@ -631,7 +700,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
             </CardContent>
           </Card>
 
-          {bookingMode === "immediate" ? (
+          {bookingMode === "immediate" && !isScheduledOnly ? (
             <Card>
               <CardContent className="py-4">
                 <p className="text-sm font-medium text-primary">
@@ -645,6 +714,14 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                 <CardTitle>Schedule Appointment</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {isScheduledOnly && (
+                  <div className="flex items-center gap-2 rounded-md bg-primary/5 p-3">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <p className="text-sm text-primary font-medium">
+                      This service requires a scheduled appointment
+                    </p>
+                  </div>
+                )}
                 <Label htmlFor="scheduledAt">
                   Select your preferred date and time (minimum 2 hours from now)
                 </Label>

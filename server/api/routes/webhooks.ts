@@ -8,6 +8,7 @@ import { eq, and, sql } from "drizzle-orm";
 // sql used for JSONB merge in transfer webhooks
 import { stripe } from "@/lib/stripe";
 import { createPayoutIfEligible } from "../lib/payout-calculator";
+import { demoteTrustTier } from "../lib/trust-tier";
 import { logAudit } from "../lib/audit-logger";
 import { isValidStepTransition } from "../lib/onboarding-state-machine";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
@@ -115,6 +116,7 @@ app.post("/stripe", async (c) => {
       const session = event.data.object;
       const bookingId = session.metadata?.bookingId;
       const paymentIntentId = extractPaymentIntentId(session.payment_intent);
+      const isDestinationCharge = session.metadata?.chargeType === "destination";
 
       if (bookingId && session.id) {
         // Idempotency: skip if already confirmed
@@ -123,13 +125,31 @@ app.post("/stripe", async (c) => {
         });
         if (existing) break;
 
-        // Confirm payment and store PaymentIntent ID for future cross-referencing
+        // For destination charges, retrieve the PaymentIntent to capture the transfer ID
+        let stripeTransferId: string | null = null;
+        if (isDestinationCharge && paymentIntentId) {
+          try {
+            const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
+              expand: ["latest_charge.transfer"],
+            });
+            const charge = pi.latest_charge;
+            if (charge && typeof charge === "object" && "transfer" in charge) {
+              const transfer = charge.transfer;
+              stripeTransferId = typeof transfer === "string" ? transfer : transfer?.id ?? null;
+            }
+          } catch (err) {
+            console.error("[Webhook] Failed to retrieve transfer ID for destination charge:", err);
+          }
+        }
+
+        // Confirm payment and store PaymentIntent ID + transfer ID for cross-referencing
         await db
           .update(payments)
           .set({
             status: "confirmed",
             confirmedAt: new Date(),
             ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
+            ...(stripeTransferId ? { stripeTransferId } : {}),
           })
           .where(eq(payments.stripeSessionId, session.id));
 
@@ -241,6 +261,32 @@ app.post("/stripe", async (c) => {
             updatedAt: new Date(),
           })
           .where(eq(bookings.id, payment.bookingId));
+
+        // Freeze any pending payout for this booking
+        await db
+          .update(providerPayouts)
+          .set({
+            status: "held",
+            holdReason: `Dispute: ${dispute.reason} (${dispute.id})`,
+            heldAt: new Date(),
+          })
+          .where(
+            and(
+              eq(providerPayouts.bookingId, payment.bookingId),
+              eq(providerPayouts.status, "pending"),
+            ),
+          );
+
+        // Auto-demote customer trust tier on dispute
+        const booking = await db.query.bookings.findFirst({
+          where: eq(bookings.id, payment.bookingId),
+          columns: { userId: true },
+        });
+        if (booking?.userId) {
+          demoteTrustTier(booking.userId, `Dispute: ${dispute.reason} (${dispute.id})`).catch((err) => {
+            console.error("[TrustTier] Demotion failed:", err);
+          });
+        }
       }
       break;
     }
@@ -277,9 +323,61 @@ app.post("/stripe", async (c) => {
               updatedAt: new Date(),
             })
             .where(eq(bookings.id, payment.bookingId));
+
+          // Release held payouts — transition back to pending for processing
+          await db
+            .update(providerPayouts)
+            .set({
+              status: "pending",
+              holdReason: null,
+              heldAt: null,
+            })
+            .where(
+              and(
+                eq(providerPayouts.bookingId, payment.bookingId),
+                eq(providerPayouts.status, "held"),
+              ),
+            );
         }
 
         if (dispute.status === "lost") {
+          // Create clawback for any already-paid payouts
+          const paidPayout = await db.query.providerPayouts.findFirst({
+            where: and(
+              eq(providerPayouts.bookingId, payment.bookingId),
+              eq(providerPayouts.status, "paid"),
+              sql`${providerPayouts.payoutType} = 'standard'`,
+            ),
+          });
+
+          if (paidPayout) {
+            await db.insert(providerPayouts).values({
+              providerId: paidPayout.providerId,
+              bookingId: payment.bookingId,
+              amount: -paidPayout.amount,
+              status: "pending",
+              payoutType: "clawback",
+              originalPayoutId: paidPayout.id,
+              paymentId: payment.id,
+              notes: `Clawback: dispute lost (${dispute.id})`,
+              payoutMethod: paidPayout.payoutMethod,
+            });
+          }
+
+          // Cancel any held payouts
+          await db
+            .update(providerPayouts)
+            .set({
+              status: "clawback",
+              holdReason: `Dispute lost: ${dispute.reason}`,
+            })
+            .where(
+              and(
+                eq(providerPayouts.bookingId, payment.bookingId),
+                eq(providerPayouts.status, "held"),
+              ),
+            );
+
           await db
             .update(payments)
             .set({
@@ -497,6 +595,81 @@ app.post("/stripe", async (c) => {
           type: "payout:transfer_failed",
           data: { payoutId, stripeTransferId: transfer.id },
         });
+      }
+      break;
+    }
+
+    // ── Stripe Identity Verification ─────────────────────────────
+    case "identity.verification_session.verified" as string: {
+      const session = event.data.object as unknown as {
+        id: string;
+        metadata?: Record<string, string>;
+        verified_outputs?: { first_name?: string; last_name?: string; dob?: { year: number; month: number; day: number } };
+      };
+      const stepId = session.metadata?.stepId;
+      const providerId = session.metadata?.providerId;
+
+      if (stepId && providerId) {
+        const step = await db.query.onboardingSteps.findFirst({
+          where: eq(onboardingSteps.id, stepId),
+        });
+
+        if (step && isValidStepTransition(step.status, "complete")) {
+          const existingMeta = (step.metadata || {}) as Record<string, unknown>;
+          await db
+            .update(onboardingSteps)
+            .set({
+              status: "complete",
+              completedAt: new Date(),
+              metadata: {
+                ...existingMeta,
+                verifiedName: session.verified_outputs?.first_name
+                  ? `${session.verified_outputs.first_name} ${session.verified_outputs.last_name || ""}`
+                  : undefined,
+                verifiedAt: new Date().toISOString(),
+              },
+              updatedAt: new Date(),
+            })
+            .where(eq(onboardingSteps.id, stepId));
+
+          logAudit({
+            action: "onboarding.status_changed",
+            resourceType: "onboarding_step",
+            resourceId: stepId,
+            details: { stepType: "identity_verification", newStatus: "complete", sessionId: session.id },
+          });
+
+          await checkAllStepsCompleteAndTransition(providerId, stepId, "identity_webhook");
+        }
+      }
+      break;
+    }
+
+    case "identity.verification_session.requires_input" as string: {
+      const session = event.data.object as unknown as {
+        id: string;
+        metadata?: Record<string, string>;
+        last_error?: { code: string; reason: string };
+      };
+      const stepId = session.metadata?.stepId;
+
+      if (stepId) {
+        const existingStep = await db.query.onboardingSteps.findFirst({
+          where: eq(onboardingSteps.id, stepId),
+        });
+        const existingMeta = (existingStep?.metadata || {}) as Record<string, unknown>;
+
+        await db
+          .update(onboardingSteps)
+          .set({
+            metadata: {
+              ...existingMeta,
+              lastError: session.last_error?.code || "requires_input",
+              lastErrorReason: session.last_error?.reason,
+            },
+            updatedAt: new Date(),
+          })
+          .where(eq(onboardingSteps.id, stepId));
       }
       break;
     }

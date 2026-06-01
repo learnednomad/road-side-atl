@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Mail, CheckCircle2, Wrench } from "lucide-react";
 import Link from "next/link";
+import { ServiceAreaPicker } from "@/components/provider/service-area-picker";
 
 const SPECIALTY_OPTIONS = [
   "Towing",
@@ -25,6 +26,8 @@ export default function ProviderRegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [specialties, setSpecialties] = useState<string[]>([]);
+  const [serviceAreas, setServiceAreas] = useState<string[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [address, setAddress] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -62,6 +65,7 @@ export default function ProviderRegisterPage() {
           phone,
           password,
           specialties: specialties.length > 0 ? specialties : undefined,
+          serviceArea: serviceAreas.length > 0 ? serviceAreas : undefined,
           address: address || undefined,
         }),
       });
@@ -218,14 +222,8 @@ export default function ProviderRegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="address">Service Area / Address (optional)</Label>
-              <Input
-                id="address"
-                type="text"
-                placeholder="Atlanta, GA"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
+              <Label>Service Area</Label>
+              <ServiceAreaPicker selected={serviceAreas} onChange={setServiceAreas} />
             </div>
 
             <Button

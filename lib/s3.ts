@@ -1,15 +1,34 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const s3 = new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+/**
+ * Lazy S3 client — only created on first use so the app doesn't crash
+ * at startup when AWS credentials aren't configured.
+ */
+let _s3: S3Client | null = null;
 
-const BUCKET = process.env.S3_BUCKET_NAME!;
+function getS3Client(): S3Client {
+  if (_s3) return _s3;
+
+  const region = process.env.AWS_REGION;
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+
+  if (!region || !accessKeyId || !secretAccessKey) {
+    throw new Error(
+      "AWS credentials not configured. Set AWS_REGION, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY."
+    );
+  }
+
+  _s3 = new S3Client({ region, credentials: { accessKeyId, secretAccessKey } });
+  return _s3;
+}
+
+function getBucket(): string {
+  const bucket = process.env.S3_BUCKET_NAME;
+  if (!bucket) throw new Error("S3_BUCKET_NAME not configured");
+  return bucket;
+}
 
 /**
  * Upload a file to S3 (private by default — no public-read ACL)
@@ -20,16 +39,19 @@ export async function uploadFile(
   buffer: Buffer,
   contentType: string
 ): Promise<string> {
-  await s3.send(
+  const client = getS3Client();
+  const bucket = getBucket();
+
+  await client.send(
     new PutObjectCommand({
-      Bucket: BUCKET,
+      Bucket: bucket,
       Key: key,
       Body: buffer,
       ContentType: contentType,
     })
   );
 
-  return `https://${BUCKET}.s3.${process.env.AWS_REGION || "us-east-1"}.amazonaws.com/${key}`;
+  return `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
 }
 
 /**
@@ -41,10 +63,10 @@ export async function getPresignedUrl(
   expiresIn: number = 3600
 ): Promise<string> {
   const command = new GetObjectCommand({
-    Bucket: BUCKET,
+    Bucket: getBucket(),
     Key: key,
   });
-  return getSignedUrl(s3, command, { expiresIn });
+  return getSignedUrl(getS3Client(), command, { expiresIn });
 }
 
 /**
@@ -57,11 +79,11 @@ export async function getPresignedUploadUrl(
   expiresIn: number = 600
 ): Promise<string> {
   const command = new PutObjectCommand({
-    Bucket: BUCKET,
+    Bucket: getBucket(),
     Key: key,
     ContentType: contentType,
   });
-  return getSignedUrl(s3, command, { expiresIn });
+  return getSignedUrl(getS3Client(), command, { expiresIn });
 }
 
 /** Validate file content type matches actual content (magic bytes) */

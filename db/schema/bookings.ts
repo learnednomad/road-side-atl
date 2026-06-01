@@ -63,6 +63,8 @@ export const bookings = pgTable("bookings", {
   preferredPaymentMethod: text("preferredPaymentMethod"),
   providerId: text("providerId"), // FK to providers, managed at app level to avoid circular imports
   tenantId: text("tenantId"),
+  offerExpiresAt: timestamp("offerExpiresAt", { mode: "date" }), // V2 dispatch: when current offer expires (null = no active offer)
+  dispatchAttempt: integer("dispatchAttempt").default(0).notNull(), // V2 dispatch: cascade attempt counter
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 });

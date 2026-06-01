@@ -96,6 +96,7 @@ export async function createInvoiceForBooking(bookingId: string) {
     .insert(invoices)
     .values({
       invoiceNumber,
+      createdById: booking.userId || "system",
       bookingId,
       paymentId: payment.id,
       customerName: booking.contactName,
@@ -189,6 +190,7 @@ export async function createB2bMonthlyInvoice(
     .insert(invoices)
     .values({
       invoiceNumber,
+      createdById: "system",
       customerName: account.contactName,
       customerEmail: account.contactEmail,
       customerPhone: account.contactPhone,

@@ -2,6 +2,7 @@ import webpush from "web-push";
 import { db } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { logger } from "@/lib/logger";
 
 // Initialize web-push with VAPID keys
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -33,7 +34,7 @@ export async function sendPushNotification(
   payload: PushPayload
 ): Promise<{ sent: number; failed: number }> {
   if (!vapidPublicKey || !vapidPrivateKey) {
-    console.warn("Push notifications disabled - VAPID keys not configured");
+    logger.warn("Push notifications disabled - VAPID keys not configured");
     return { sent: 0, failed: 0 };
   }
 
@@ -71,7 +72,7 @@ export async function sendPushNotification(
         await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
       }
       failed++;
-      console.error("Failed to send push notification:", error.message || err);
+      logger.error("Failed to send push notification:", error.message || err);
     }
   }
 

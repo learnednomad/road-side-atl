@@ -3,16 +3,6 @@ import crypto from "crypto";
 
 // ── Shared mock chain builders ───────────────────────────────────
 
-const mockSelectResults: unknown[] = [];
-const mockUpdateResults: unknown[] = [];
-
-const mockSelectLimit = vi.fn().mockImplementation(() => Promise.resolve(mockSelectResults.shift() || []));
-const mockSelectWhere = vi.fn().mockReturnValue({ limit: mockSelectLimit });
-const mockSelectFrom = vi.fn().mockReturnValue({ where: mockSelectWhere });
-
-const mockUpdateReturning = vi.fn().mockImplementation(() => Promise.resolve(mockUpdateResults.shift() || []));
-const mockUpdateWhere = vi.fn().mockReturnValue({ returning: mockUpdateReturning });
-const mockUpdateSet = vi.fn().mockReturnValue({ where: mockUpdateWhere });
 
 vi.mock("@/db", () => ({
   db: {

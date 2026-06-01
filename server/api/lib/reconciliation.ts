@@ -1,396 +1,501 @@
 /**
- * Polling fallback reconciliation for external integrations.
- * Ensures no provider gets stuck due to missed webhooks.
+ * Reconciliation functions — invoked by server/cron.ts on a schedule.
  *
- * NFR-I2: Checkr polling activates for checks pending > 24 hours
- * NFR-I6: Zero orphaned provider states
+ * - Checkr: background check status sync (every 1h)
+ * - Stripe Connect: onboarding status sync (every 4h)
+ * - Stripe Connect abandonment: reminders for stalled onboarding (every 6h)
+ * - Stripe Connect deadline: suspend providers past deadline (daily)
+ * - Migration reminders: nudge providers still on manual_batch (every 6h)
+ * - Migration deadline: suspend non-compliant providers (daily)
  */
 
 import { db } from "@/db";
-import { onboardingSteps } from "@/db/schema/onboarding-steps";
 import { providers } from "@/db/schema/providers";
-import { eq, and, lt, isNull } from "drizzle-orm";
-import { getReport, CheckrApiError } from "./checkr";
-import { isValidStepTransition } from "./onboarding-state-machine";
+import { onboardingSteps } from "@/db/schema/onboarding-steps";
+import { eq, and, sql, lt, isNotNull, isNull } from "drizzle-orm";
+import { getStripe } from "@/lib/stripe";
+import { logger } from "@/lib/logger";
 import { logAudit } from "./audit-logger";
-import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
-import { notifyBackgroundCheckResult } from "@/lib/notifications";
-import { CHECKR_POLLING_THRESHOLD_HOURS, CHECKR_STATUS_MAP, MIGRATION_LAUNCH_DATE, MIGRATION_DEPRECATION_DAYS, MIGRATION_GRACE_PERIOD_DAYS } from "@/lib/constants";
-import { stripe } from "@/lib/stripe";
-import { checkAllStepsCompleteAndTransition, onStripeConnectStepComplete } from "./all-steps-complete";
-
-export interface ReconciliationDetail {
-  providerId: string;
-  stepId: string;
-  previousStatus: string;
-  newStatus: string;
-  checkrStatus: string;
-  adjudication: string | null;
-}
+import { isValidStepTransition } from "./onboarding-state-machine";
+import { checkAllStepsCompleteAndTransition } from "./all-steps-complete";
+import {
+  MIGRATION_LAUNCH_DATE,
+  MIGRATION_DEPRECATION_DAYS,
+  MIGRATION_GRACE_PERIOD_DAYS,
+  CHECKR_STATUS_MAP,
+} from "@/lib/constants";
+import {
+  notifyStripeConnectReminder,
+  notifyConnectDeadlineExpired,
+  notifyMigrationDay0,
+  notifyMigrationDay14,
+  notifyMigrationDay25,
+  notifyMigrationSuspended,
+} from "@/lib/notifications";
+import { providerPayouts, payments, bookings } from "@/db/schema";
+import { isFeatureEnabled, FEATURE_FLAGS } from "./feature-flags";
 
 export interface ReconciliationResult {
   checked: number;
   updated: number;
   errors: number;
-  details: ReconciliationDetail[];
+  details: Array<{ stepId: string; providerId: string; newStatus: string }>;
 }
 
-export async function reconcileCheckrStatuses(): Promise<ReconciliationResult> {
-  const threshold = new Date(
-    Date.now() - CHECKR_POLLING_THRESHOLD_HOURS * 60 * 60 * 1000,
-  );
+export interface AbandonmentResult {
+  reminded: number;
+}
 
-  const staleSteps = await db
+// ── Helpers ──────────────────────────────────────────────────────
+
+const BATCH_SIZE = 20;
+const BATCH_DELAY_MS = 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ── 1. Checkr Status Reconciliation ─────────────────────────────
+
+/**
+ * Polls Checkr API for background checks stuck in "in_progress".
+ * Syncs status back to onboarding_steps if Checkr has progressed.
+ */
+export async function reconcileCheckrStatuses(): Promise<{
+  reconciled: number;
+  details: Array<{ providerId: string; checkrStatus: string; adjudication: string }>;
+}> {
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.CHECKR_RECONCILIATION))) {
+    logger.info("[Reconciliation] reconcileCheckrStatuses — disabled via feature flag");
+    return { reconciled: 0, details: [] };
+  }
+
+  const checkrApiKey = process.env.CHECKR_API_KEY;
+  if (!checkrApiKey) {
+    logger.warn("[Reconciliation] CHECKR_API_KEY not set — skipping Checkr reconciliation");
+    return { reconciled: 0, details: [] };
+  }
+
+  // Find all background_check steps that are in_progress
+  const inProgressSteps = await db
     .select()
     .from(onboardingSteps)
     .where(
       and(
         eq(onboardingSteps.stepType, "background_check"),
         eq(onboardingSteps.status, "in_progress"),
-        lt(onboardingSteps.updatedAt, threshold),
       ),
     );
 
-  let updated = 0;
-  let errors = 0;
-  const details: ReconciliationDetail[] = [];
+  if (inProgressSteps.length === 0) {
+    logger.info("[Reconciliation] reconcileCheckrStatuses — no in-progress steps");
+    return { reconciled: 0, details: [] };
+  }
 
-  for (const step of staleSteps) {
-    const metadata = step.metadata as {
-      checkrReportId?: string | null;
-      checkrCandidateId?: string | null;
-    } | null;
+  let reconciled = 0;
+  const details: Array<{ providerId: string; checkrStatus: string; adjudication: string }> = [];
 
-    if (!metadata?.checkrReportId) continue;
+  for (let i = 0; i < inProgressSteps.length; i++) {
+    const step = inProgressSteps[i]!;
+    const metadata = (step.metadata || {}) as Record<string, unknown>;
+    const candidateId = metadata.checkrCandidateId as string | undefined;
+    const reportId = metadata.checkrReportId as string | undefined;
+
+    if (!candidateId && !reportId) continue;
 
     try {
-      const report = await getReport(metadata.checkrReportId);
+      // Prefer report endpoint if we have an ID, otherwise list reports by candidate
+      let reportData: { status: string; adjudication: string | null } | null = null;
 
-      if (report.status === "pending") continue; // Still pending, skip
+      if (reportId) {
+        const resp = await fetch(`https://api.checkr.com/v1/reports/${reportId}`, {
+          headers: { Authorization: `Basic ${Buffer.from(checkrApiKey + ":").toString("base64")}` },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          reportData = { status: data.status, adjudication: data.adjudication };
+        }
+      } else if (candidateId) {
+        const resp = await fetch(`https://api.checkr.com/v1/candidates/${candidateId}/reports`, {
+          headers: { Authorization: `Basic ${Buffer.from(checkrApiKey + ":").toString("base64")}` },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const reports = data.data || [];
+          if (reports.length > 0) {
+            const latest = reports[reports.length - 1];
+            reportData = { status: latest.status, adjudication: latest.adjudication };
+            // Backfill report ID
+            await db
+              .update(onboardingSteps)
+              .set({ metadata: { ...metadata, checkrReportId: latest.id }, updatedAt: new Date() })
+              .where(eq(onboardingSteps.id, step.id));
+          }
+        }
+      }
 
-      const effectiveStatus = report.adjudication || report.status;
-      const newStepStatus = CHECKR_STATUS_MAP[effectiveStatus];
-      if (!newStepStatus) continue;
+      if (!reportData || reportData.status === "pending") continue;
 
-      if (!isValidStepTransition(step.status, newStepStatus)) continue;
+      const effectiveStatus = reportData.adjudication || reportData.status;
+      const newStepStatus = CHECKR_STATUS_MAP[effectiveStatus] || "in_progress";
 
-      await db
-        .update(onboardingSteps)
-        .set({
-          status: newStepStatus as typeof step.status,
-          completedAt: newStepStatus === "complete" ? new Date() : null,
-          rejectionReason:
-            newStepStatus === "rejected"
-              ? `Background check result: ${effectiveStatus}`
-              : null,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(eq(onboardingSteps.id, step.id), eq(onboardingSteps.status, "in_progress")),
-        );
+      if (newStepStatus !== "in_progress" && isValidStepTransition(step.status, newStepStatus)) {
+        await db
+          .update(onboardingSteps)
+          .set({
+            status: newStepStatus as typeof step.status,
+            completedAt: newStepStatus === "complete" ? new Date() : null,
+            rejectionReason: newStepStatus === "rejected" ? `Background check: ${effectiveStatus}` : null,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(onboardingSteps.id, step.id), eq(onboardingSteps.status, step.status)));
 
-      details.push({
-        providerId: step.providerId,
-        stepId: step.id,
-        previousStatus: step.status,
-        newStatus: newStepStatus,
-        checkrStatus: report.status,
-        adjudication: report.adjudication,
-      });
+        logAudit({
+          action: "reconciliation.checkr_status_sync",
+          resourceType: "onboarding_step",
+          resourceId: step.id,
+          details: { providerId: step.providerId, effectiveStatus, newStepStatus },
+        });
 
-      logAudit({
-        action: "checkr.report_received",
-        resourceType: "onboarding_step",
-        resourceId: step.id,
-        details: {
-          checkrStatus: report.status,
-          adjudication: report.adjudication,
-          reportId: metadata.checkrReportId,
+        if (newStepStatus === "complete") {
+          await checkAllStepsCompleteAndTransition(step.providerId, step.id, "checkr_reconciliation");
+        }
+
+        reconciled++;
+        details.push({
           providerId: step.providerId,
-          newStepStatus,
-          source: "reconciliation",
-        },
-      });
-
-      // Broadcast + notify
-      const provider = await db.query.providers.findFirst({
-        where: eq(providers.id, step.providerId),
-      });
-
-      if (provider?.userId) {
-        broadcastToUser(provider.userId, {
-          type: "onboarding:step_updated",
-          data: {
-            providerId: step.providerId,
-            stepType: "background_check",
-            newStatus: newStepStatus,
-          },
-        });
-
-        notifyBackgroundCheckResult(step.providerId, effectiveStatus).catch((err) => {
-          console.error("[Notifications] Failed:", err);
+          checkrStatus: reportData.status,
+          adjudication: reportData.adjudication || "none",
         });
       }
-
-      if (newStepStatus === "pending_review") {
-        broadcastToAdmins({
-          type: "onboarding:step_updated",
-          data: {
-            providerId: step.providerId,
-            stepType: "background_check",
-            newStatus: "pending_review",
-          },
-        });
-      }
-
-      // All-steps-complete auto-transition
-      if (newStepStatus === "complete") {
-        await checkAllStepsCompleteAndTransition(
-          step.providerId, step.id, "checkr_reconciliation",
-          undefined, provider,
-        );
-      }
-
-      updated++;
     } catch (err) {
-      errors++;
-      console.error(
-        `[Reconciliation] Checkr poll failed for step ${step.id}:`,
-        err instanceof CheckrApiError
-          ? `${err.statusCode}: ${err.message}`
-          : err,
-      );
+      logger.error("[Reconciliation] Checkr API error", {
+        stepId: step.id,
+        providerId: step.providerId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    // Rate limit: pause between batches
+    if ((i + 1) % BATCH_SIZE === 0) {
+      await sleep(BATCH_DELAY_MS);
     }
   }
 
-  logAudit({
-    action: "checkr.reconciliation_run",
-    details: { checked: staleSteps.length, updated, errors },
-  });
-
-  return { checked: staleSteps.length, updated, errors, details };
+  logger.info("[Reconciliation] reconcileCheckrStatuses complete", { reconciled, total: inProgressSteps.length });
+  return { reconciled, details };
 }
 
-// ── Stripe Connect Reconciliation ─────────────────────────────────
+// ── 2. Stripe Connect Status Reconciliation ─────────────────────
 
-const STRIPE_CONNECT_POLLING_THRESHOLD_HOURS = 4;
-
+/**
+ * Polls stripe.accounts.retrieve() for providers with Connect accounts.
+ * Fixes drift between Stripe's charges_enabled/details_submitted and
+ * our onboarding_steps status.
+ */
 export async function reconcileStripeConnectStatuses(): Promise<ReconciliationResult> {
-  const threshold = new Date(
-    Date.now() - STRIPE_CONNECT_POLLING_THRESHOLD_HOURS * 60 * 60 * 1000,
-  );
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.STRIPE_CONNECT_RECONCILIATION))) {
+    logger.info("[Reconciliation] reconcileStripeConnectStatuses — disabled via feature flag");
+    return { checked: 0, updated: 0, errors: 0, details: [] };
+  }
 
-  const staleSteps = await db
-    .select()
+  const stripe = getStripe();
+
+  // Find providers with Connect accounts that have a stripe_connect step not yet complete
+  const stepsToCheck = await db
+    .select({
+      step: onboardingSteps,
+      provider: {
+        id: providers.id,
+        stripeConnectAccountId: providers.stripeConnectAccountId,
+        name: providers.name,
+        status: providers.status,
+      },
+    })
     .from(onboardingSteps)
+    .innerJoin(providers, eq(onboardingSteps.providerId, providers.id))
+    .where(
+      and(
+        eq(onboardingSteps.stepType, "stripe_connect"),
+        sql`${onboardingSteps.status} IN ('pending', 'draft', 'in_progress')`,
+        isNotNull(providers.stripeConnectAccountId),
+      ),
+    );
+
+  if (stepsToCheck.length === 0) {
+    logger.info("[Reconciliation] reconcileStripeConnectStatuses — nothing to check");
+    return { checked: 0, updated: 0, errors: 0, details: [] };
+  }
+
+  let checked = 0;
+  let updated = 0;
+  let errors = 0;
+  const details: Array<{ stepId: string; providerId: string; newStatus: string }> = [];
+
+  for (let i = 0; i < stepsToCheck.length; i++) {
+    const { step, provider } = stepsToCheck[i]!;
+    checked++;
+
+    try {
+      const account = await stripe.accounts.retrieve(provider.stripeConnectAccountId!);
+
+      if (account.charges_enabled && account.details_submitted) {
+        // Stripe says account is fully ready — mark step complete if not already
+        if (isValidStepTransition(step.status, "complete")) {
+          await db
+            .update(onboardingSteps)
+            .set({
+              status: "complete",
+              completedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(and(eq(onboardingSteps.id, step.id), eq(onboardingSteps.status, step.status)));
+
+          logAudit({
+            action: "reconciliation.stripe_connect_status_sync",
+            resourceType: "onboarding_step",
+            resourceId: step.id,
+            details: {
+              providerId: provider.id,
+              chargesEnabled: true,
+              detailsSubmitted: true,
+              previousStatus: step.status,
+            },
+          });
+
+          await checkAllStepsCompleteAndTransition(provider.id, step.id, "stripe_connect_reconciliation");
+
+          updated++;
+          details.push({ stepId: step.id, providerId: provider.id, newStatus: "complete" });
+        }
+      } else if (account.details_submitted && !account.charges_enabled) {
+        // Details submitted but charges not enabled — Stripe is reviewing
+        if (step.status === "pending" || step.status === "draft") {
+          await db
+            .update(onboardingSteps)
+            .set({ status: "in_progress", updatedAt: new Date() })
+            .where(eq(onboardingSteps.id, step.id));
+
+          updated++;
+          details.push({ stepId: step.id, providerId: provider.id, newStatus: "in_progress" });
+        }
+      }
+    } catch (err) {
+      logger.error("[Reconciliation] Stripe account retrieve error", {
+        providerId: provider.id,
+        accountId: provider.stripeConnectAccountId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      errors++;
+    }
+
+    // Rate limit between batches
+    if ((i + 1) % BATCH_SIZE === 0) {
+      await sleep(BATCH_DELAY_MS);
+    }
+  }
+
+  logger.info("[Reconciliation] reconcileStripeConnectStatuses complete", { checked, updated, errors });
+  return { checked, updated, errors, details };
+}
+
+// ── 3. Stripe Connect Abandonment Reminders ─────────────────────
+
+/**
+ * Sends reminders to providers who started Connect onboarding but haven't
+ * completed it within expected timeframes (48h, 7d).
+ */
+export async function checkStripeConnectAbandonment(): Promise<AbandonmentResult> {
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.STRIPE_CONNECT_ABANDONMENT))) {
+    logger.info("[Reconciliation] checkStripeConnectAbandonment — disabled via feature flag");
+    return { reminded: 0 };
+  }
+
+  const now = new Date();
+  const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+
+  // Find stripe_connect steps that are in_progress and stalled > 48h
+  const stalledSteps = await db
+    .select({
+      step: onboardingSteps,
+      providerId: providers.id,
+    })
+    .from(onboardingSteps)
+    .innerJoin(providers, eq(onboardingSteps.providerId, providers.id))
     .where(
       and(
         eq(onboardingSteps.stepType, "stripe_connect"),
         eq(onboardingSteps.status, "in_progress"),
-        lt(onboardingSteps.updatedAt, threshold),
+        lt(onboardingSteps.updatedAt, fortyEightHoursAgo),
       ),
     );
-
-  let updated = 0;
-  let errors = 0;
-  const details: ReconciliationDetail[] = [];
-
-  for (const step of staleSteps) {
-    const metadata = step.metadata as { stripeConnectAccountId?: string } | null;
-    if (!metadata?.stripeConnectAccountId) continue;
-
-    try {
-      const account = await stripe.accounts.retrieve(metadata.stripeConnectAccountId);
-
-      if (!account.details_submitted || !account.charges_enabled) continue; // Not yet ready
-
-      if (!isValidStepTransition(step.status, "complete")) continue;
-
-      await db
-        .update(onboardingSteps)
-        .set({
-          status: "complete",
-          completedAt: new Date(),
-          metadata: {
-            ...metadata,
-            chargesEnabledAt: new Date().toISOString(),
-          },
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(onboardingSteps.id, step.id),
-            eq(onboardingSteps.status, "in_progress"),
-          ),
-        );
-
-      details.push({
-        providerId: step.providerId,
-        stepId: step.id,
-        previousStatus: step.status,
-        newStatus: "complete",
-        checkrStatus: "charges_enabled",
-        adjudication: null,
-      });
-
-      logAudit({
-        action: "stripe_connect.onboarding_completed",
-        resourceType: "onboarding_step",
-        resourceId: step.id,
-        details: {
-          providerId: step.providerId,
-          stripeAccountId: metadata.stripeConnectAccountId,
-          source: "reconciliation",
-        },
-      });
-
-      // Broadcast + all-steps-complete check
-      const provider = await db.query.providers.findFirst({
-        where: eq(providers.id, step.providerId),
-      });
-
-      if (provider?.userId) {
-        broadcastToUser(provider.userId, {
-          type: "onboarding:step_updated",
-          data: {
-            providerId: step.providerId,
-            stepType: "stripe_connect",
-            newStatus: "complete",
-          },
-        });
-      }
-
-      await checkAllStepsCompleteAndTransition(
-        step.providerId, step.id, "stripe_connect_reconciliation",
-        undefined, provider,
-      );
-
-      // Auto-migrate pending payouts + reactivate if suspended
-      onStripeConnectStepComplete(step.providerId).catch((err) => {
-        console.error("[Reconciliation] onStripeConnectStepComplete failed:", err);
-      });
-
-      updated++;
-    } catch (err) {
-      errors++;
-      console.error(
-        `[Reconciliation] Stripe Connect poll failed for step ${step.id}:`,
-        err,
-      );
-    }
-  }
-
-  logAudit({
-    action: "stripe_connect.reconciliation_run",
-    details: { checked: staleSteps.length, updated, errors },
-  });
-
-  return { checked: staleSteps.length, updated, errors, details };
-}
-
-// ── Stripe Connect Abandonment Reminders ──────────────────────────
-
-const STRIPE_CONNECT_REMINDER_THRESHOLDS = [
-  { hours: 24, reminderNumber: 1 },
-  { hours: 72, reminderNumber: 2 },
-];
-
-export interface AbandonmentResult {
-  checked: number;
-  reminded: number;
-  errors: number;
-}
-
-export async function checkStripeConnectAbandonment(): Promise<AbandonmentResult> {
-  const { notifyStripeConnectReminder } = await import("@/lib/notifications");
 
   let reminded = 0;
-  let errors = 0;
 
-  // Find all in_progress stripe_connect steps
-  const inProgressSteps = await db
-    .select()
-    .from(onboardingSteps)
-    .where(
-      and(
-        eq(onboardingSteps.stepType, "stripe_connect"),
-        eq(onboardingSteps.status, "in_progress"),
-      ),
-    );
+  for (const { step, providerId } of stalledSteps) {
+    const hoursElapsed = Math.round((now.getTime() - step.updatedAt.getTime()) / (60 * 60 * 1000));
 
-  for (const step of inProgressSteps) {
+    // Only send reminders at 48h and 168h (7 days) — avoid spamming
     const metadata = (step.metadata || {}) as Record<string, unknown>;
-    const remindersSent = (metadata.remindersSent as number) || 0;
-    const stepAgeHours = (Date.now() - step.updatedAt.getTime()) / (60 * 60 * 1000);
+    const lastReminderHours = (metadata.lastReminderHoursElapsed as number) || 0;
 
-    // Find the next applicable threshold
-    const nextReminder = STRIPE_CONNECT_REMINDER_THRESHOLDS.find(
-      (t) => t.reminderNumber === remindersSent + 1 && stepAgeHours >= t.hours,
-    );
+    const shouldRemind =
+      (hoursElapsed >= 48 && lastReminderHours < 48) ||
+      (hoursElapsed >= 168 && lastReminderHours < 168);
 
-    if (!nextReminder) continue;
+    if (!shouldRemind) continue;
 
     try {
-      await notifyStripeConnectReminder(step.providerId, nextReminder.hours);
+      notifyStripeConnectReminder(providerId, hoursElapsed).catch((err) => {
+        console.error("[Notifications] Failed:", err);
+      });
 
-      // Update metadata with reminder count
+      // Track that we sent a reminder
       await db
         .update(onboardingSteps)
         .set({
-          metadata: { ...metadata, remindersSent: nextReminder.reminderNumber },
-          updatedAt: step.updatedAt, // Preserve original updatedAt to not reset stale detection
+          metadata: { ...metadata, lastReminderHoursElapsed: hoursElapsed, lastReminderAt: now.toISOString() },
         })
         .where(eq(onboardingSteps.id, step.id));
 
       logAudit({
-        action: "stripe_connect.reminder_sent",
+        action: "reconciliation.stripe_connect_abandonment_reminder",
         resourceType: "onboarding_step",
         resourceId: step.id,
-        details: {
-          providerId: step.providerId,
-          reminderNumber: nextReminder.reminderNumber,
-          hoursElapsed: Math.round(stepAgeHours),
-        },
+        details: { providerId, hoursElapsed },
       });
 
       reminded++;
     } catch (err) {
-      errors++;
-      console.error(
-        `[Reconciliation] Stripe Connect reminder failed for step ${step.id}:`,
-        err,
-      );
+      logger.error("[Reconciliation] Abandonment reminder failed", {
+        stepId: step.id,
+        providerId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
-  return { checked: inProgressSteps.length, reminded, errors };
+  logger.info("[Reconciliation] checkStripeConnectAbandonment complete", { reminded, checked: stalledSteps.length });
+  return { reminded };
 }
 
-// ── Stripe Connect Deadline Enforcement ──────────────────────────
+// ── 4. Stripe Connect Deadline Enforcement ──────────────────────
 
-export interface DeadlineEnforcementResult {
+/**
+ * Suspends providers who haven't completed Stripe Connect setup
+ * within the configured deadline (based on their onboarding step creation date).
+ *
+ * Default deadline: 30 days after step was created.
+ */
+const STRIPE_CONNECT_DEADLINE_DAYS = 30;
+
+export async function enforceStripeConnectDeadline(): Promise<{
+  enforced: number;
   checked: number;
   suspended: number;
-  errors: number;
+}> {
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.STRIPE_CONNECT_DEADLINE))) {
+    logger.info("[Reconciliation] enforceStripeConnectDeadline — disabled via feature flag");
+    return { enforced: 0, checked: 0, suspended: 0 };
+  }
+
+  const now = new Date();
+  const deadlineCutoff = new Date(now.getTime() - STRIPE_CONNECT_DEADLINE_DAYS * 24 * 60 * 60 * 1000);
+
+  // Find providers with incomplete stripe_connect steps past the deadline
+  const overdue = await db
+    .select({
+      step: onboardingSteps,
+      provider: providers,
+    })
+    .from(onboardingSteps)
+    .innerJoin(providers, eq(onboardingSteps.providerId, providers.id))
+    .where(
+      and(
+        eq(onboardingSteps.stepType, "stripe_connect"),
+        sql`${onboardingSteps.status} IN ('pending', 'draft', 'in_progress')`,
+        lt(onboardingSteps.createdAt, deadlineCutoff),
+        sql`${providers.status} NOT IN ('suspended', 'rejected')`,
+      ),
+    );
+
+  let suspended = 0;
+
+  for (const { step, provider } of overdue) {
+    try {
+      await db
+        .update(providers)
+        .set({
+          status: "suspended",
+          suspendedAt: now,
+          suspendedReason: "stripe_connect_deadline_expired",
+          updatedAt: now,
+        })
+        .where(and(eq(providers.id, provider.id), sql`${providers.status} != 'suspended'`));
+
+      logAudit({
+        action: "reconciliation.stripe_connect_deadline_suspend",
+        resourceType: "provider",
+        resourceId: provider.id,
+        details: {
+          stepId: step.id,
+          stepCreatedAt: step.createdAt.toISOString(),
+          deadlineDays: STRIPE_CONNECT_DEADLINE_DAYS,
+        },
+      });
+
+      notifyConnectDeadlineExpired(provider.id).catch((err) => {
+        console.error("[Notifications] Failed:", err);
+      });
+
+      suspended++;
+    } catch (err) {
+      logger.error("[Reconciliation] Deadline enforcement failed", {
+        providerId: provider.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  logger.info("[Reconciliation] enforceStripeConnectDeadline complete", {
+    checked: overdue.length,
+    suspended,
+  });
+
+  return { enforced: suspended, checked: overdue.length, suspended };
 }
 
-export async function enforceStripeConnectDeadline(): Promise<DeadlineEnforcementResult> {
+// ── 5. Migration Reminders ──────────────────────────────────────
+
+/**
+ * Sends migration reminders to active providers who are still using
+ * manual_batch payouts and haven't started Stripe Connect onboarding.
+ *
+ * Reminder schedule (days since MIGRATION_LAUNCH_DATE):
+ * - Day 0: Initial migration announcement
+ * - Day 14: Follow-up reminder
+ * - Day 25: Urgent reminder (5 days before deprecation if 30-day window)
+ */
+export async function checkMigrationReminders(): Promise<{ reminded: number }> {
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.MIGRATION_REMINDERS))) {
+    logger.info("[Reconciliation] checkMigrationReminders — disabled via feature flag");
+    return { reminded: 0 };
+  }
+
   if (!MIGRATION_LAUNCH_DATE) {
-    return { checked: 0, suspended: 0, errors: 0 };
+    return { reminded: 0 };
   }
 
-  const graceEndDate = new Date(
-    MIGRATION_LAUNCH_DATE.getTime() +
-    (MIGRATION_DEPRECATION_DAYS + MIGRATION_GRACE_PERIOD_DAYS) * 24 * 60 * 60 * 1000,
-  );
+  const now = new Date();
+  const daysSinceLaunch = Math.floor((now.getTime() - MIGRATION_LAUNCH_DATE.getTime()) / (24 * 60 * 60 * 1000));
 
-  if (new Date() <= graceEndDate) {
-    return { checked: 0, suspended: 0, errors: 0 };
+  if (daysSinceLaunch < 0) {
+    return { reminded: 0 }; // Migration hasn't launched yet
   }
 
-  // Find active providers without Stripe Connect account
-  const nonCompliantProviders = await db
-    .select()
+  // Find active providers without a Connect account and no completed stripe_connect step
+  const nonConnectProviders = await db
+    .select({ provider: providers })
     .from(providers)
     .where(
       and(
@@ -399,235 +504,402 @@ export async function enforceStripeConnectDeadline(): Promise<DeadlineEnforcemen
       ),
     );
 
-  let suspended = 0;
-  let errors = 0;
-
-  for (const provider of nonCompliantProviders) {
-    try {
-      const [updated] = await db
-        .update(providers)
-        .set({
-          status: "suspended",
-          suspendedAt: new Date(),
-          suspendedReason: "stripe_connect_deadline_expired",
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(providers.id, provider.id),
-            eq(providers.status, "active"),
-          ),
-        )
-        .returning();
-
-      if (updated) {
-        logAudit({
-          action: "provider.suspended",
-          resourceType: "provider",
-          resourceId: provider.id,
-          details: {
-            reason: "stripe_connect_deadline_expired",
-            migrationLaunchDate: MIGRATION_LAUNCH_DATE.toISOString(),
-          },
-        });
-
-        // Fire-and-forget notification
-        const { notifyConnectDeadlineExpired } = await import("@/lib/notifications");
-        notifyConnectDeadlineExpired(provider.id).catch((err) => {
-          console.error("[Reconciliation] Deadline notification failed:", err);
-        });
-
-        suspended++;
-      }
-    } catch (err) {
-      errors++;
-      console.error(
-        `[Reconciliation] Deadline enforcement failed for provider ${provider.id}:`,
-        err,
-      );
-    }
-  }
-
-  logAudit({
-    action: "stripe_connect.deadline_enforcement_run",
-    details: { checked: nonCompliantProviders.length, suspended, errors },
-  });
-
-  return { checked: nonCompliantProviders.length, suspended, errors };
-}
-
-// ── Migration Reminder Notifications ─────────────────────────────
-
-export interface MigrationReminderResult {
-  checked: number;
-  reminded: number;
-  errors: number;
-}
-
-export async function checkMigrationReminders(): Promise<MigrationReminderResult> {
-  // Find active providers with migrationBypassExpiresAt set (migrating)
-  const { isNotNull } = await import("drizzle-orm");
-  const migratingProviders = await db
-    .select()
-    .from(providers)
-    .where(
-      and(
-        eq(providers.status, "active"),
-        isNotNull(providers.migrationBypassExpiresAt),
-      ),
-    );
-
   let reminded = 0;
-  let errors = 0;
-  const now = new Date();
 
-  for (const provider of migratingProviders) {
-    if (!provider.migrationBypassExpiresAt) continue;
-
-    // Calculate days since migration started (bypass is 30 days from start)
-    const migrationStartMs = provider.migrationBypassExpiresAt.getTime() - (30 * 24 * 60 * 60 * 1000);
-    const daysSinceStart = Math.floor((now.getTime() - migrationStartMs) / (24 * 60 * 60 * 1000));
-
-    // Determine which reminder to send based on day ranges
-    // Use window-based approach: send Day 14 on days 14-24, Day 25 on days 25-29
-    // Cron runs every 6h, so the window ensures at most 1 send per provider
-    // Dedup: we only send if the provider's updatedAt hasn't been touched for migration reminders recently
-    let reminderDay: number | null = null;
-    if (daysSinceStart >= 25 && daysSinceStart < 30) {
-      reminderDay = 25;
-    } else if (daysSinceStart >= 14 && daysSinceStart < 25) {
-      reminderDay = 14;
-    }
-
-    if (!reminderDay) continue;
-
-    // Simple dedup: check if we already sent this exact day reminder
-    // by looking at audit log via raw SQL (audit_events is write-optimized, not in relational queries)
-    const { sql } = await import("drizzle-orm");
-    const existing = await db.execute(
-      sql`SELECT 1 FROM audit_events WHERE action = 'migration.reminder_sent' AND resource_id = ${provider.id} AND details->>'day' = ${String(reminderDay)} LIMIT 1`,
-    );
-    if (existing.length > 0) continue;
-
-    try {
-      if (reminderDay === 14) {
-        const { notifyMigrationDay14 } = await import("@/lib/notifications");
-        await notifyMigrationDay14(provider.id);
-      } else if (reminderDay === 25) {
-        const { notifyMigrationDay25 } = await import("@/lib/notifications");
-        await notifyMigrationDay25(provider.id);
-      }
-
-      logAudit({
-        action: "migration.reminder_sent",
-        resourceType: "provider",
-        resourceId: provider.id,
-        details: { day: reminderDay, daysSinceStart },
-      });
-
-      reminded++;
-    } catch (err) {
-      errors++;
-      console.error(`[Reconciliation] Migration reminder failed for provider ${provider.id}:`, err);
-    }
-  }
-
-  logAudit({
-    action: "migration.reminder_check_run",
-    details: { checked: migratingProviders.length, reminded, errors },
-  });
-
-  return { checked: migratingProviders.length, reminded, errors };
-}
-
-// ── Migration Deadline Enforcement ───────────────────────────────
-
-export interface MigrationDeadlineResult {
-  checked: number;
-  suspended: number;
-  errors: number;
-}
-
-export async function enforceMigrationDeadline(): Promise<MigrationDeadlineResult> {
-  const now = new Date();
-
-  // Find active providers whose migration bypass has expired
-  const expiredProviders = await db
-    .select()
-    .from(providers)
-    .where(
-      and(
-        eq(providers.status, "active"),
-        lt(providers.migrationBypassExpiresAt, now),
+  for (const { provider } of nonConnectProviders) {
+    // Check if they have any stripe_connect step already
+    const existingStep = await db.query.onboardingSteps.findFirst({
+      where: and(
+        eq(onboardingSteps.providerId, provider.id),
+        eq(onboardingSteps.stepType, "stripe_connect"),
       ),
-    );
-
-  // Filter to only those with incomplete onboarding steps
-  let suspended = 0;
-  let errors = 0;
-
-  for (const provider of expiredProviders) {
-    const steps = await db.query.onboardingSteps.findMany({
-      where: eq(onboardingSteps.providerId, provider.id),
     });
 
-    // If no steps exist or all complete, skip (migration completed, just bypass not cleared)
-    if (steps.length === 0) continue;
-    const allComplete = steps.every((s) => s.status === "complete");
-    if (allComplete) {
-      // Migration completed but bypass wasn't cleared — clean up
-      await db
-        .update(providers)
-        .set({ migrationBypassExpiresAt: null, updatedAt: new Date() })
-        .where(eq(providers.id, provider.id));
-      continue;
-    }
+    // If they've already started (in_progress), abandonment reminders handle it
+    if (existingStep && existingStep.status !== "pending") continue;
+
+    // Check bypass expiration
+    if (provider.migrationBypassExpiresAt && provider.migrationBypassExpiresAt > now) continue;
 
     try {
-      const [updated] = await db
+      // Send appropriate reminder based on days since launch
+      const deprecationDate = new Date(MIGRATION_LAUNCH_DATE.getTime() + MIGRATION_DEPRECATION_DAYS * 24 * 60 * 60 * 1000);
+      if (daysSinceLaunch <= 1) {
+        notifyMigrationDay0(provider.id, deprecationDate.toISOString().split("T")[0]!).catch((err) => { console.error("[Notifications] Failed:", err); });
+        reminded++;
+      } else if (daysSinceLaunch >= 14 && daysSinceLaunch < 16) {
+        notifyMigrationDay14(provider.id).catch((err) => { console.error("[Notifications] Failed:", err); });
+        reminded++;
+      } else if (daysSinceLaunch >= 25 && daysSinceLaunch < 27) {
+        notifyMigrationDay25(provider.id).catch((err) => { console.error("[Notifications] Failed:", err); });
+        reminded++;
+      }
+    } catch (err) {
+      logger.error("[Reconciliation] Migration reminder failed", {
+        providerId: provider.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  logger.info("[Reconciliation] checkMigrationReminders complete", { reminded, daysSinceLaunch });
+  return { reminded };
+}
+
+// ── 6. Migration Deadline Enforcement ───────────────────────────
+
+/**
+ * Suspends active providers who haven't migrated to Stripe Connect
+ * after the deprecation period + grace period has elapsed.
+ */
+export async function enforceMigrationDeadline(): Promise<{ enforced: number }> {
+  if (!(await isFeatureEnabled(FEATURE_FLAGS.MIGRATION_DEADLINE))) {
+    logger.info("[Reconciliation] enforceMigrationDeadline — disabled via feature flag");
+    return { enforced: 0 };
+  }
+
+  if (!MIGRATION_LAUNCH_DATE) {
+    return { enforced: 0 };
+  }
+
+  const now = new Date();
+  const deprecationDate = new Date(MIGRATION_LAUNCH_DATE.getTime() + MIGRATION_DEPRECATION_DAYS * 24 * 60 * 60 * 1000);
+  const graceEndDate = new Date(deprecationDate.getTime() + MIGRATION_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000);
+
+  if (now < graceEndDate) {
+    logger.info("[Reconciliation] enforceMigrationDeadline — grace period not yet expired", {
+      graceEndDate: graceEndDate.toISOString(),
+    });
+    return { enforced: 0 };
+  }
+
+  // Find active providers without Stripe Connect, not bypassed
+  const nonCompliant = await db
+    .select({ provider: providers })
+    .from(providers)
+    .where(
+      and(
+        eq(providers.status, "active"),
+        isNull(providers.stripeConnectAccountId),
+        sql`(${providers.migrationBypassExpiresAt} IS NULL OR ${providers.migrationBypassExpiresAt} < ${now})`,
+      ),
+    );
+
+  let enforced = 0;
+
+  for (const { provider } of nonCompliant) {
+    try {
+      await db
         .update(providers)
         .set({
           status: "suspended",
           suspendedAt: now,
-          suspendedReason: "migration_deadline_expired",
+          suspendedReason: "stripe_connect_not_completed",
           updatedAt: now,
         })
-        .where(
-          and(
-            eq(providers.id, provider.id),
-            eq(providers.status, "active"),
-          ),
-        )
-        .returning();
+        .where(and(eq(providers.id, provider.id), eq(providers.status, "active")));
 
-      if (updated) {
-        logAudit({
-          action: "migration.suspended_deadline",
-          resourceType: "provider",
-          resourceId: provider.id,
-          details: {
-            reason: "migration_deadline_expired",
-            bypassExpiredAt: provider.migrationBypassExpiresAt?.toISOString(),
-          },
-        });
+      logAudit({
+        action: "reconciliation.migration_deadline_suspend",
+        resourceType: "provider",
+        resourceId: provider.id,
+        details: {
+          migrationLaunchDate: MIGRATION_LAUNCH_DATE.toISOString(),
+          deprecationDate: deprecationDate.toISOString(),
+          graceEndDate: graceEndDate.toISOString(),
+        },
+      });
 
-        const { notifyMigrationSuspended } = await import("@/lib/notifications");
-        notifyMigrationSuspended(provider.id).catch((err) => {
-          console.error("[Reconciliation] Migration suspension notification failed:", err);
-        });
+      notifyMigrationSuspended(provider.id).catch((err) => {
+        console.error("[Notifications] Failed:", err);
+      });
 
-        suspended++;
-      }
+      enforced++;
     } catch (err) {
-      errors++;
-      console.error(`[Reconciliation] Migration deadline enforcement failed for provider ${provider.id}:`, err);
+      logger.error("[Reconciliation] Migration deadline enforcement failed", {
+        providerId: provider.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
-  logAudit({
-    action: "migration.deadline_enforcement_run",
-    details: { checked: expiredProviders.length, suspended, errors },
+  logger.info("[Reconciliation] enforceMigrationDeadline complete", { enforced, checked: nonCompliant.length });
+  return { enforced };
+}
+
+// ── 7. Automated Payout Processing ──────────────────────────────
+
+/**
+ * Processes pending stripe_connect payouts that weren't auto-transferred
+ * at booking completion (e.g., legacy platform charges awaiting batch processing).
+ *
+ * Runs daily. Skips payouts that are "held" (dispute freeze).
+ */
+export async function processPendingPayouts(): Promise<{
+  processed: number;
+  failed: number;
+  skippedHeld: number;
+}> {
+  const stripe = getStripe();
+
+  const pending = await db
+    .select({
+      payout: providerPayouts,
+      provider: {
+        id: providers.id,
+        stripeConnectAccountId: providers.stripeConnectAccountId,
+      },
+    })
+    .from(providerPayouts)
+    .innerJoin(providers, eq(providerPayouts.providerId, providers.id))
+    .where(
+      and(
+        eq(providerPayouts.status, "pending"),
+        eq(providerPayouts.payoutMethod, "stripe_connect"),
+      ),
+    );
+
+  if (pending.length === 0) {
+    logger.info("[Reconciliation] processPendingPayouts — no pending payouts");
+    return { processed: 0, failed: 0, skippedHeld: 0 };
+  }
+
+  let processed = 0;
+  let failed = 0;
+  const skippedHeld = 0;
+
+  for (let i = 0; i < pending.length; i++) {
+    const { payout, provider } = pending[i]!;
+
+    if (!provider.stripeConnectAccountId) {
+      // No Connect account — can't process, leave as pending
+      continue;
+    }
+
+    try {
+      const transfer = await stripe.transfers.create(
+        {
+          amount: payout.amount,
+          currency: "usd",
+          destination: provider.stripeConnectAccountId,
+          transfer_group: payout.bookingId,
+          metadata: { payoutId: payout.id, bookingId: payout.bookingId, providerId: provider.id },
+        },
+        { idempotencyKey: `payout-${payout.id}` },
+      );
+
+      await db
+        .update(providerPayouts)
+        .set({
+          status: "paid",
+          paidAt: new Date(),
+          stripeTransferId: transfer.id,
+          metadata: { ...(payout.metadata as Record<string, unknown> || {}), stripeTransferId: transfer.id, processedByCron: true },
+        })
+        .where(eq(providerPayouts.id, payout.id));
+
+      processed++;
+    } catch (err) {
+      logger.error("[Reconciliation] Payout transfer failed", {
+        payoutId: payout.id,
+        providerId: provider.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      failed++;
+    }
+
+    if ((i + 1) % BATCH_SIZE === 0) {
+      await sleep(BATCH_DELAY_MS);
+    }
+  }
+
+  logger.info("[Reconciliation] processPendingPayouts complete", { processed, failed, skippedHeld, total: pending.length });
+  return { processed, failed, skippedHeld };
+}
+
+// ── 8. Payment-Payout Reconciliation ────────────────────────────
+
+/**
+ * Matches confirmed payments against their corresponding payouts.
+ * Flags discrepancies: orphan payments (no payout), orphan payouts (no payment),
+ * and amount mismatches (accounting for commission).
+ */
+export async function reconcilePaymentsAndPayouts(): Promise<{
+  matched: number;
+  orphanPayments: number;
+  orphanPayouts: number;
+  mismatches: number;
+  details: Array<{ type: string; bookingId: string; paymentId?: string; payoutId?: string; note: string }>;
+}> {
+  // Confirmed Stripe payments that should have a payout
+  const confirmedPayments = await db
+    .select({
+      payment: payments,
+      bookingStatus: bookings.status,
+      bookingProviderId: bookings.providerId,
+    })
+    .from(payments)
+    .innerJoin(bookings, eq(payments.bookingId, bookings.id))
+    .where(
+      and(
+        eq(payments.status, "confirmed"),
+        eq(payments.method, "stripe"),
+        eq(bookings.status, "completed"),
+        isNotNull(bookings.providerId),
+      ),
+    );
+
+  let matched = 0;
+  let orphanPayments = 0;
+  let orphanPayouts = 0;
+  let mismatches = 0;
+  const details: Array<{ type: string; bookingId: string; paymentId?: string; payoutId?: string; note: string }> = [];
+
+  for (const { payment } of confirmedPayments) {
+    const payout = await db.query.providerPayouts.findFirst({
+      where: and(
+        eq(providerPayouts.bookingId, payment.bookingId),
+        sql`${providerPayouts.payoutType} = 'standard'`,
+      ),
+    });
+
+    if (!payout) {
+      orphanPayments++;
+      details.push({
+        type: "orphan_payment",
+        bookingId: payment.bookingId,
+        paymentId: payment.id,
+        note: `Confirmed payment ($${(payment.amount / 100).toFixed(2)}) has no payout record`,
+      });
+      continue;
+    }
+
+    // Check that payment amount >= payout amount (payout should be less due to commission)
+    if (payout.amount > payment.amount) {
+      mismatches++;
+      details.push({
+        type: "amount_mismatch",
+        bookingId: payment.bookingId,
+        paymentId: payment.id,
+        payoutId: payout.id,
+        note: `Payout ($${(payout.amount / 100).toFixed(2)}) exceeds payment ($${(payment.amount / 100).toFixed(2)})`,
+      });
+    } else {
+      matched++;
+    }
+  }
+
+  // Check for orphan payouts (payouts without a matching confirmed payment)
+  const allStandardPayouts = await db
+    .select({ payout: providerPayouts })
+    .from(providerPayouts)
+    .where(sql`${providerPayouts.payoutType} = 'standard'`);
+
+  for (const { payout } of allStandardPayouts) {
+    const confirmedPayment = await db.query.payments.findFirst({
+      where: and(
+        eq(payments.bookingId, payout.bookingId),
+        eq(payments.status, "confirmed"),
+      ),
+    });
+
+    if (!confirmedPayment) {
+      orphanPayouts++;
+      details.push({
+        type: "orphan_payout",
+        bookingId: payout.bookingId,
+        payoutId: payout.id,
+        note: `Payout ($${(payout.amount / 100).toFixed(2)}) has no confirmed payment`,
+      });
+    }
+  }
+
+  logger.info("[Reconciliation] reconcilePaymentsAndPayouts complete", { matched, orphanPayments, orphanPayouts, mismatches });
+  return { matched, orphanPayments, orphanPayouts, mismatches, details };
+}
+
+// ── 9. Provider Re-verification ─────────────────────────────────
+
+const REVERIFICATION_INTERVAL_DAYS = 365;
+
+/**
+ * Checks for provider onboarding steps that are due for re-verification.
+ * Steps with completedAt older than REVERIFICATION_INTERVAL_DAYS get
+ * their status reset to pending, triggering a new verification cycle.
+ *
+ * Applies to: identity_verification, background_check, insurance, certifications
+ */
+export async function checkProviderReverification(): Promise<{
+  checked: number;
+  resetCount: number;
+}> {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - REVERIFICATION_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
+
+  const reverifiableStepTypes = ["identity_verification", "background_check", "insurance", "certifications"];
+
+  const overdueSteps = await db
+    .select({
+      step: onboardingSteps,
+      providerName: providers.name,
+    })
+    .from(onboardingSteps)
+    .innerJoin(providers, eq(onboardingSteps.providerId, providers.id))
+    .where(
+      and(
+        eq(onboardingSteps.status, "complete"),
+        lt(onboardingSteps.completedAt, cutoff),
+        sql`${onboardingSteps.stepType} IN (${sql.join(reverifiableStepTypes.map((t) => sql`${t}`), sql`, `)})`,
+        sql`${providers.status} NOT IN ('suspended', 'rejected', 'inactive')`,
+      ),
+    );
+
+  let resetCount = 0;
+
+  for (const { step } of overdueSteps) {
+    try {
+      const metadata = (step.metadata || {}) as Record<string, unknown>;
+
+      await db
+        .update(onboardingSteps)
+        .set({
+          status: "pending",
+          completedAt: null,
+          metadata: {
+            ...metadata,
+            reverificationDueAt: now.toISOString(),
+            previousCompletedAt: step.completedAt?.toISOString(),
+            reverificationCycle: ((metadata.reverificationCycle as number) || 0) + 1,
+          },
+          updatedAt: now,
+        })
+        .where(and(eq(onboardingSteps.id, step.id), eq(onboardingSteps.status, "complete")));
+
+      logAudit({
+        action: "onboarding.status_changed",
+        resourceType: "onboarding_step",
+        resourceId: step.id,
+        details: {
+          providerId: step.providerId,
+          stepType: step.stepType,
+          reason: "annual_reverification",
+          previousCompletedAt: step.completedAt?.toISOString(),
+        },
+      });
+
+      resetCount++;
+    } catch (err) {
+      logger.error("[Reconciliation] Re-verification reset failed", {
+        stepId: step.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  logger.info("[Reconciliation] checkProviderReverification complete", {
+    checked: overdueSteps.length,
+    resetCount,
   });
 
-  return { checked: expiredProviders.length, suspended, errors };
+  return { checked: overdueSteps.length, resetCount };
 }

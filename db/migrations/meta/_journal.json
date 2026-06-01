@@ -131,36 +131,15 @@
     {
       "idx": 18,
       "version": "7",
-      "when": 1772331068169,
-      "tag": "0018_add_stripe_payment_intent_and_disputed_status",
+      "when": 1775654638459,
+      "tag": "0018_yielding_wendell_vaughn",
       "breakpoints": true
     },
     {
       "idx": 19,
       "version": "7",
-      "when": 1772601613946,
-      "tag": "0019_brief_wolfpack",
-      "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "7",
-      "when": 1772601700000,
-      "tag": "0019_stripe_products_and_customers",
-      "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "7",
-      "when": 1772601800000,
-      "tag": "0020_add_missing_invoice_columns",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1772601900000,
-      "tag": "0021_add_critical_indexes",
+      "when": 1775657143084,
+      "tag": "0019_sour_dragon_man",
       "breakpoints": true
     }
   ]

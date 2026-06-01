@@ -59,6 +59,7 @@ export function LogoUpload({ currentUrl, onUploaded }: LogoUploadProps) {
       <Label>Company Logo</Label>
       {preview && (
         <div className="relative inline-block">
+          {/* eslint-disable-next-line @next/next/no-img-element -- blob/presigned URL preview */}
           <img
             src={preview}
             alt="Logo preview"

@@ -1,7 +1,8 @@
 import { createMiddleware } from "hono/factory";
 import { db } from "@/db";
 import { providers } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { onboardingSteps } from "@/db/schema/onboarding-steps";
+import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { logAudit } from "@/server/api/lib/audit-logger";
 
@@ -48,4 +49,45 @@ export const requireOnboardingComplete = createMiddleware(async (c, next) => {
     { error: "Onboarding not complete", redirect: "/provider/onboarding" },
     403,
   );
+});
+
+/**
+ * Middleware that blocks actions until the provider has signed the current
+ * Independent Contractor Agreement. Apply on routes that initiate billable
+ * work (job acceptance) — not on read-only routes.
+ *
+ * Assumes requireProvider has already populated c.get("user").
+ */
+export const requireIcAgreementAccepted = createMiddleware(async (c, next) => {
+  const user = c.get("user") as { id: string } | undefined;
+  if (!user?.id) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!provider) {
+    return c.json({ error: "Provider not found" }, 404);
+  }
+
+  const step = await db.query.onboardingSteps.findFirst({
+    where: and(
+      eq(onboardingSteps.providerId, provider.id),
+      eq(onboardingSteps.stepType, "ic_agreement"),
+    ),
+  });
+
+  if (!step || step.status !== "complete") {
+    return c.json(
+      {
+        error: "Independent Contractor Agreement must be signed before accepting work.",
+        code: "ic_agreement_required",
+        redirect: "/provider/onboarding/agreement",
+      },
+      403,
+    );
+  }
+
+  return next();
 });

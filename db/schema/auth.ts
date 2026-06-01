@@ -66,17 +66,29 @@ export const providerInviteStatusEnum = pgEnum("provider_invite_status", [
   "expired",
 ]);
 
+export const inviteTypeEnum = pgEnum("invite_type", [
+  "admin",
+  "beta",
+  "referral",
+]);
+
 export const providerInviteTokens = pgTable(
   "provider_invite_tokens",
   {
     identifier: text("identifier").notNull(), // email
     token: text("token").notNull(),
-    providerId: text("providerId")
-      .notNull()
-      .references(() => providers.id, { onDelete: "cascade" }),
+    providerId: text("providerId").references(() => providers.id, {
+      onDelete: "cascade",
+    }),
     invitedBy: text("invitedBy").references(() => users.id, {
       onDelete: "set null",
     }),
+    inviteType: inviteTypeEnum("inviteType").notNull().default("admin"),
+    name: text("name"), // referee name (for referral/beta invites)
+    referringProviderId: text("referringProviderId").references(
+      () => providers.id,
+      { onDelete: "set null" }
+    ),
     status: providerInviteStatusEnum("status").notNull().default("pending"),
     expires: timestamp("expires", { mode: "date" }).notNull(),
     acceptedAt: timestamp("acceptedAt", { mode: "date" }),

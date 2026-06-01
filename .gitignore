@@ -30,26 +30,21 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-!.env.example
-
-# screenshots (manual testing artifacts)
-*.png
+# env files — NEVER commit secrets
+.env
+.env.local
+.env.production
+.env.*.local
 
 # IDE / tools
 .idea/
 .claude/
 .codex/
-.ai/
+_bmad/
 .playwright-mcp/
-_bmad/_memory/
 
-# e2e test artifacts
-e2e-screenshots/
-playwright-report/
-test-results/
-blob-report/
+# temp screenshots
+staging-login*.png
 
 # vercel
 .vercel

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { AlertCircle, Loader2, RefreshCw, Users, DollarSign } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw, Users, DollarSign, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProviderReferralForm } from "@/components/provider/provider-referral-form";
 import { formatPrice } from "@/lib/utils";
@@ -20,6 +20,12 @@ interface ReferralRecord {
   createdAt: string;
 }
 
+interface InviteCount {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
 export default function ProviderReferralsPage() {
   const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
   const [totalReferrals, setTotalReferrals] = useState(0);
@@ -28,14 +34,16 @@ export default function ProviderReferralsPage() {
   const [fetchError, setFetchError] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [inviteCount, setInviteCount] = useState<InviteCount>({ used: 0, limit: 5, remaining: 5 });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setFetchError(false);
     try {
-      const [listRes, balanceRes] = await Promise.all([
+      const [listRes, balanceRes, inviteCountRes] = await Promise.all([
         fetch(`/api/referrals/provider?page=${page}&limit=20`),
         fetch("/api/referrals/me/balance"),
+        fetch("/api/referrals/provider/invite-count"),
       ]);
       if (listRes.ok && balanceRes.ok) {
         const listData = await listRes.json();
@@ -46,6 +54,10 @@ export default function ProviderReferralsPage() {
         setBalance(balanceData.balance || 0);
       } else {
         setFetchError(true);
+      }
+      if (inviteCountRes.ok) {
+        const countData = await inviteCountRes.json();
+        setInviteCount(countData);
       }
     } catch {
       setFetchError(true);
@@ -89,7 +101,7 @@ export default function ProviderReferralsPage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Referrals</h1>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Referrals</CardTitle>
@@ -97,15 +109,29 @@ export default function ProviderReferralsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalReferrals}</div>
+            <p className="text-xs text-muted-foreground">
+              {inviteCount.remaining} of {inviteCount.limit} invites remaining this month
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Credit Balance</CardTitle>
+            <CardTitle className="text-sm font-medium">Referral Bonus</CardTitle>
+            <Gift className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">$50</div>
+            <p className="text-xs text-muted-foreground">per referred provider&apos;s first completed job</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Earnings</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatPrice(balance)}</div>
+            <p className="text-xs text-muted-foreground">from referral bonuses</p>
           </CardContent>
         </Card>
       </div>

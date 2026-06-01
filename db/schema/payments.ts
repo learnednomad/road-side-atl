@@ -37,5 +37,9 @@ export const payments = pgTable("payments", {
   refundedAt: timestamp("refundedAt", { mode: "date" }),
   refundedBy: text("refundedBy").references(() => users.id),
   refundReason: text("refundReason"),
+  stripeTransferId: text("stripeTransferId"), // auto-created transfer ID from destination charges
+  applicationFeeAmount: integer("applicationFeeAmount"), // cents, platform's cut (for destination charges)
+  chargeType: text("chargeType"), // "destination" | "platform" — tracks which charge model was used
+  stripeConnectAccountId: text("stripeConnectAccountId"), // provider's Connect account used for this payment
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
 });

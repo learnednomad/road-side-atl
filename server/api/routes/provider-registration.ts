@@ -15,6 +15,7 @@ import {
   acceptProviderInvite,
 } from "@/lib/auth/provider-invite";
 import { sendVerificationEmail } from "@/lib/auth/verification";
+import { logger } from "@/lib/logger";
 
 const app = new Hono();
 
@@ -55,8 +56,12 @@ app.post("/accept-invite", async (c) => {
   }
 
   const { token, password, name, phone } = parsed.data;
+  const { serviceArea, specialties } = body;
 
-  const result = await acceptProviderInvite(token, password, name, phone);
+  const result = await acceptProviderInvite(token, password, name, phone, {
+    serviceArea: Array.isArray(serviceArea) ? serviceArea : undefined,
+    specialties: Array.isArray(specialties) ? specialties : undefined,
+  });
 
   if (!result.success) {
     return c.json({ error: result.error }, 400);
@@ -91,7 +96,7 @@ app.post("/register", async (c) => {
     );
   }
 
-  const { name, email, phone, password, specialties, address } = parsed.data;
+  const { name, email, phone, password, specialties, address, serviceArea } = parsed.data;
 
   // Check if user with email already exists
   const existingUser = await db.query.users.findFirst({
@@ -139,12 +144,13 @@ app.post("/register", async (c) => {
     phone,
     specialties: specialties ?? [],
     address: address ?? null,
+    serviceAreas: serviceArea ?? [],
     status: "pending",
   });
 
   // Send verification email
   sendVerificationEmail(email, name).catch((err) => {
-    console.error("Failed to send verification email:", err);
+    logger.error("Failed to send verification email:", err);
   });
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);

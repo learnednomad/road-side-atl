@@ -1,12 +1,15 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { referrals, users } from "@/db/schema";
-import { eq, and, desc, count } from "drizzle-orm";
+import { referrals, users, providers } from "@/db/schema";
+import { providerInviteTokens } from "@/db/schema/auth";
+import { eq, and, desc, count, gte } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { createReferralSchema, redeemCreditsSchema, providerReferralSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
-import { REFERRAL_CREDIT_AMOUNT_CENTS } from "@/lib/constants";
+import { logger } from "@/lib/logger";
+import { REFERRAL_CREDIT_AMOUNT_CENTS, PROVIDER_REFERRAL_REWARD_CENTS, PROVIDER_REFERRAL_INVITE_LIMIT } from "@/lib/constants";
 import { generateReferralCode, calculateCreditBalance, redeemReferralCredits } from "../lib/referral-credits";
+import { createProviderInviteToken, sendReferralInviteEmail } from "@/lib/auth/provider-invite";
 
 type AuthEnv = {
   Variables: {
@@ -235,6 +238,39 @@ app.post("/provider-refer", requireAuth, async (c) => {
     return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
   }
 
+  // Rate limit: max PROVIDER_REFERRAL_INVITE_LIMIT referral invites per 30 days
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [{ count: recentInvites }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.invitedBy, user.id),
+      eq(providerInviteTokens.inviteType, "referral"),
+      gte(providerInviteTokens.createdAt, thirtyDaysAgo),
+    ));
+  if (Number(recentInvites) >= PROVIDER_REFERRAL_INVITE_LIMIT) {
+    return c.json({ error: "Referral invite limit reached (5 per month)" }, 429);
+  }
+
+  // Check for existing pending invite for this email
+  const existingInvite = await db.query.providerInviteTokens.findFirst({
+    where: and(
+      eq(providerInviteTokens.identifier, parsed.data.refereeEmail),
+      eq(providerInviteTokens.status, "pending"),
+    ),
+  });
+  if (existingInvite) {
+    return c.json({ error: "An invite is already pending for this email" }, 400);
+  }
+
+  // Find referring provider record
+  const referringProvider = await db.query.providers.findFirst({
+    where: eq(providers.userId, user.id),
+  });
+  if (!referringProvider) {
+    return c.json({ error: "Provider profile not found" }, 404);
+  }
+
   // Check if referee email already has an account
   const existingUser = await db.query.users.findFirst({
     where: eq(users.email, parsed.data.refereeEmail),
@@ -250,15 +286,35 @@ app.post("/provider-refer", requireAuth, async (c) => {
     }
   }
 
+  // Create invite token
+  const token = await createProviderInviteToken(
+    parsed.data.refereeEmail,
+    user.id,
+    {
+      inviteType: "referral",
+      name: parsed.data.refereeName,
+      referringProviderId: referringProvider.id,
+    }
+  );
+
+  // Create referral record with $50 reward
   const [newReferral] = await db
     .insert(referrals)
     .values({
       referrerId: user.id,
       refereeId: existingUser?.id || null,
-      creditAmount: REFERRAL_CREDIT_AMOUNT_CENTS,
+      creditAmount: PROVIDER_REFERRAL_REWARD_CENTS,
       status: "pending",
     })
     .returning();
+
+  // Send referral invite email (fire-and-forget)
+  sendReferralInviteEmail(
+    parsed.data.refereeEmail,
+    parsed.data.refereeName,
+    token,
+    user.name || referringProvider.name || "A provider"
+  ).catch((err) => { logger.error("[Notifications] Failed:", err); });
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
@@ -271,7 +327,33 @@ app.post("/provider-refer", requireAuth, async (c) => {
     userAgent,
   });
 
-  return c.json({ referral: newReferral }, 201);
+  return c.json({
+    referral: newReferral,
+    inviteSent: true,
+    remainingInvites: PROVIDER_REFERRAL_INVITE_LIMIT - Number(recentInvites) - 1,
+  }, 201);
+});
+
+// Get remaining invite count for current provider
+app.get("/provider/invite-count", requireAuth, async (c) => {
+  const user = c.get("user");
+  if (user.role !== "provider") return c.json({ error: "Provider access required" }, 403);
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [{ count: recentInvites }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.invitedBy, user.id),
+      eq(providerInviteTokens.inviteType, "referral"),
+      gte(providerInviteTokens.createdAt, thirtyDaysAgo),
+    ));
+
+  return c.json({
+    used: Number(recentInvites),
+    limit: PROVIDER_REFERRAL_INVITE_LIMIT,
+    remaining: PROVIDER_REFERRAL_INVITE_LIMIT - Number(recentInvites),
+  });
 });
 
 // List provider's referrals

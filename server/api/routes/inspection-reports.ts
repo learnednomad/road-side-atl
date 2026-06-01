@@ -7,6 +7,7 @@ import { createInspectionReportSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { generateInspectionPDF } from "../lib/pdf-generator";
 import { notifyInspectionReport } from "@/lib/notifications";
+import { logger } from "@/lib/logger";
 
 type AuthEnv = {
   Variables: {
@@ -244,7 +245,7 @@ app.get("/:id/pdf", async (c) => {
       },
     });
   } catch (error) {
-    console.error("[InspectionReport] PDF generation failed:", error);
+    logger.error("[InspectionReport] PDF generation failed:", error);
     return c.json({ error: "PDF generation failed" }, 500);
   }
 });
@@ -311,7 +312,7 @@ app.post("/:id/email", async (c) => {
       .set({ emailedAt: new Date() })
       .where(eq(inspectionReports.id, reportId));
   } catch (error) {
-    console.error("[InspectionReport] Email notification failed:", error);
+    logger.error("[InspectionReport] Email notification failed:", error);
     return c.json({ error: "Failed to send email notification" }, 500);
   }
 

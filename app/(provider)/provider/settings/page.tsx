@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, MapPin, Phone, User, DollarSign, CheckCircle2 } from "lucide-react";
+import { ServiceAreaPicker } from "@/components/provider/service-area-picker";
 
 interface ProviderProfile {
   id: string;
@@ -22,6 +23,7 @@ interface ProviderProfile {
   commissionRate: number;
   commissionType: "percentage" | "flat_per_job";
   flatFeeAmount: number | null;
+  serviceAreas: string[];
   specialties: string[];
   status: string;
 }
@@ -30,9 +32,11 @@ export default function ProviderSettingsPage() {
   const [profile, setProfile] = useState<ProviderProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingAreas, setSavingAreas] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
+  const [serviceAreas, setServiceAreas] = useState<string[]>([]);
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -50,6 +54,7 @@ export default function ProviderSettingsPage() {
         setName(data.name);
         setPhone(data.phone);
         setAddress(data.address || "");
+        setServiceAreas(data.serviceAreas || []);
         if (data.latitude && data.longitude) {
           setCoordinates({ latitude: data.latitude, longitude: data.longitude });
         }
@@ -103,6 +108,26 @@ export default function ProviderSettingsPage() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveServiceAreas() {
+    setSavingAreas(true);
+    try {
+      const res = await fetch("/api/provider/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceAreas }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setProfile((prev) => (prev ? { ...prev, ...updated } : null));
+        toast.success("Service areas updated successfully");
+      } else {
+        toast.error("Failed to update service areas");
+      }
+    } finally {
+      setSavingAreas(false);
     }
   }
 
@@ -239,6 +264,21 @@ export default function ProviderSettingsPage() {
               Save Changes
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Service Areas Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Service Areas</CardTitle>
+          <CardDescription>Select the areas where you provide service</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ServiceAreaPicker selected={serviceAreas} onChange={setServiceAreas} />
+          <Button onClick={saveServiceAreas} disabled={savingAreas}>
+            {savingAreas && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save Service Areas
+          </Button>
         </CardContent>
       </Card>
 
