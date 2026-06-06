@@ -42,7 +42,7 @@ jobs:
 
           for i in $(seq 1 10); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://roadsidega.learnednomad.com/api/health" \
+              "https://roadsidega.com/api/health" \
               --connect-timeout 10 --max-time 15)
 
             if [ "$STATUS" = "200" ]; then

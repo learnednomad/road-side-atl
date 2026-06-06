@@ -150,7 +150,7 @@ export async function sendObservationFollowUpSMS(
     : "Book a diagnostic inspection to learn more!";
   await sendSMS(
     phone,
-    `RoadSide ATL: Our provider noticed some issues with your vehicle: ${findings}. ${linkText} Reply STOP to opt out.`,
+    `RoadSide GA: Our provider noticed some issues with your vehicle: ${findings}. ${linkText} Reply STOP to opt out.`,
     statusCallbackUrl ? { statusCallback: statusCallbackUrl } : undefined
   );
 }

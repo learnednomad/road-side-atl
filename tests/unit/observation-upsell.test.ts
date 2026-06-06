@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { getUpsellLinks } from "@/server/api/lib/observation-upsell";
 
 describe("getUpsellLinks", () => {
-  const baseUrl = "https://roadsideatl.com";
+  const baseUrl = "https://roadsidega.com";
   const vehicleInfo = { year: "2020", make: "Honda", model: "Civic" };
 
   it("returns upsell link for medium severity mapped category", () => {
@@ -14,7 +14,7 @@ describe("getUpsellLinks", () => {
     expect(links[0].category).toBe("Brakes");
     expect(links[0].serviceSlug).toBe("brake-service");
     expect(links[0].deepLink).toBe(
-      "https://roadsideatl.com/book?service=brake-service&vehicleYear=2020&vehicleMake=Honda&vehicleModel=Civic"
+      "https://roadsidega.com/book?service=brake-service&vehicleYear=2020&vehicleMake=Honda&vehicleModel=Civic"
     );
   });
 
@@ -67,7 +67,7 @@ describe("getUpsellLinks", () => {
     const links = getUpsellLinks(items, null, baseUrl);
     expect(links).toHaveLength(1);
     expect(links[0].deepLink).toBe(
-      "https://roadsideatl.com/book?service=brake-service"
+      "https://roadsidega.com/book?service=brake-service"
     );
   });
 
@@ -78,7 +78,7 @@ describe("getUpsellLinks", () => {
     const links = getUpsellLinks(items, { year: "2019", make: "Toyota" }, baseUrl);
     expect(links).toHaveLength(1);
     expect(links[0].deepLink).toBe(
-      "https://roadsideatl.com/book?service=oil-change&vehicleYear=2019&vehicleMake=Toyota"
+      "https://roadsidega.com/book?service=oil-change&vehicleYear=2019&vehicleMake=Toyota"
     );
   });
 

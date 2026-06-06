@@ -30,7 +30,7 @@ const INVITE_CONFIG: Record<InviteType, {
   beta: {
     icon: Sparkles,
     title: "Welcome to the Beta Program",
-    description: "You've been selected for early access to the RoadSide ATL provider platform.",
+    description: "You've been selected for early access to the RoadSide GA provider platform.",
     badge: "Beta Program",
     badgeVariant: "default",
     successMessage: "Welcome to the beta! Log in to begin your onboarding and get started before the public launch.",
@@ -208,7 +208,7 @@ function AcceptInviteContent() {
         <CardTitle>{config.title}</CardTitle>
         <CardDescription>
           {inviteType === "referral" && referrerName
-            ? `${referrerName} thinks you'd be a great fit for the RoadSide ATL team.`
+            ? `${referrerName} thinks you'd be a great fit for the RoadSide GA team.`
             : config.description}
         </CardDescription>
       </CardHeader>
