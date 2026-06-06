@@ -8,8 +8,11 @@ vi.mock("@/db", () => ({
   db: {
     query: {
       payments: { findFirst: vi.fn() },
+      bookings: { findFirst: vi.fn() },
+      providerPayouts: { findFirst: vi.fn() },
     },
     update: vi.fn(),
+    insert: vi.fn(),
   },
 }));
 
@@ -34,6 +37,10 @@ vi.mock("@/server/api/lib/audit-logger", () => ({
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn((...args: unknown[]) => ({ _op: "eq", args })),
   and: vi.fn((...args: unknown[]) => ({ _op: "and", args })),
+  sql: Object.assign(
+    vi.fn((strings: TemplateStringsArray, ...args: unknown[]) => ({ _op: "sql", strings, args })),
+    { raw: vi.fn((s: string) => ({ _op: "sql.raw", s })) },
+  ),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -46,6 +53,19 @@ vi.mock("@/db/schema", () => ({
     method: "method",
   },
   bookings: { id: "id" },
+  providerPayouts: {
+    id: "id",
+    bookingId: "bookingId",
+    providerId: "providerId",
+    amount: "amount",
+    status: "status",
+    payoutType: "payoutType",
+    payoutMethod: "payoutMethod",
+    originalPayoutId: "originalPayoutId",
+    paymentId: "paymentId",
+    holdReason: "holdReason",
+    heldAt: "heldAt",
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -510,11 +530,19 @@ describe("POST /stripe — Stripe Webhook Handler", () => {
         stripePaymentIntentId: "pi_dispute_lost",
       });
 
-      const { setFn } = setupUpdateChain();
+      // Lost branch updates providerPayouts (held → clawback) first, then payments (refund).
+      const payoutsWhere = vi.fn().mockResolvedValue(undefined);
+      const payoutsSet = vi.fn().mockReturnValue({ where: payoutsWhere });
+      const paymentsWhere = vi.fn().mockResolvedValue(undefined);
+      const paymentsSet = vi.fn().mockReturnValue({ where: paymentsWhere });
+
+      mockDbUpdate
+        .mockReturnValueOnce({ set: payoutsSet })
+        .mockReturnValueOnce({ set: paymentsSet });
 
       const res = await sendWebhook();
       expect(res.status).toBe(200);
-      expect(setFn).toHaveBeenCalledWith(
+      expect(paymentsSet).toHaveBeenCalledWith(
         expect.objectContaining({
           status: "refunded",
           refundAmount: 7500,
@@ -522,7 +550,7 @@ describe("POST /stripe — Stripe Webhook Handler", () => {
         })
       );
       // refundedAt should be a Date
-      const setCall = setFn.mock.calls[0][0];
+      const setCall = paymentsSet.mock.calls[0][0];
       expect(setCall.refundedAt).toBeInstanceOf(Date);
 
       expect(mockLogAudit).toHaveBeenCalledWith(
