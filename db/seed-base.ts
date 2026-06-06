@@ -102,57 +102,149 @@ export async function seedBase(db: PostgresJsDatabase) {
   console.log("Services seeded.");
 
   // ── MECHANIC SERVICES ─────────────────────────────────────
+  // Pricing aligned to 2026 Atlanta market (see docs/atlanta_vehicle_service_cost_deep_dive (1).md).
+  // Commission tiers: 2200bp standard / 2000bp high-ticket / 1800bp premium dealer-path.
   console.log("Seeding mechanic services...");
   await db.insert(services).values([
     {
       name: "Oil Change",
       slug: "oil-change",
       description: "Full synthetic oil change with filter replacement. Mobile mechanic comes to your location.",
-      basePrice: 8500,
+      basePrice: 8500, // mid of $80-$140 dealer band, premium-mobile positioning
       category: "mechanics",
       schedulingMode: "scheduled",
-      commissionRate: 3000,
+      commissionRate: 2200,
       checklistConfig: [{ category: "Oil Change", items: ["Oil Level", "Filter Condition", "Drain Plug", "Oil Type Verification"] }],
     },
     {
-      name: "Brake Service",
-      slug: "brake-service",
-      description: "Brake pad inspection and replacement. Includes rotor check and brake fluid level assessment.",
-      basePrice: 18000,
+      name: "Mobile Diagnostic Session",
+      slug: "mobile-diagnostic",
+      description: "Mobile diagnostic visit: OBD2 scan plus drivability, electrical, or warning-light investigation. Billed separately from repair labor.",
+      basePrice: 12500, // mid of $75-$150 indie band
       category: "mechanics",
       schedulingMode: "scheduled",
-      commissionRate: 3000,
+      commissionRate: 2200,
+      checklistConfig: [{ category: "Diagnostic", items: ["OBD2 Codes", "Battery Voltage", "Symptom Reproduction", "Visual Inspection"] }],
+    },
+    {
+      name: "Brake Service (Pads, 1 Axle)",
+      slug: "brake-service",
+      description: "Brake pad replacement on one axle. Includes rotor inspection and brake fluid check. Rotor replacement quoted separately if needed.",
+      basePrice: 27500, // mid of $150-$400 indie band
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 2000,
+      checklistConfig: [{ category: "Brake Service", items: ["Pad Thickness", "Rotor Condition", "Brake Fluid", "Caliper Function", "Brake Lines"] }],
+    },
+    {
+      name: "Brake Service (Pads + Rotors, 1 Axle)",
+      slug: "brake-service-rotors",
+      description: "Brake pad and rotor replacement on one axle. Includes brake fluid check and bedding-in procedure.",
+      basePrice: 45000, // mid of $300-$600 indie band
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 2000,
       checklistConfig: [{ category: "Brake Service", items: ["Pad Thickness", "Rotor Condition", "Brake Fluid", "Caliper Function", "Brake Lines"] }],
     },
     {
       name: "Battery Replacement",
       slug: "battery-replace",
-      description: "Mobile battery replacement service. Includes testing, removal, and installation of new battery.",
-      basePrice: 15000,
+      description: "Mobile battery replacement service. Includes testing, removal, installation, and terminal cleaning. AGM and trunk-mounted batteries priced separately.",
+      basePrice: 21500, // mid of $180-$350 indie band
       category: "mechanics",
       schedulingMode: "scheduled",
-      commissionRate: 3000,
+      commissionRate: 2200,
       checklistConfig: [{ category: "Battery Replace", items: ["Terminal Condition", "Voltage Test", "Alternator Output", "Cable Integrity"] }],
+    },
+    {
+      name: "Alternator Replacement",
+      slug: "alternator-replace",
+      description: "Alternator diagnosis and replacement. Includes charging system test and belt inspection.",
+      basePrice: 65000, // mid of $450-$900 indie band
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 2000,
+      checklistConfig: [{ category: "Alternator", items: ["Charging Output", "Belt Tension", "Connector Integrity", "Voltage Regulator"] }],
+    },
+    {
+      name: "Starter Replacement",
+      slug: "starter-replace",
+      description: "Starter motor diagnosis and replacement. Includes cranking-system test.",
+      basePrice: 55000, // mid of $350-$800 indie band
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 2000,
+      checklistConfig: [{ category: "Starter", items: ["Cranking Voltage", "Solenoid Click", "Wiring Continuity", "Ground Connection"] }],
     },
     {
       name: "Belt Replacement",
       slug: "belt-replacement",
-      description: "Serpentine belt or timing belt replacement. Includes tensioner inspection.",
+      description: "Serpentine belt or timing belt replacement. Includes tensioner and pulley inspection.",
       basePrice: 22000,
       category: "mechanics",
       schedulingMode: "scheduled",
-      commissionRate: 3000,
+      commissionRate: 2000,
       checklistConfig: [{ category: "Belt Replacement", items: ["Belt Condition", "Tensioner Check", "Pulley Alignment", "Routing Verification"] }],
     },
     {
-      name: "AC Repair",
-      slug: "ac-repair",
-      description: "Air conditioning diagnosis and repair. Includes refrigerant recharge and leak detection.",
-      basePrice: 25000,
+      name: "A/C Diagnostic + Recharge",
+      slug: "ac-recharge",
+      description: "A/C system diagnosis with refrigerant recharge and dye-based leak detection. Component repair quoted separately.",
+      basePrice: 25000, // mid of $150-$350 indie band
       category: "mechanics",
       schedulingMode: "scheduled",
-      commissionRate: 3000,
+      commissionRate: 2200,
+      checklistConfig: [{ category: "AC Recharge", items: ["Refrigerant Level", "System Pressure", "Leak Detection", "Vent Temperature"] }],
+    },
+    {
+      name: "A/C Repair",
+      slug: "ac-repair",
+      description: "Air conditioning component repair (compressor, condenser, expansion valve). Includes diagnostic and recharge.",
+      basePrice: 45000, // mid of $300-$600+ indie band
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 2000,
       checklistConfig: [{ category: "AC Repair", items: ["Refrigerant Level", "Compressor Function", "Condenser Check", "Leak Detection"] }],
+    },
+    {
+      name: "Wheel Alignment",
+      slug: "wheel-alignment",
+      description: "Four-wheel alignment with toe, camber, and caster adjustment. ADAS calibration quoted separately if required.",
+      basePrice: 14000, // mid of $100-$180 indie band
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 2200,
+      checklistConfig: [{ category: "Alignment", items: ["Toe Reading", "Camber Reading", "Caster Reading", "Tire Wear Inspection"] }],
+    },
+    {
+      name: "Suspension Repair",
+      slug: "suspension-repair",
+      description: "Suspension component replacement (struts, shocks, control arms, ball joints). Pricing per component set; alignment recommended after.",
+      basePrice: 60000, // mid of $300-$900 indie band
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 1800,
+      checklistConfig: [{ category: "Suspension", items: ["Strut/Shock Condition", "Bushing Wear", "Ball Joint Play", "Control Arm Integrity"] }],
+    },
+    {
+      name: "Tune-Up / Ignition Service",
+      slug: "tune-up",
+      description: "Spark plug replacement, ignition coil inspection, and air filter service. Turbo engines and intake-access jobs priced higher.",
+      basePrice: 40000, // mid of $200-$600 indie band
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 2000,
+      checklistConfig: [{ category: "Tune-Up", items: ["Spark Plug Condition", "Coil Output", "Air Filter Status", "Fuel Filter Status"] }],
+    },
+    {
+      name: "Transmission Service",
+      slug: "transmission-service",
+      description: "Transmission fluid service and filter replacement. Internal transmission repairs quoted separately after diagnosis.",
+      basePrice: 42500, // mid of $250-$600 indie band
+      category: "mechanics",
+      schedulingMode: "scheduled",
+      commissionRate: 1800,
+      checklistConfig: [{ category: "Transmission", items: ["Fluid Level", "Fluid Condition", "Pan Condition", "Filter Status"] }],
     },
     {
       name: "General Maintenance",
@@ -161,7 +253,7 @@ export async function seedBase(db: PostgresJsDatabase) {
       basePrice: 12000,
       category: "mechanics",
       schedulingMode: "scheduled",
-      commissionRate: 3000,
+      commissionRate: 2200,
       checklistConfig: [{ category: "General Maintenance", items: ["Fluid Levels", "Filter Status", "Tire Pressure", "Light Check", "Wiper Condition"] }],
     },
   ]);
