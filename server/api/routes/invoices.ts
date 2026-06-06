@@ -384,6 +384,8 @@ app.post("/:id/send", async (c) => {
   if (!existing) return c.json({ error: "Invoice not found" }, 404);
   if (existing.status !== "draft")
     return c.json({ error: "Only draft invoices can be sent" }, 400);
+  if (user.role === "provider" && existing.createdById !== user.id)
+    return c.json({ error: "Forbidden" }, 403);
 
   const [updated] = await db
     .update(invoices)
@@ -414,6 +416,8 @@ app.patch("/:id/status", async (c) => {
     where: eq(invoices.id, id),
   });
   if (!existing) return c.json({ error: "Invoice not found" }, 404);
+  if (user.role === "provider" && existing.createdById !== user.id)
+    return c.json({ error: "Forbidden" }, 403);
 
   const [updated] = await db
     .update(invoices)
