@@ -30,6 +30,13 @@ export const services = pgTable("services", {
   description: text("description").notNull(),
   basePrice: integer("basePrice").notNull(), // cents
   pricePerMile: integer("pricePerMile"), // cents, nullable
+  // Realistic price range a customer should expect (Atlanta market). Optional —
+  // when both are present, /book renders a transparency breakdown showing
+  // "Base $X, typical range $X-$Y, final quoted on-site". Final price is set
+  // by the mechanic after on-site assessment.
+  estimateMinCents: integer("estimateMinCents"),
+  estimateMaxCents: integer("estimateMaxCents"),
+  estimateNote: text("estimateNote"), // e.g. "Rotor replacement quoted separately"
   category: serviceCategoryEnum("category").notNull(),
   active: boolean("active").default(true).notNull(),
   checklistConfig: jsonb("checklistConfig").$type<{ category: string; items: string[] }[]>(),

@@ -39,6 +39,9 @@ export default async function BookPage() {
     pricePerMile: number | null;
     category: string;
     schedulingMode?: string;
+    estimateMinCents?: number | null;
+    estimateMaxCents?: number | null;
+    estimateNote?: string | null;
   };
 
   let allServices: Service[] = [];
