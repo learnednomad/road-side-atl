@@ -10,29 +10,54 @@ import {
   RateLimitPresets,
 } from "../lib/rate-limiter";
 
+// Warn at most once per minute when client IP cannot be resolved, so a
+// misconfigured deployment (e.g. TRUST_PROXY unset behind a reverse proxy)
+// is visible in logs without flooding them on every request.
+let lastUnresolvedWarn = 0;
+
 /**
- * Get client identifier from request
- * Uses the connecting IP from the socket when available.
- * Only trusts X-Forwarded-For when running behind a known reverse proxy
- * (configured via TRUST_PROXY env var).
+ * Resolve the real client IP from the request.
+ *
+ * Returns `null` when no client can be identified. Callers MUST treat `null`
+ * as "cannot rate limit this request" and fail open — NEVER collapse it to a
+ * shared constant, or every unidentified request lands in one global bucket
+ * and a single busy client (or any load behind an untrusted proxy) throttles
+ * the entire site.
+ *
+ * When deployed behind a reverse proxy (Coolify/Traefik, nginx, Cloudflare),
+ * set TRUST_PROXY=true so forwarded headers are honored. Without it, the app
+ * only sees the proxy's IP and cannot distinguish real clients.
  */
-function getClientId(c: Context): string {
-  // Only trust X-Forwarded-For if explicitly configured (e.g., behind nginx/cloudflare)
+function getClientId(c: Context): string | null {
+  // Cloudflare sets this and overwrites any client-supplied value, so it is
+  // trustworthy whenever the app actually sits behind Cloudflare.
+  const cfIp = c.req.header("cf-connecting-ip");
+  if (cfIp) return cfIp.trim();
+
+  // Forwarded headers are spoofable unless a trusted proxy sets them, so only
+  // honor them when explicitly running behind one.
   if (process.env.TRUST_PROXY === "true") {
+    // nginx-style single value.
+    const realIp = c.req.header("x-real-ip");
+    if (realIp) return realIp.trim();
+
+    // X-Forwarded-For: "client, proxy1, proxy2" — leftmost is the originator.
     const forwarded = c.req.header("x-forwarded-for");
     if (forwarded) {
-      return forwarded.split(",")[0].trim();
+      const client = forwarded.split(",")[0]?.trim();
+      if (client) return client;
     }
   }
 
-  // Use CF-Connecting-IP if behind Cloudflare (harder to spoof)
-  const cfIp = c.req.header("cf-connecting-ip");
-  if (cfIp) {
-    return cfIp;
+  const now = Date.now();
+  if (now - lastUnresolvedWarn > 60000) {
+    lastUnresolvedWarn = now;
+    console.warn(
+      "[RateLimit] Could not resolve client IP — failing open (no rate limit applied). " +
+        "If this app is behind a reverse proxy, set TRUST_PROXY=true."
+    );
   }
-
-  // Fallback — use a hash of available request info when no trusted proxy is configured
-  return "unknown-client";
+  return null;
 }
 
 /**
@@ -41,6 +66,14 @@ function getClientId(c: Context): string {
 export function rateLimit(config: RateLimitConfig = RateLimitPresets.standard) {
   return async (c: Context, next: Next) => {
     const clientId = getClientId(c);
+
+    // Cannot identify the client → fail open. Throttling unidentified requests
+    // under a shared key would lump every such client into one bucket and let a
+    // single source (or any proxy that hides client IPs) 429 the whole site.
+    if (clientId === null) {
+      return next();
+    }
+
     const endpoint = c.req.path;
     const key = createRateLimitKey(clientId, endpoint);
 
