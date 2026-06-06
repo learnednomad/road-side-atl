@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { db } from "@/db";
 import { services } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
+import { PRICING_SCENARIOS } from "@/lib/pricing-scenarios";
 
 const serviceCategoryFilterSchema = z.object({
   category: z.enum(["roadside", "diagnostics", "mechanics"]).optional(),
@@ -48,6 +49,34 @@ app.get("/categories", async (c) => {
     .groupBy(services.category);
 
   return c.json(categories);
+});
+
+// GET /services/scenarios — 5 Atlanta scenario budgets with suggested service IDs
+// (e.g. "moderate catch-up" → battery, brake, alignment service rows)
+app.get("/scenarios", async (c) => {
+  const allSlugs = Array.from(
+    new Set(PRICING_SCENARIOS.flatMap((s) => s.serviceSlugs))
+  );
+
+  const matched = await db
+    .select({ id: services.id, slug: services.slug, name: services.name })
+    .from(services)
+    .where(and(eq(services.active, true), inArray(services.slug, allSlugs)));
+
+  const bySlug = new Map(matched.map((r) => [r.slug, r]));
+
+  return c.json(
+    PRICING_SCENARIOS.map((s) => ({
+      key: s.key,
+      label: s.label,
+      description: s.description,
+      budgetMinCents: s.budgetMinCents,
+      budgetMaxCents: s.budgetMaxCents,
+      services: s.serviceSlugs
+        .map((slug) => bySlug.get(slug))
+        .filter((r): r is { id: string; slug: string; name: string } => Boolean(r)),
+    }))
+  );
 });
 
 export default app;

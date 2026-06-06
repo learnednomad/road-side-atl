@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { BookingForm } from "@/components/booking/booking-form";
+import { ScenarioPicker } from "@/components/booking/scenario-picker";
 import { buildMetadata } from "@/lib/seo";
 import { db } from "@/db";
 import { services } from "@/db/schema";
@@ -66,6 +67,9 @@ export default async function BookPage() {
       <p className="mb-8 text-muted-foreground">
         Select your service and location below. We&apos;ll dispatch a technician to you fast.
       </p>
+      <Suspense fallback={null}>
+        <ScenarioPicker services={allServices} />
+      </Suspense>
       <Suspense fallback={<div>Loading...</div>}>
         <BookingForm services={allServices} userInfo={userInfo} />
       </Suspense>
