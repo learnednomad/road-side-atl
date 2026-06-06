@@ -139,7 +139,7 @@ export async function sendObservationFollowUpEmail(
   const resend = getResend();
   if (!resend) return;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
   const upsellHtml = upsellLinks?.length
     ? `<div style="margin: 16px 0;">
         <p><strong>Recommended services based on our findings:</strong></p>
@@ -150,14 +150,14 @@ export async function sendObservationFollowUpEmail(
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: "Vehicle Observation - Action Recommended | RoadSide ATL",
+    subject: "Vehicle Observation - Action Recommended | RoadSide GA",
     html: `
       <h2>Vehicle Observation Report</h2>
       <p>Hi ${escapeHtml(customerName)},</p>
       <p>During your recent service, our provider noticed some items that may need attention:</p>
       <p>${escapeHtml(findings)}</p>
       ${upsellHtml}
-      <p>— RoadSide ATL</p>
+      <p>— RoadSide GA</p>
       <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, <a href="${appUrl}/unsubscribe">unsubscribe here</a>.</p>
     `,
   });

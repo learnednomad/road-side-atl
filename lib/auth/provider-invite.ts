@@ -314,12 +314,12 @@ export async function sendBetaInviteEmail(
     <body>
       <div class="container">
         <div class="header">
-          <h1>RoadSide ATL</h1>
+          <h1>RoadSide GA</h1>
         </div>
         <div class="content">
-          <h2>You're Selected for the RoadSide ATL Beta Program</h2>
+          <h2>You're Selected for the RoadSide GA Beta Program</h2>
           <p>Hi ${name || "there"},</p>
-          <p>You've been selected for early access to the RoadSide ATL provider platform. Limited beta spots are available, so don't wait -- click the button below to claim yours:</p>
+          <p>You've been selected for early access to the RoadSide GA provider platform. Limited beta spots are available, so don't wait -- click the button below to claim yours:</p>
           <p style="text-align: center;">
             <a href="${inviteUrl}" class="button">Join the Beta</a>
           </p>
@@ -329,7 +329,7 @@ export async function sendBetaInviteEmail(
           <p>If you weren't expecting this invitation, you can safely ignore this email.</p>
         </div>
         <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} RoadSide ATL. All rights reserved.</p>
+          <p>&copy; ${new Date().getFullYear()} RoadSide GA. All rights reserved.</p>
         </div>
       </div>
     </body>
@@ -338,7 +338,7 @@ export async function sendBetaInviteEmail(
 
   const emailResult = await sendEmail({
     to: email,
-    subject: "You're Selected for the RoadSide ATL Beta Program",
+    subject: "You're Selected for the RoadSide GA Beta Program",
     html,
   });
 
@@ -371,12 +371,12 @@ export async function sendReferralInviteEmail(
     <body>
       <div class="container">
         <div class="header">
-          <h1>RoadSide ATL</h1>
+          <h1>RoadSide GA</h1>
         </div>
         <div class="content">
-          <h2>${referrerName} invited you to join RoadSide ATL</h2>
+          <h2>${referrerName} invited you to join RoadSide GA</h2>
           <p>Hi ${name || "there"},</p>
-          <p>${referrerName} thinks you'd be a great fit for the RoadSide ATL provider team. Join us and start earning by providing roadside assistance services in the Atlanta metro area.</p>
+          <p>${referrerName} thinks you'd be a great fit for the RoadSide GA provider team. Join us and start earning by providing roadside assistance services in the Atlanta metro area.</p>
           <p style="text-align: center;">
             <a href="${inviteUrl}" class="button">Join the Team</a>
           </p>
@@ -386,7 +386,7 @@ export async function sendReferralInviteEmail(
           <p>If you weren't expecting this invitation, you can safely ignore this email.</p>
         </div>
         <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} RoadSide ATL. All rights reserved.</p>
+          <p>&copy; ${new Date().getFullYear()} RoadSide GA. All rights reserved.</p>
         </div>
       </div>
     </body>
@@ -395,7 +395,7 @@ export async function sendReferralInviteEmail(
 
   await sendEmail({
     to: email,
-    subject: `${referrerName} invited you to join RoadSide ATL`,
+    subject: `${referrerName} invited you to join RoadSide GA`,
     html,
   });
 }

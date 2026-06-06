@@ -89,7 +89,7 @@ app.post("/", async (c) => {
       .map((i) => `${i.category}: ${i.description} (${i.severity})`)
       .join("; ");
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsideatl.com";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
     const upsellLinks = getUpsellLinks(
       parsed.data.items,
       booking.vehicleInfo,

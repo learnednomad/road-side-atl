@@ -1,9 +1,9 @@
 export const BUSINESS = {
-  name: process.env.NEXT_PUBLIC_BUSINESS_NAME || "RoadSide ATL",
+  name: process.env.NEXT_PUBLIC_BUSINESS_NAME || "RoadSide GA",
   phone: process.env.NEXT_PUBLIC_BUSINESS_PHONE || "(404) 555-0199",
-  email: "support@roadsideatl.com",
-  cashAppTag: process.env.NEXT_PUBLIC_CASHAPP_TAG || "$RoadsideATL",
-  zelleInfo: process.env.NEXT_PUBLIC_ZELLE_INFO || "pay@roadsideatl.com",
+  email: "support@roadsidega.com",
+  cashAppTag: process.env.NEXT_PUBLIC_CASHAPP_TAG || "$RoadsideGA",
+  zelleInfo: process.env.NEXT_PUBLIC_ZELLE_INFO || "pay@roadsidega.com",
   serviceArea: "Atlanta Metro Area (ITP & OTP)",
   tagline: "Atlanta's Premium Roadside Assistance",
 } as const;
