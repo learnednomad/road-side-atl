@@ -28,6 +28,18 @@ async function seed() {
   const db = drizzle(client);
 
   console.log(`\n[seed] APP_ENV=${appEnv}`);
+
+  // Safety gate: this seed DELETES ALL DATA before re-seeding. Never let it run
+  // against production unless explicitly authorized, or a stray SEED_DB=true
+  // would wipe live users/bookings/payments.
+  if (appEnv === "production" && process.env.ALLOW_PROD_SEED !== "true") {
+    console.error(
+      "[seed] Refusing to run in production without ALLOW_PROD_SEED=true. " +
+        "This seed DELETES ALL DATA (users, bookings, payments). Aborting."
+    );
+    process.exit(1);
+  }
+
   console.log(`[seed] Running base seed (services, settings, admin)...`);
 
   // Clear existing data in dependency order

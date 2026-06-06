@@ -26,6 +26,10 @@ ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=""
 # Dummy DATABASE_URL so drizzle schema import doesn't crash during build
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 ENV NEXT_TELEMETRY_DISABLED=1
+# Skip runtime env validation during build (validateEnv would otherwise exit on
+# missing/placeholder secrets that are only injected at runtime). The runner
+# stage does NOT set this, so validation still runs fail-closed at boot.
+ENV SKIP_ENV_VALIDATION=1
 
 # Build Next.js application
 RUN npm run build

@@ -140,11 +140,20 @@ function runJob(job: CronJob) {
     });
 }
 
+let started = false;
+
 export function startCronJobs() {
+  if (started) {
+    logger.info("[Cron] Already started — skipping duplicate start");
+    return;
+  }
+
   if (process.env.DISABLE_CRON === "true") {
     logger.info("[Cron] Disabled via DISABLE_CRON env var");
     return;
   }
+
+  started = true;
 
   logger.info("[Cron] Starting reconciliation scheduler", {
     jobs: jobs.map((j) => ({ name: j.name, intervalHours: j.intervalMs / HOUR })),
@@ -167,5 +176,6 @@ export function stopCronJobs() {
       job.timer = undefined;
     }
   }
+  started = false;
   logger.info("[Cron] All cron jobs stopped");
 }

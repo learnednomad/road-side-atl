@@ -15,6 +15,12 @@ sleep 3
 
 # If SEED_DB is true, drop all tables so migrations + seed start fresh
 if [ "${SEED_DB:-false}" = "true" ]; then
+  # Guard: never wipe a production database without explicit authorization.
+  if [ "${APP_ENV}" = "production" ] && [ "${ALLOW_PROD_SEED:-false}" != "true" ]; then
+    echo "ERROR: SEED_DB=true in production without ALLOW_PROD_SEED=true."
+    echo "This would DROP ALL TABLES and wipe production data. Aborting."
+    exit 1
+  fi
   echo "SEED_DB=true: Resetting database for clean seed..."
   node -e "
 const postgres = require('postgres');
@@ -39,14 +45,16 @@ if [ "${SEED_DB:-false}" = "true" ]; then
   if npx drizzle-kit push --force 2>&1; then
     echo "Schema push completed successfully!"
   else
-    echo "Warning: Schema push may have failed, but continuing..."
+    echo "ERROR: Schema push failed. Aborting startup (fail-closed)."
+    exit 1
   fi
 
   echo "Seeding database (APP_ENV=${APP_ENV})..."
   if APP_ENV="${APP_ENV}" npx tsx db/seed.ts 2>&1; then
     echo "Database seeded successfully!"
   else
-    echo "Warning: Seed may have failed, but continuing..."
+    echo "ERROR: Seed failed. Aborting startup (fail-closed)."
+    exit 1
   fi
 else
   # No seed: use migrations for safe incremental updates
@@ -54,7 +62,8 @@ else
   if npx drizzle-kit migrate 2>&1; then
     echo "Migrations completed successfully!"
   else
-    echo "Warning: Migrations may have failed, but continuing..."
+    echo "ERROR: Migrations failed. Aborting startup (fail-closed)."
+    exit 1
   fi
 fi
 

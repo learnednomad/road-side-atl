@@ -182,7 +182,15 @@ export async function seedBase(db: PostgresJsDatabase) {
 
   // ── ADMIN USERS ──────────────────────────────────────────────
   console.log("Seeding admin users...");
-  const hashedAdmin = await bcrypt.hash("admin123", 12);
+  // No hardcoded default — require an explicit ADMIN_PASSWORD so a real
+  // password is never baked into source or shipped to production.
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword || adminPassword.length < 12) {
+    throw new Error(
+      "ADMIN_PASSWORD env var is required to seed admin users (min 12 chars). Refusing to seed a default password."
+    );
+  }
+  const hashedAdmin = await bcrypt.hash(adminPassword, 12);
   const [adminSani] = await db
     .insert(users)
     .values([

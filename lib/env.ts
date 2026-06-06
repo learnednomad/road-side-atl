@@ -71,12 +71,14 @@ function validateEnv() {
     if (process.env.AUTH_GOOGLE_SECRET?.includes("your-")) placeholders.push("AUTH_GOOGLE_SECRET");
 
     if (placeholders.length > 0) {
-      console.warn("========================================");
-      console.warn("WARNING: Placeholder values detected in production:");
+      console.error("========================================");
+      console.error("FATAL: Placeholder secrets detected in production:");
       for (const key of placeholders) {
-        console.warn(`  ${key} appears to be a placeholder`);
+        console.error(`  ${key} appears to be a placeholder`);
       }
-      console.warn("========================================");
+      console.error("Set real values before deploying. Refusing to start (fail-closed).");
+      console.error("========================================");
+      process.exit(1);
     }
   }
 

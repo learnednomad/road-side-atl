@@ -29,8 +29,9 @@ export default {
         const valid = await bcrypt.compare(parsed.data.password, user.password);
         if (!valid) return null;
 
-        // Check if email is verified (skip for admin accounts)
-        if (!user.emailVerified && user.role !== "admin") {
+        // Require a verified email for all roles. Seeded admins are created
+        // with emailVerified set, so this does not lock them out.
+        if (!user.emailVerified) {
           throw new Error("EmailNotVerified");
         }
 

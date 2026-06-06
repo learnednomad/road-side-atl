@@ -18,6 +18,18 @@ On branch `fix/audit-remediation-batch1` (open as **PR #41 → `development`**):
 | **H7 (partial)** | Rate-limiter shared-bucket self-DoS — resolve real client IP (`cf-connecting-ip` → `x-real-ip`/`x-forwarded-for` under `TRUST_PROXY`), **fail open** instead of the global `"unknown-client"` bucket | `server/api/middleware/rate-limit.ts` | ✅ code |
 | **H7 (deploy)** | Wired `TRUST_PROXY` into the app container env | `docker-compose.yml` | ✅ |
 
+### Batch A — fail-closed guardrails + dead infra (Step 2), committed on this branch
+
+| Finding | What | Files |
+|---|---|---|
+| **C1** | Removed hardcoded `admin123`; seed now requires `ADMIN_PASSWORD` env (≥12 chars, no default). Removed admin email-verification bypass. Added prod-seed safety gate (`ALLOW_PROD_SEED`) in seed + entrypoint so a stray `SEED_DB=true` can't wipe prod. | `db/seed-base.ts`, `db/seed.ts`, `db/seed-demo.ts`, `lib/auth.config.ts`, `docker-entrypoint.sh` |
+| **H2/H3** | `validateEnv()` now `process.exit(1)` (was `console.warn`) on placeholder secrets in production, incl. `STRIPE_WEBHOOK_SECRET=whsec_xxx`. | `lib/env.ts` |
+| **H4** | New `instrumentation.ts` `register()` hook validates env + starts cron at boot (standalone `server.js` never ran the custom server). `startCronJobs()` made idempotent. **WS deferred** — needs the HTTP `upgrade` event the standalone server owns; requires a custom-server or separate-WS-port + Traefik routing decision. | `instrumentation.ts`, `server/cron.ts` |
+| **H5** | Failed migrations / schema-push / seed now `exit 1` (was "continuing"). Build sets `SKIP_ENV_VALIDATION=1`; runtime validates fail-closed. | `docker-entrypoint.sh`, `Dockerfile` |
+
+> ⚠️ **DEPLOY ORDER:** Batch A makes the app **fail closed**. Do **NOT** deploy it until Step 1 ops are done — specifically real secrets set (else H2/H3 crash-loops the container) and `ADMIN_PASSWORD` set if `SEED_DB=true`. H5 also surfaces the existing `ic_agreement` migration drift: reconcile drizzle history vs live schema, or the now-fatal migrate will halt boot (that's the point — fix the drift).
+> Still open in H4: WebSocket startup. Still open in H5: live migration-history reconciliation (needs DB access).
+
 **Validation:** local dockerized rebuild + per-IP correctness tests — distinct IPs get separate buckets, single IP still caps at limit, fails open with one throttled warning when unidentified, no 429 storm under load. Reusable harness left at `loadtest/part-a-correctness.sh` and `loadtest/part-b-local-ramp.js` (untracked).
 
 **Tag:** `v1.4.2-rc.1` pushed. ⚠️ The `deploy-staging` CI job is a **stub** — there is no staging environment, so this tag deployed nowhere. (`COOLIFY_STAGING_APP_UUID` is unset.)
