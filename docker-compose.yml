@@ -14,6 +14,10 @@ services:
       - "3001:3000"
     environment:
       - NODE_ENV=production
+      # Enable when running behind a reverse proxy (Coolify/Traefik, nginx, Cloudflare)
+      # so per-client rate limiting keys on the real client IP. Without it the app
+      # only sees the proxy IP and rate limiting fails open.
+      - TRUST_PROXY=${TRUST_PROXY:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-dealer}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-roadside_atl}
       - AUTH_SECRET=${AUTH_SECRET}
       - AUTH_TRUST_HOST=true
