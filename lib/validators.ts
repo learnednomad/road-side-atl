@@ -392,6 +392,18 @@ export const createFleetVehicleSchema = z.object({
 });
 export type CreateFleetVehicleInput = z.infer<typeof createFleetVehicleSchema>;
 
+export const createCommissionRuleSchema = z.object({
+  scope: z.enum(["global", "service", "provider", "account"]),
+  scopeId: z.string().optional(), // required for non-global scopes
+  commissionRateBp: z.number().int().min(0).max(10000),
+  priority: z.number().int().min(0).max(1000).optional(),
+  notes: z.string().max(500).optional(),
+}).refine((v) => v.scope === "global" || !!v.scopeId, {
+  message: "scopeId is required for non-global rules",
+  path: ["scopeId"],
+});
+export type CreateCommissionRuleInput = z.infer<typeof createCommissionRuleSchema>;
+
 export const setB2bPriceListSchema = z.object({
   entries: z.array(
     z.object({

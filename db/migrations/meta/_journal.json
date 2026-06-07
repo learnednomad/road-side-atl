@@ -36,6 +36,13 @@
       "when": 1780817891183,
       "tag": "0004_fleet_vehicles",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780818159618,
+      "tag": "0005_commission_rules",
+      "breakpoints": true
     }
   ]
 }
