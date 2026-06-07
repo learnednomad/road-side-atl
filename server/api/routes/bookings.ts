@@ -10,6 +10,7 @@ import {
   TOWING_PRICE_PER_MILE_CENTS,
 } from "@/lib/constants";
 import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
+import { getActiveMembership } from "@/server/api/lib/memberships";
 import { geocodeAddress } from "@/lib/geocoding";
 import { notifyBookingCreated, notifyStatusChange } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
@@ -79,6 +80,15 @@ app.post("/", async (c) => {
   // Get user if logged in
   const session = await auth();
   const userId = session?.user?.id || null;
+
+  // Member discount: an active membership discounts non-bundle bookings.
+  if (userId && pricingSource !== "bundle") {
+    const membership = await getActiveMembership(userId);
+    if (membership && membership.discountBp > 0) {
+      estimatedPrice = Math.round((estimatedPrice * (10000 - membership.discountBp)) / 10000);
+      pricingSource = "member";
+    }
+  }
 
   // Server-side geocoding fallback if no coordinates provided
   const locationData = { ...data.location };
