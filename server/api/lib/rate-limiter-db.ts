@@ -44,6 +44,29 @@ export async function checkRateLimitDb(
   };
 }
 
+/**
+ * Read-only check — is this key currently under its limit? Does NOT increment.
+ * Use for gating where the increment should happen separately (e.g. only on a
+ * failed login). Fails open (returns true) if the store is unavailable.
+ */
+export async function peekRateLimitDb(
+  key: string,
+  config: RateLimitConfig
+): Promise<boolean> {
+  try {
+    const row = await db.query.rateLimits.findFirst({
+      where: eq(rateLimits.key, key),
+    });
+    if (!row) return true;
+    const elapsed = Date.now() - new Date(row.windowStart).getTime();
+    if (elapsed >= config.windowMs) return true; // window expired → reset
+    return row.count < config.maxRequests;
+  } catch (err) {
+    console.error("[RateLimit] peek failed — allowing:", err);
+    return true;
+  }
+}
+
 /** Reset a counter, e.g. after a successful login. */
 export async function clearRateLimitDb(key: string): Promise<void> {
   await db.delete(rateLimits).where(eq(rateLimits.key, key));

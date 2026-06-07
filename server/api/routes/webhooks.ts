@@ -406,17 +406,23 @@ app.post("/stripe", async (c) => {
           });
 
           if (paidPayout) {
-            await db.insert(providerPayouts).values({
-              providerId: paidPayout.providerId,
-              bookingId: payment.bookingId,
-              amount: -paidPayout.amount,
-              status: "pending",
-              payoutType: "clawback",
-              originalPayoutId: paidPayout.id,
-              paymentId: payment.id,
-              notes: `Clawback: dispute lost (${dispute.id})`,
-              payoutMethod: paidPayout.payoutMethod,
-            });
+            try {
+              await db.insert(providerPayouts).values({
+                providerId: paidPayout.providerId,
+                bookingId: payment.bookingId,
+                amount: -paidPayout.amount,
+                status: "pending",
+                payoutType: "clawback",
+                originalPayoutId: paidPayout.id,
+                paymentId: payment.id,
+                notes: `Clawback: dispute lost (${dispute.id})`,
+                payoutMethod: paidPayout.payoutMethod,
+              });
+            } catch (err) {
+              // Clawback already exists for this payout (e.g. a refund event
+              // beat us to it). The unique index guarantees one — that's fine.
+              if (!isUniqueViolation(err)) throw err;
+            }
           }
 
           // Cancel any held payouts

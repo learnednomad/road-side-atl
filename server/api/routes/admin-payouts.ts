@@ -335,40 +335,55 @@ app.post("/refund", async (c) => {
             .where(eq(providerPayouts.id, existingPayout.id));
         }
       } else if (existingPayout.status === "paid") {
-        // Already paid: create clawback record
-        const clawbackAmount = refundType === "full"
-          ? existingPayout.amount
-          : Math.round(existingPayout.amount * (refundAmount / payment.amount));
-
-        [clawbackPayout] = await tx
-          .insert(providerPayouts)
-          .values({
-            providerId: existingPayout.providerId,
-            bookingId,
-            amount: -clawbackAmount, // negative amount
-            status: "pending", // pending settlement in next batch
-            payoutType: "clawback",
-            originalPayoutId: existingPayout.id,
-            paymentId: payment.id,
-            notes: `Clawback: ${refundType} refund - ${reason}`,
-          })
-          .returning();
-
-        // Audit clawback
-        logAudit({
-          action: "payout.clawback",
-          userId: user.id,
-          resourceType: "payout",
-          resourceId: clawbackPayout.id,
-          details: {
-            originalPayoutId: existingPayout.id,
-            clawbackAmount,
-            refundType,
-            bookingId,
-          },
-          ipAddress,
-          userAgent,
+        // Already paid: create clawback record — unless one already exists for
+        // this payout (e.g. a webhook refund/dispute clawed back first). The
+        // unique index would otherwise abort this transaction *after* the
+        // Stripe refund was already issued, leaving money refunded with no DB
+        // record. Pre-checking inside the tx avoids that.
+        const existingClawback = await tx.query.providerPayouts.findFirst({
+          where: and(
+            eq(providerPayouts.originalPayoutId, existingPayout.id),
+            eq(providerPayouts.payoutType, "clawback"),
+          ),
         });
+
+        if (existingClawback) {
+          clawbackPayout = existingClawback;
+        } else {
+          const clawbackAmount = refundType === "full"
+            ? existingPayout.amount
+            : Math.round(existingPayout.amount * (refundAmount / payment.amount));
+
+          [clawbackPayout] = await tx
+            .insert(providerPayouts)
+            .values({
+              providerId: existingPayout.providerId,
+              bookingId,
+              amount: -clawbackAmount, // negative amount
+              status: "pending", // pending settlement in next batch
+              payoutType: "clawback",
+              originalPayoutId: existingPayout.id,
+              paymentId: payment.id,
+              notes: `Clawback: ${refundType} refund - ${reason}`,
+            })
+            .returning();
+
+          // Audit clawback
+          logAudit({
+            action: "payout.clawback",
+            userId: user.id,
+            resourceType: "payout",
+            resourceId: clawbackPayout.id,
+            details: {
+              originalPayoutId: existingPayout.id,
+              clawbackAmount,
+              refundType,
+              bookingId,
+            },
+            ipAddress,
+            userAgent,
+          });
+        }
       }
     }
 
