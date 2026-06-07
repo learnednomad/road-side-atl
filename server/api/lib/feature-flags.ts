@@ -34,6 +34,8 @@ export const FEATURE_FLAGS = {
   SURGE_PRICING: "feature:surge_pricing",
   /** Enable the configurable pricing-rules matrix (service/global multipliers) */
   PRICING_MATRIX: "feature:pricing_matrix",
+  /** Enable interactive (mutating) Slack actions — gated, off until trusted */
+  SLACK_INTERACTIVE: "feature:slack_interactive",
   /** Enable Stripe Identity verification for providers */
   STRIPE_IDENTITY: "feature:stripe_identity",
   /** Enable instant payouts for providers */
@@ -55,6 +57,7 @@ const FLAG_DEFAULTS: Record<FeatureFlagKey, boolean> = {
   [FEATURE_FLAGS.DESTINATION_CHARGES]: true,
   [FEATURE_FLAGS.SURGE_PRICING]: false,
   [FEATURE_FLAGS.PRICING_MATRIX]: false,
+  [FEATURE_FLAGS.SLACK_INTERACTIVE]: false,
   [FEATURE_FLAGS.STRIPE_IDENTITY]: false,
   [FEATURE_FLAGS.INSTANT_PAYOUTS]: false,
   [FEATURE_FLAGS.CUSTOMER_IDENTITY_VERIFICATION]: false,
