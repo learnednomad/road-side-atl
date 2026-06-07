@@ -79,6 +79,7 @@ export const bookings = pgTable("bookings", {
   preferredPaymentMethod: text("preferredPaymentMethod"),
   providerId: text("providerId"), // FK to providers, managed at app level to avoid circular imports
   fleetVehicleId: text("fleetVehicleId"), // FK to fleet_vehicles (B2B), app-level ref
+  bundleId: text("bundleId"), // FK to service_bundles (B2C), app-level ref
   pricingSnapshot: jsonb("pricingSnapshot").$type<PricingSnapshot | null>().default(null),
   tenantId: text("tenantId"),
   offerExpiresAt: timestamp("offerExpiresAt", { mode: "date" }), // V2 dispatch: when current offer expires (null = no active offer)

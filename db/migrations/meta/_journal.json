@@ -85,6 +85,13 @@
       "when": 1780843206860,
       "tag": "0011_b2b_members",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780844857395,
+      "tag": "0012_booking_bundle_id",
+      "breakpoints": true
     }
   ]
 }
