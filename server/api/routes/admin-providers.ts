@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { providers, providerPayouts, bookings } from "@/db/schema";
 import { providerInviteTokens } from "@/db/schema/auth";
 import { users } from "@/db/schema/users";
-import { eq, desc, sql, count, and, inArray } from "drizzle-orm";
+import { onboardingSteps } from "@/db/schema/onboarding-steps";
+import { eq, desc, asc, sql, count, and, or, inArray, ilike } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { createProviderSchema, updateProviderSchema, betaInviteSchema } from "@/lib/validators";
@@ -17,7 +18,7 @@ import {
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { encrypt, decrypt } from "../lib/encryption";
 import { generateCSV } from "@/lib/csv";
-import { PROVIDER_STATUSES, IRS_1099_THRESHOLD_CENTS } from "@/lib/constants";
+import { PROVIDER_STATUSES, IRS_1099_THRESHOLD_CENTS, CHECKR_DASHBOARD_BASE_URL } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import type { ProviderStatus } from "@/lib/constants";
 
@@ -165,6 +166,128 @@ app.get("/", async (c) => {
 
   const results = await query;
   return c.json(results);
+});
+
+// Onboarding pipeline view — providers grouped by their current stage.
+// MUST be registered before "/:id" so "/pipeline" doesn't match the param route.
+// (Restored: the frontend admin pipeline view calls /api/admin/providers/pipeline;
+// this route had been lost in a prior file-deletion/restore, 404-ing in prod.)
+app.get("/pipeline", async (c) => {
+  const search = c.req.query("search");
+  const stage = c.req.query("stage");
+  const sort = c.req.query("sort");
+
+  let query = db
+    .select({
+      provider: providers,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(providers)
+    .leftJoin(users, eq(providers.userId, users.id))
+    .where(inArray(providers.status, ["applied", "onboarding", "pending_review"]))
+    .$dynamic();
+
+  if (search) {
+    // Escape SQL LIKE wildcards to prevent pattern matching abuse
+    const escaped = search.replace(/%/g, "\\%").replace(/_/g, "\\_");
+    query = query.where(
+      and(
+        inArray(providers.status, ["applied", "onboarding", "pending_review"]),
+        or(
+          ilike(users.name, `%${escaped}%`),
+          ilike(users.email, `%${escaped}%`),
+          ilike(providers.name, `%${escaped}%`),
+          ilike(providers.email, `%${escaped}%`),
+        ),
+      )
+    );
+  }
+
+  const providerRows = await query.orderBy(
+    sort === "date_asc" ? asc(providers.createdAt) : desc(providers.createdAt)
+  );
+
+  // Batch-fetch all onboarding steps in a single query (avoids N+1)
+  const providerIds = providerRows.map((r) => r.provider.id);
+  const allSteps = providerIds.length > 0
+    ? await db.query.onboardingSteps.findMany({
+        where: inArray(onboardingSteps.providerId, providerIds),
+      })
+    : [];
+  const stepsByProvider = new Map<string, typeof allSteps>();
+  for (const step of allSteps) {
+    const existing = stepsByProvider.get(step.providerId) || [];
+    existing.push(step);
+    stepsByProvider.set(step.providerId, existing);
+  }
+
+  const stages: Record<string, unknown[]> = {
+    applied: [],
+    documents_pending: [],
+    background_check: [],
+    background_check_review: [],
+    stripe_setup: [],
+    training: [],
+    ready_for_review: [],
+  };
+
+  const stepPriority = ["background_check", "insurance", "certifications", "training", "stripe_connect"];
+
+  for (const row of providerRows) {
+    const steps = stepsByProvider.get(row.provider.id) || [];
+
+    const completedCount = steps.filter((s) => s.status === "complete").length;
+    const providerWithMeta = {
+      ...row.provider,
+      userName: row.userName,
+      userEmail: row.userEmail,
+      completedSteps: completedCount,
+      totalSteps: steps.length || 5,
+    };
+
+    if (row.provider.status === "applied") {
+      stages.applied.push(providerWithMeta);
+    } else if (row.provider.status === "pending_review") {
+      stages.ready_for_review.push(providerWithMeta);
+    } else {
+      // Check if background_check step is in pending_review (needs admin adjudication)
+      const bgStep = steps.find((s) => s.stepType === "background_check");
+      if (bgStep?.status === "pending_review") {
+        const bgMetadata = (bgStep.metadata || {}) as Record<string, unknown>;
+        const checkrReportId = bgMetadata.checkrReportId as string | undefined;
+        stages.background_check_review.push({
+          ...providerWithMeta,
+          checkrReportId: checkrReportId || null,
+          checkrDashboardUrl: checkrReportId ? `${CHECKR_DASHBOARD_BASE_URL}/${checkrReportId}` : null,
+          backgroundCheckUpdatedAt: bgStep.updatedAt,
+        });
+      } else {
+        const firstIncomplete = stepPriority.find((type) =>
+          steps.find((s) => s.stepType === type && s.status !== "complete")
+        );
+
+        if (firstIncomplete === "insurance" || firstIncomplete === "certifications") {
+          stages.documents_pending.push(providerWithMeta);
+        } else if (firstIncomplete === "background_check") {
+          stages.background_check.push(providerWithMeta);
+        } else if (firstIncomplete === "stripe_connect") {
+          stages.stripe_setup.push(providerWithMeta);
+        } else if (firstIncomplete === "training") {
+          stages.training.push(providerWithMeta);
+        } else {
+          stages.ready_for_review.push(providerWithMeta);
+        }
+      }
+    }
+  }
+
+  if (stage && stages[stage]) {
+    return c.json({ stages: { [stage]: stages[stage] }, total: stages[stage].length }, 200);
+  }
+
+  const total = Object.values(stages).reduce((sum, arr) => sum + arr.length, 0);
+  return c.json({ stages, total }, 200);
 });
 
 // Get provider tax ID (decrypted)
