@@ -30,6 +30,16 @@ On branch `fix/audit-remediation-batch1` (open as **PR #41 → `development`**):
 > ⚠️ **DEPLOY ORDER:** Batch A makes the app **fail closed**. Do **NOT** deploy it until Step 1 ops are done — specifically real secrets set (else H2/H3 crash-loops the container) and `ADMIN_PASSWORD` set if `SEED_DB=true`. H5 also surfaces the existing `ic_agreement` migration drift: reconcile drizzle history vs live schema, or the now-fatal migrate will halt boot (that's the point — fix the drift).
 > Still open in H4: WebSocket startup. Still open in H5: live migration-history reconciliation (needs DB access).
 
+### Batch B — auth rate-limiting, Postgres-backed (Step 3), committed on this branch
+
+| Finding | What | Files |
+|---|---|---|
+| **H1** | Web login (`/api/auth/[...nextauth]`) had zero throttling. Added durable per-email + per-IP login throttle (10 / 15 min) in the credentials `authorize()` callback; resets on success. | `lib/auth/login-throttle.ts`, `lib/auth.config.ts` |
+| **H7 (remainder)** | New Postgres-backed limiter (`rate_limits` table) so auth limits survive restarts. New `rateLimitDb` middleware keys on IP **and** email (blocks if either exceeds). Swapped auth endpoints to `rateLimitAuthDb`; protected the previously-open `/verify-email` + `/verify-reset-token` (token enumeration). | `db/schema/rate-limits.ts`, `server/api/lib/rate-limiter-db.ts`, `server/api/middleware/rate-limit.ts`, `server/api/routes/auth.ts`, `lib/client-ip.ts` (shared IP resolver) |
+
+> **Migration note:** `rate_limits` is created by `db/migrations/0030_rate_limits.sql` (idempotent `CREATE TABLE IF NOT EXISTS`) and by `drizzle-kit push` (the mechanism prod actually uses — the migration *journal* is drifted and stops at idx 19; that's the H5 reconciliation task). The DB limiter and login throttle **fail open** if the table/store is unavailable, so a missing migration degrades to "no limiting," never a broken login.
+> Still open: provider-registration still uses the in-memory `rateLimitAuth` (not yet email-keyed); no per-email lockout *persistence* test (needs a live DB).
+
 **Validation:** local dockerized rebuild + per-IP correctness tests — distinct IPs get separate buckets, single IP still caps at limit, fails open with one throttled warning when unidentified, no 429 storm under load. Reusable harness left at `loadtest/part-a-correctness.sh` and `loadtest/part-b-local-ramp.js` (untracked).
 
 **Tag:** `v1.4.2-rc.1` pushed. ⚠️ The `deploy-staging` CI job is a **stub** — there is no staging environment, so this tag deployed nowhere. (`COOLIFY_STAGING_APP_UUID` is unset.)

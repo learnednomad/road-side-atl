@@ -8,54 +8,33 @@ import {
   createRateLimitKey,
   RateLimitConfig,
   RateLimitPresets,
+  RateLimitResult,
 } from "../lib/rate-limiter";
-
-// Warn at most once per minute when client IP cannot be resolved, so a
-// misconfigured deployment (e.g. TRUST_PROXY unset behind a reverse proxy)
-// is visible in logs without flooding them on every request.
-let lastUnresolvedWarn = 0;
+import { checkRateLimitDb } from "../lib/rate-limiter-db";
+import { resolveClientIp } from "@/lib/client-ip";
 
 /**
- * Resolve the real client IP from the request.
- *
- * Returns `null` when no client can be identified. Callers MUST treat `null`
- * as "cannot rate limit this request" and fail open — NEVER collapse it to a
- * shared constant, or every unidentified request lands in one global bucket
- * and a single busy client (or any load behind an untrusted proxy) throttles
- * the entire site.
- *
- * When deployed behind a reverse proxy (Coolify/Traefik, nginx, Cloudflare),
- * set TRUST_PROXY=true so forwarded headers are honored. Without it, the app
- * only sees the proxy's IP and cannot distinguish real clients.
+ * Resolve the real client IP from the request, or `null` when it can't be
+ * identified (callers fail open). See lib/client-ip for the resolution rules.
  */
 function getClientId(c: Context): string | null {
-  // Cloudflare sets this and overwrites any client-supplied value, so it is
-  // trustworthy whenever the app actually sits behind Cloudflare.
-  const cfIp = c.req.header("cf-connecting-ip");
-  if (cfIp) return cfIp.trim();
+  return resolveClientIp((name) => c.req.header(name));
+}
 
-  // Forwarded headers are spoofable unless a trusted proxy sets them, so only
-  // honor them when explicitly running behind one.
-  if (process.env.TRUST_PROXY === "true") {
-    // nginx-style single value.
-    const realIp = c.req.header("x-real-ip");
-    if (realIp) return realIp.trim();
-
-    // X-Forwarded-For: "client, proxy1, proxy2" — leftmost is the originator.
-    const forwarded = c.req.header("x-forwarded-for");
-    if (forwarded) {
-      const client = forwarded.split(",")[0]?.trim();
-      if (client) return client;
+/**
+ * Best-effort extraction of an `email` from a JSON request body, normalized.
+ * Hono caches the parsed body, so reading it here doesn't prevent the handler
+ * from reading it again. Returns null for non-JSON bodies or missing email.
+ */
+async function getBodyEmail(c: Context): Promise<string | null> {
+  try {
+    const body = await c.req.json();
+    const email = body?.email;
+    if (typeof email === "string" && email.includes("@")) {
+      return email.toLowerCase().trim();
     }
-  }
-
-  const now = Date.now();
-  if (now - lastUnresolvedWarn > 60000) {
-    lastUnresolvedWarn = now;
-    console.warn(
-      "[RateLimit] Could not resolve client IP — failing open (no rate limit applied). " +
-        "If this app is behind a reverse proxy, set TRUST_PROXY=true."
-    );
+  } catch {
+    // non-JSON body, empty body, or already consumed — ignore.
   }
   return null;
 }
@@ -103,6 +82,74 @@ export function rateLimit(config: RateLimitConfig = RateLimitPresets.standard) {
 }
 
 /**
+ * Durable (Postgres-backed) rate limit middleware, for auth endpoints where the
+ * counter must survive restarts and where a single account should be protected
+ * regardless of source IP.
+ *
+ * Keys on the client IP and, when `byEmail` is set, also on the request body's
+ * email — blocking if EITHER limit is exceeded. This stops a distributed-IP
+ * attack against one account (per-email) as well as one IP hammering many
+ * accounts (per-IP). Fails open if no identity can be derived.
+ */
+export function rateLimitDb(
+  config: RateLimitConfig,
+  opts: { byEmail?: boolean } = {}
+) {
+  return async (c: Context, next: Next) => {
+    const ip = getClientId(c);
+    const endpoint = c.req.path;
+
+    const keys: string[] = [];
+    if (ip) keys.push(`ip:${ip}:${endpoint}`);
+    if (opts.byEmail) {
+      const email = await getBodyEmail(c);
+      if (email) keys.push(`email:${email}:${endpoint}`);
+    }
+
+    // Nothing to key on → fail open (don't share a global bucket).
+    if (keys.length === 0) {
+      return next();
+    }
+
+    let blocked: RateLimitResult | null = null;
+    let tightest: RateLimitResult | null = null;
+    try {
+      for (const key of keys) {
+        const result = await checkRateLimitDb(key, config);
+        if (!tightest || result.remaining < tightest.remaining) tightest = result;
+        if (!result.allowed) blocked = result;
+      }
+    } catch (err) {
+      // A rate limiter must never take down the endpoint it protects. If the
+      // store is unavailable (e.g. table not yet migrated), fail open.
+      console.error("[RateLimit] DB store error — failing open:", err);
+      return next();
+    }
+
+    const ref = blocked ?? tightest!;
+    c.header("X-RateLimit-Limit", config.maxRequests.toString());
+    c.header("X-RateLimit-Remaining", ref.remaining.toString());
+    c.header(
+      "X-RateLimit-Reset",
+      Math.ceil((Date.now() + ref.resetMs) / 1000).toString()
+    );
+
+    if (blocked) {
+      c.header("Retry-After", Math.ceil(blocked.resetMs / 1000).toString());
+      return c.json(
+        {
+          error: "Too many requests",
+          retryAfter: Math.ceil(blocked.resetMs / 1000),
+        },
+        429
+      );
+    }
+
+    await next();
+  };
+}
+
+/**
  * Pre-configured rate limit middlewares
  */
 export const rateLimitStandard = rateLimit(RateLimitPresets.standard);
@@ -110,3 +157,7 @@ export const rateLimitStrict = rateLimit(RateLimitPresets.strict);
 export const rateLimitAuth = rateLimit(RateLimitPresets.auth);
 export const rateLimitNotifications = rateLimit(RateLimitPresets.notifications);
 export const rateLimitWebhooks = rateLimit(RateLimitPresets.webhooks);
+
+// Durable variants for auth endpoints. `rateLimitAuthDb` also keys on email.
+export const rateLimitAuthDb = rateLimitDb(RateLimitPresets.auth, { byEmail: true });
+export const rateLimitStrictDb = rateLimitDb(RateLimitPresets.strict);

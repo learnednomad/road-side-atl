@@ -22,4 +22,5 @@ export * from "./provider-documents";
 export * from "./surge-pricing";
 export * from "./pricing-zones";
 export * from "./service-bundles";
+export * from "./rate-limits";
 // provider-invites consolidated into providerInviteTokens in auth.ts

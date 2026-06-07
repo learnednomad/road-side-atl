@@ -7,6 +7,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { loginSchema } from "./validators";
+import { assertLoginAllowed, clearLoginThrottle } from "./auth/login-throttle";
 
 export default {
   providers: [
@@ -16,9 +17,15 @@ export default {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
+
+        // Brute-force throttle (per-email + per-IP, Postgres-backed, durable).
+        // Throws "TooManyAttempts" once the limit is exceeded.
+        const headers =
+          request instanceof Request ? request.headers : undefined;
+        await assertLoginAllowed(parsed.data.email, headers);
 
         const user = await db.query.users.findFirst({
           where: eq(users.email, parsed.data.email),
@@ -34,6 +41,9 @@ export default {
         if (!user.emailVerified) {
           throw new Error("EmailNotVerified");
         }
+
+        // Successful login — reset the email throttle so it doesn't accumulate.
+        await clearLoginThrottle(parsed.data.email);
 
         return {
           id: user.id,
