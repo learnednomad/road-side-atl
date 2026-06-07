@@ -31,6 +31,7 @@ import {
   createWebhookSubscriptionSchema,
 } from "@/lib/validators";
 import { createB2bBooking, priceServiceForAccount, CreditLimitError } from "../lib/b2b-booking";
+import { buildB2bReport } from "../lib/b2b-reports";
 
 const app = new Hono<B2bMemberEnv>();
 app.use("/*", requireB2bMember);
@@ -319,6 +320,13 @@ app.delete("/members/:id", requireB2bRole("owner"), async (c) => {
   }
   await db.delete(b2bAccountMembers).where(eq(b2bAccountMembers.id, target.id));
   return c.json({ success: true });
+});
+
+// GET /reports — spend / booking-mix / AR snapshot for this account
+app.get("/reports", async (c) => {
+  const report = await buildB2bReport(c.get("b2bAccountId"));
+  if (!report) return c.json({ error: "Account not found" }, 404);
+  return c.json(report);
 });
 
 // GET /webhooks — list this account's webhook subscriptions (secret redacted)

@@ -22,6 +22,7 @@ import {
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import { createB2bMonthlyInvoice } from "../lib/invoice-generator";
 import { createB2bBooking, priceServiceForAccount, CreditLimitError } from "../lib/b2b-booking";
+import { buildB2bReport } from "../lib/b2b-reports";
 import { b2bCreditTransactions, b2bAccountMembers, users } from "@/db/schema";
 import { recordB2bCreditPaymentSchema, addB2bMemberSchema } from "@/lib/validators";
 
@@ -431,6 +432,13 @@ app.delete("/:id/members/:mid", async (c) => {
     .returning();
   if (!deleted) return c.json({ error: "Member not found" }, 404);
   return c.json({ success: true });
+});
+
+// GET /:id/reports — spend / booking-mix / AR snapshot (admin)
+app.get("/:id/reports", async (c) => {
+  const report = await buildB2bReport(c.req.param("id"));
+  if (!report) return c.json({ error: "B2B account not found" }, 404);
+  return c.json(report);
 });
 
 // GET /:id/credit — NET balance/limit + ledger
