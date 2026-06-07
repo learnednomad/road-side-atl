@@ -464,6 +464,14 @@ export const addB2bMemberSchema = z.object({
 });
 export type AddB2bMemberInput = z.infer<typeof addB2bMemberSchema>;
 
+export const createBookingQuoteSchema = z.object({
+  lineItems: z.array(
+    z.object({ description: z.string().min(1).max(200), amountCents: z.number().int().min(0) }),
+  ).min(1, "At least one line item").max(30),
+  notes: z.string().max(1000).optional(),
+});
+export type CreateBookingQuoteInput = z.infer<typeof createBookingQuoteSchema>;
+
 export const redeemLoyaltySchema = z.object({
   bookingId: z.string().min(1),
   points: z.number().int().min(1),

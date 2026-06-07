@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, providers, payments, providerPayouts, users, dispatchLogs } from "@/db/schema";
+import { bookings, services, providers, payments, providerPayouts, users, dispatchLogs, bookingQuotes } from "@/db/schema";
 import { eq, desc, and, count, sql, inArray } from "drizzle-orm";
 import { requireProvider } from "../middleware/auth";
 import { requireIcAgreementAccepted } from "../middleware/onboarding";
 import { BOOKING_STATUSES } from "@/lib/constants";
 import type { BookingStatus } from "@/lib/constants";
-import { updateBookingStatusSchema } from "@/lib/validators";
+import { updateBookingStatusSchema, createBookingQuoteSchema } from "@/lib/validators";
 import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { dispatchBooking } from "../lib/dispatch-router";
@@ -1303,6 +1303,41 @@ app.get("/earnings/pending", async (c) => {
     .orderBy(desc(providerPayouts.createdAt));
 
   return c.json({ payouts: pendingPayouts });
+});
+
+// POST /bookings/:id/quote — provider builds an inspect→approve quote
+app.post("/bookings/:id/quote", async (c) => {
+  const user = c.get("user");
+  const provider = await db.query.providers.findFirst({ where: eq(providers.userId, user.id) });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+  const body = await c.req.json();
+  const parsed = createBookingQuoteSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, c.req.param("id")), eq(bookings.providerId, provider.id)),
+  });
+  if (!booking) return c.json({ error: "Booking not found or not assigned to you" }, 404);
+
+  const totalCents = parsed.data.lineItems.reduce((s, l) => s + l.amountCents, 0);
+  const [quote] = await db
+    .insert(bookingQuotes)
+    .values({
+      bookingId: booking.id,
+      providerId: provider.id,
+      lineItems: parsed.data.lineItems,
+      totalCents,
+      notes: parsed.data.notes,
+    })
+    .returning();
+
+  if (booking.userId) {
+    broadcastToUser(booking.userId, {
+      type: "quote:sent",
+      data: { bookingId: booking.id, quoteId: quote.id, totalCents },
+    });
+  }
+  return c.json(quote, 201);
 });
 
 export default app;

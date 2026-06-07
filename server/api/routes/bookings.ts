@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, payments, serviceBundles } from "@/db/schema";
+import { bookings, services, payments, serviceBundles, bookingQuotes } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { requireAuth } from "../middleware/auth";
@@ -331,6 +331,66 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
   }
 
   return c.json(updated);
+});
+
+// GET /:id/quote — latest quote for the user's booking
+app.get("/:id/quote", requireAuth, async (c) => {
+  const user = c.get("user");
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, c.req.param("id")), eq(bookings.userId, user.id)),
+  });
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  const quote = await db.query.bookingQuotes.findFirst({
+    where: eq(bookingQuotes.bookingId, booking.id),
+    orderBy: (q, { desc: d }) => [d(q.createdAt)],
+  });
+  if (!quote) return c.json({ error: "No quote for this booking" }, 404);
+  return c.json(quote);
+});
+
+// POST /:id/quote/approve — customer approves the pending quote → sets finalPrice
+app.post("/:id/quote/approve", requireAuth, async (c) => {
+  const user = c.get("user");
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, c.req.param("id")), eq(bookings.userId, user.id)),
+  });
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  const quote = await db.query.bookingQuotes.findFirst({
+    where: and(eq(bookingQuotes.bookingId, booking.id), eq(bookingQuotes.status, "sent")),
+    orderBy: (q, { desc: d }) => [d(q.createdAt)],
+  });
+  if (!quote) return c.json({ error: "No pending quote" }, 404);
+
+  // Claim the quote (approve only if still sent) so concurrent approves can't double-apply.
+  const [approved] = await db
+    .update(bookingQuotes)
+    .set({ status: "approved", approvedAt: new Date() })
+    .where(and(eq(bookingQuotes.id, quote.id), eq(bookingQuotes.status, "sent")))
+    .returning();
+  if (!approved) return c.json({ error: "Quote already actioned" }, 409);
+
+  const [updated] = await db
+    .update(bookings)
+    .set({ finalPrice: quote.totalCents, updatedAt: new Date() })
+    .where(eq(bookings.id, booking.id))
+    .returning();
+  return c.json({ quote: approved, booking: updated });
+});
+
+// POST /:id/quote/decline — customer declines the pending quote
+app.post("/:id/quote/decline", requireAuth, async (c) => {
+  const user = c.get("user");
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, c.req.param("id")), eq(bookings.userId, user.id)),
+  });
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  const [declined] = await db
+    .update(bookingQuotes)
+    .set({ status: "declined" })
+    .where(and(eq(bookingQuotes.bookingId, booking.id), eq(bookingQuotes.status, "sent")))
+    .returning();
+  if (!declined) return c.json({ error: "No pending quote" }, 404);
+  return c.json({ success: true });
 });
 
 export default app;

@@ -34,3 +34,4 @@ export * from "./b2b-members";
 
 export * from "./outbound-webhooks";
 export * from "./loyalty";
+export * from "./booking-quotes";
