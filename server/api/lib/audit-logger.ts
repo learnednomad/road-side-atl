@@ -19,6 +19,7 @@ export type AuditAction =
   | "payout.create"
   | "payout.mark_paid"
   | "payout.auto_migrated"
+  | "payout.stripe_connect_transfer"
   | "payout.stripe_connect_failed"
   | "payout.manual_deprecated"
   | "payout.transfer_confirmed"
