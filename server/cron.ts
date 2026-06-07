@@ -127,6 +127,14 @@ const jobs: CronJob[] = [
       return checkProviderReverification();
     },
   },
+  {
+    name: "materialize-recurring-bookings",
+    intervalMs: 1 * HOUR,
+    run: async () => {
+      const { materializeRecurringBookings } = await import("./api/lib/recurring-bookings");
+      return materializeRecurringBookings();
+    },
+  },
 ];
 
 function runJob(job: CronJob) {
