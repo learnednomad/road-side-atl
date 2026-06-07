@@ -464,6 +464,18 @@ export const addB2bMemberSchema = z.object({
 });
 export type AddB2bMemberInput = z.infer<typeof addB2bMemberSchema>;
 
+export const createPricingRuleSchema = z.object({
+  scope: z.enum(["global", "service"]),
+  scopeId: z.string().optional(),
+  multiplierBp: z.number().int().min(1).max(50000),
+  priority: z.number().int().min(0).max(1000).optional(),
+  notes: z.string().max(500).optional(),
+}).refine((v) => v.scope === "global" || !!v.scopeId, {
+  message: "scopeId (serviceId) required for service scope",
+  path: ["scopeId"],
+});
+export type CreatePricingRuleInput = z.infer<typeof createPricingRuleSchema>;
+
 export const membershipCheckoutSchema = z.object({ planId: z.string().min(1) });
 export type MembershipCheckoutInput = z.infer<typeof membershipCheckoutSchema>;
 

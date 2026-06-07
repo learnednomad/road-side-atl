@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { timeBlockConfigs, services, bookings, surgeConfigs, providers } from "@/db/schema";
-import { eq, sql, gte, and } from "drizzle-orm";
+import { timeBlockConfigs, services, bookings, surgeConfigs, providers, pricingRules } from "@/db/schema";
+import { eq, sql, gte, and, inArray } from "drizzle-orm";
 import { DEFAULT_MULTIPLIER_BP } from "@/lib/constants";
 import { isFeatureEnabled, FEATURE_FLAGS } from "./feature-flags";
 
@@ -32,10 +32,34 @@ export interface PricingResult {
  *
  * Guardrails: final price capped at 3x base price (configurable).
  */
+/**
+ * Resolve the configurable pricing-matrix multiplier (basis points): the
+ * highest-priority active rule, service-scope over global. 10000 (1.0x) when
+ * nothing matches. Only consulted when PRICING_MATRIX is on.
+ */
+async function resolvePricingMatrixBp(serviceId: string): Promise<number> {
+  const rows = await db
+    .select()
+    .from(pricingRules)
+    .where(and(eq(pricingRules.active, true), inArray(pricingRules.scope, ["service", "global"])));
+  const candidates = rows.filter((r) => r.scope === "global" || r.scopeId === serviceId);
+  if (candidates.length === 0) return 10000;
+  let best = candidates[0];
+  for (const r of candidates) {
+    const better =
+      (r.scope === "service" && best.scope !== "service") ||
+      (r.scope === best.scope && r.priority > best.priority);
+    if (better) best = r;
+  }
+  return best.multiplierBp;
+}
+
 export async function calculateBookingPrice(
   serviceId: string,
   scheduledAt?: Date | null,
+  ctx?: { location?: { latitude?: number; longitude?: number }; accountId?: string },
 ): Promise<PricingResult> {
+  void ctx; // reserved for zone/account-scoped rules (1a follow-up)
   const service = await db.query.services.findFirst({
     where: eq(services.id, serviceId),
   });
@@ -116,9 +140,29 @@ export async function calculateBookingPrice(
     }
   }
 
+  // ── Step 4: Configurable pricing-matrix multiplier (flag-gated) ──
+
+  let matrixMultiplierBp = 10000;
+  const matrixEnabled = await isFeatureEnabled(FEATURE_FLAGS.PRICING_MATRIX);
+  if (matrixEnabled) {
+    matrixMultiplierBp = await resolvePricingMatrixBp(serviceId);
+    if (matrixMultiplierBp !== 10000) {
+      const preMatrix = Math.round((afterTimeBlock * surgeMultiplierBp * scarcityMultiplierBp) / (10000 * 10000));
+      const matrixAmount = Math.round((preMatrix * matrixMultiplierBp) / 10000) - preMatrix;
+      breakdown.push({
+        label: `Pricing rule (${(matrixMultiplierBp / 100).toFixed(0)}%)`,
+        type: "matrix",
+        multiplierBp: matrixMultiplierBp,
+        amount: matrixAmount,
+      });
+    }
+  }
+
   // ── Calculate final price ─────────────────────────────────────
 
-  let finalPrice = Math.round((afterTimeBlock * surgeMultiplierBp * scarcityMultiplierBp) / (10000 * 10000));
+  let finalPrice = Math.round(
+    (afterTimeBlock * surgeMultiplierBp * scarcityMultiplierBp * matrixMultiplierBp) / (10000 * 10000 * 10000),
+  );
 
   // Guardrail: cap at 3x base price
   const MAX_PRICE_MULTIPLIER = 3;
