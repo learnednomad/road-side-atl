@@ -10,6 +10,7 @@ import { requireAuth } from "@/server/api/middleware/auth";
 import { validatePaymentMethod } from "@/server/api/middleware/trust-tier";
 import { rateLimitStrict } from "@/server/api/middleware/rate-limit";
 import { isFeatureEnabled, FEATURE_FLAGS } from "@/server/api/lib/feature-flags";
+import { computeProviderAmount } from "@/server/api/lib/payout-calculator";
 
 type AuthEnv = {
   Variables: {
@@ -125,20 +126,13 @@ app.post("/stripe/checkout", async (c) => {
   const destinationChargesEnabled = await isFeatureEnabled(FEATURE_FLAGS.DESTINATION_CHARGES);
   const useDestinationCharge = destinationChargesEnabled && !!provider?.stripeConnectAccountId;
 
-  // Calculate application fee for destination charges (platform's cut)
+  // Application fee for destination charges = price − the provider's earned share,
+  // computed by the SAME function that records the payout, so the Stripe transfer
+  // to the provider exactly equals the recorded payout (B2 — no special-rate drift).
   let applicationFeeAmount: number | undefined;
   if (useDestinationCharge && service) {
-    if (provider!.commissionType === "flat_per_job") {
-      // Platform keeps everything minus the flat fee
-      applicationFeeAmount = Math.max(0, booking.estimatedPrice - (provider!.flatFeeAmount || 0));
-    } else if (service.commissionRate > 0) {
-      // Service-level commission: commissionRate = platform's cut in basis points
-      applicationFeeAmount = Math.round(booking.estimatedPrice * service.commissionRate / 10000);
-    } else {
-      // Fallback: provider-level commission (commissionRate = provider's share in BP)
-      const providerShare = Math.round(booking.estimatedPrice * provider!.commissionRate / 10000);
-      applicationFeeAmount = Math.max(0, booking.estimatedPrice - providerShare);
-    }
+    const providerShare = computeProviderAmount(booking.estimatedPrice, provider!, service);
+    applicationFeeAmount = Math.max(0, booking.estimatedPrice - providerShare);
   }
 
   // Build line item — use linked Stripe Product if available, otherwise inline product_data
