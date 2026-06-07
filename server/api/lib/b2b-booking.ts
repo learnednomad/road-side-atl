@@ -7,7 +7,9 @@
  * validating input, loading the account/service, authz, and audit logging.
  */
 import { db } from "@/db";
-import { bookings } from "@/db/schema";
+import { bookings, b2bPriceList } from "@/db/schema";
+import type { B2bContract } from "@/db/schema/b2b-accounts";
+import { and, eq } from "drizzle-orm";
 import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS } from "@/lib/constants";
 import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { geocodeAddress } from "@/lib/geocoding";
@@ -16,12 +18,19 @@ import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "./auto-dispatch";
 import type { CreateB2bBookingInput } from "@/lib/validators";
 
-type B2bAccount = { id: string; companyName: string };
+type B2bAccount = {
+  id: string;
+  companyName: string;
+  contract?: B2bContract | null;
+  defaultDiscountBp?: number;
+};
 type Service = { id: string; name: string; slug: string };
+export type B2bPricingSource = "retail" | "discount" | "contract" | "price_list";
 
 export interface B2bBookingResult {
   booking: typeof bookings.$inferSelect;
   pricing: Awaited<ReturnType<typeof calculateBookingPrice>>;
+  pricingSource: B2bPricingSource;
   dispatchResult: Awaited<ReturnType<typeof autoDispatchBooking>> | null;
 }
 
@@ -37,7 +46,25 @@ export async function createB2bBooking(
     data.serviceId,
     data.scheduledAt ? new Date(data.scheduledAt) : null,
   );
-  let estimatedPrice = pricing.finalPrice;
+  let estimatedPrice = pricing.finalPrice; // retail base
+  let pricingSource: B2bPricingSource = "retail";
+
+  // Account pricing resolution (before towing additive):
+  //   price_list  >  contract.perJobRateCents  >  defaultDiscountBp  >  retail
+  const priceListEntry = await db.query.b2bPriceList.findFirst({
+    where: and(eq(b2bPriceList.accountId, account.id), eq(b2bPriceList.serviceId, data.serviceId)),
+  });
+  if (priceListEntry) {
+    estimatedPrice = priceListEntry.priceCents;
+    pricingSource = "price_list";
+  } else if (account.contract?.perJobRateCents != null) {
+    estimatedPrice = account.contract.perJobRateCents;
+    pricingSource = "contract";
+  } else if ((account.defaultDiscountBp ?? 0) > 0) {
+    estimatedPrice = Math.round((estimatedPrice * (10000 - (account.defaultDiscountBp ?? 0))) / 10000);
+    pricingSource = "discount";
+  }
+
   let towingMiles: number | undefined;
 
   // Towing per-mile is ADDITIVE (not multiplied by time-block).
@@ -108,5 +135,5 @@ export async function createB2bBooking(
     dispatchResult = await autoDispatchBooking(booking.id).catch(() => null);
   }
 
-  return { booking, pricing, dispatchResult };
+  return { booking, pricing, pricingSource, dispatchResult };
 }

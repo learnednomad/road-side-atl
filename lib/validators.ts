@@ -379,6 +379,16 @@ export const createB2bBookingSchema = z.object({
 });
 export type CreateB2bBookingInput = z.infer<typeof createB2bBookingSchema>;
 
+export const setB2bPriceListSchema = z.object({
+  entries: z.array(
+    z.object({
+      serviceId: z.string().min(1),
+      priceCents: z.number().int().min(0),
+    }),
+  ).max(200),
+});
+export type SetB2bPriceListInput = z.infer<typeof setB2bPriceListSchema>;
+
 export const generateB2bInvoiceSchema = z
   .object({
     billingPeriodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be a valid date (YYYY-MM-DD)"),
