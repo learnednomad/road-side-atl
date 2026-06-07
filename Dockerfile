@@ -42,8 +42,11 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Install production dependencies only
-RUN apk add --no-cache libc6-compat curl
+# Install production dependencies only (tzdata so TZ resolves America/New_York)
+RUN apk add --no-cache libc6-compat curl tzdata
+
+# Business operates in Atlanta — compute local hours/days in ET, not UTC (M10).
+ENV TZ=America/New_York
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \

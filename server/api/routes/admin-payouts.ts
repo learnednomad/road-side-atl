@@ -281,6 +281,13 @@ app.post("/refund", async (c) => {
         await getStripe().refunds.create({
           payment_intent: payment.stripePaymentIntentId,
           amount: refundAmount,
+          // M8: for destination charges the funds were already transferred to the
+          // provider's Connect account, so reverse a proportional part of the
+          // transfer and refund the application fee — otherwise the platform
+          // absorbs the provider's share of the refund.
+          ...(payment.chargeType === "destination"
+            ? { reverse_transfer: true, refund_application_fee: true }
+            : {}),
         });
       } catch (err) {
         console.error("[Refund] Stripe refund API failed:", err);

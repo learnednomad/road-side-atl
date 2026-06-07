@@ -52,6 +52,22 @@ On branch `fix/audit-remediation-batch1` (open as **PR #41 → `development`**):
 
 > Pure code, no schema/deploy-order implications. Still open: `escapeLike` should also be applied to the other ~5 search endpoints the audit lists (only the two PII-bearing ones done here); audit remaining `.select({ x: <table> })` patterns for other over-fetches.
 
+### Batch D — money-path integrity / DB invariants (Step 5), committed on this branch
+
+| Finding | What | Files |
+|---|---|---|
+| **M6** | Persistent `webhook_events` table replaces the in-memory dedup Sets. Partial unique indexes enforce: one payment per Stripe session, one standard payout per booking, one clawback per original payout. `createPayoutIfEligible` tolerates the race (returns the winning row, no double Stripe transfer). | `db/schema/webhook-events.ts`, `db/schema/payments.ts`, `db/schema/provider-payouts.ts`, `server/api/routes/webhooks.ts`, `server/api/lib/payout-calculator.ts` |
+| **M7** | `charge.refunded` now creates a payout clawback on full out-of-band refunds (mirrors dispute-lost); the clawback unique index prevents duplicates when refund + dispute.lost both fire. | `server/api/routes/webhooks.ts` |
+| **M8** | Destination-charge refunds set `reverse_transfer` + `refund_application_fee` so the provider's share is clawed back, not absorbed by the platform. | `server/api/routes/admin-payouts.ts` |
+| **M9** | Dropped the `Math.max` payout floor — service-level commission is authoritative; the provider rate overrides only when deliberately set ≠ default (7000). No effect on current data (services ≤30% cut), prevents future overpay. | `server/api/lib/payout-calculator.ts` |
+| **M10** | Container `TZ=America/New_York` (+ tzdata) so pricing time-blocks / earnings windows compute in ET. | `Dockerfile`, `docker-compose.yml` |
+| **L1** | Admin confirm-payment is idempotent — returns 409 if a confirmed payment already exists (no duplicate payment / double trust-tier bump). | `server/api/routes/admin.ts` |
+| **L2** | Refund webhook distinguishes `partially_refunded` from `refunded` and always records the cumulative `refundAmount`. | `db/schema/payments.ts` (enum), `server/api/routes/webhooks.ts` |
+
+> **Migration:** `db/migrations/0031_money_invariants.sql` (idempotent). Like `0028`, it uses `ALTER TYPE … ADD VALUE` for the enum, applied via `drizzle-kit push` (the journal is still drifted — H5).
+> **Verify before trusting in prod:** replay a duplicate Stripe event → single payout; a full `charge.refunded` → exactly one clawback; an off-hours surcharge fires at the correct ET boundary (M10 shifts ALL local-time behavior — sanity-check other date logic).
+> **Deferred:** **L7** (TOCTOU booking transitions — latent, offer-mode off, spread across 3 files); partial-refund *payout* clawback (only full refunds claw back here; admin refund path handles proportional); the duplicated M9 estimate math in `auto-dispatch*.ts`/`admin.ts` (those are display estimates, not the authoritative payout).
+
 **Validation:** local dockerized rebuild + per-IP correctness tests — distinct IPs get separate buckets, single IP still caps at limit, fails open with one throttled warning when unidentified, no 429 storm under load. Reusable harness left at `loadtest/part-a-correctness.sh` and `loadtest/part-b-local-ramp.js` (untracked).
 
 **Tag:** `v1.4.2-rc.1` pushed. ⚠️ The `deploy-staging` CI job is a **stub** — there is no staging environment, so this tag deployed nowhere. (`COOLIFY_STAGING_APP_UUID` is unset.)

@@ -589,6 +589,15 @@ app.post("/bookings/:id/confirm-payment", async (c) => {
 
   const amount = parsed.data.amount || booking.estimatedPrice;
 
+  // Idempotency (L1): if a confirmed payment already exists, don't insert a
+  // duplicate (which would also double-increment the customer's trust tier).
+  const alreadyConfirmed = await db.query.payments.findFirst({
+    where: and(eq(payments.bookingId, bookingId), eq(payments.status, "confirmed")),
+  });
+  if (alreadyConfirmed) {
+    return c.json({ error: "Payment already confirmed for this booking", payment: alreadyConfirmed }, 409);
+  }
+
   const [payment] = await db
     .insert(payments)
     .values({

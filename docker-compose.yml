@@ -14,6 +14,8 @@ services:
       - "3001:3000"
     environment:
       - NODE_ENV=production
+      # Business operates in Atlanta — local hour/day math runs in ET, not UTC (M10).
+      - TZ=${TZ:-America/New_York}
       # Enable when running behind a reverse proxy (Coolify/Traefik, nginx, Cloudflare)
       # so per-client rate limiting keys on the real client IP. Without it the app
       # only sees the proxy IP and rate limiting fails open.
