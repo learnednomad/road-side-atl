@@ -68,6 +68,19 @@ On branch `fix/audit-remediation-batch1` (open as **PR #41 → `development`**):
 > **Verify before trusting in prod:** replay a duplicate Stripe event → single payout; a full `charge.refunded` → exactly one clawback; an off-hours surcharge fires at the correct ET boundary (M10 shifts ALL local-time behavior — sanity-check other date logic).
 > **Deferred:** **L7** (TOCTOU booking transitions — latent, offer-mode off, spread across 3 files); partial-refund *payout* clawback (only full refunds claw back here; admin refund path handles proportional); the duplicated M9 estimate math in `auto-dispatch*.ts`/`admin.ts` (those are display estimates, not the authoritative payout).
 
+### Batch E — dependencies & hygiene (Step 6), committed on this branch
+
+| Finding | What | Files |
+|---|---|---|
+| **M13** | `npm audit fix` (non-breaking) + bumped `next` 16.1.6 → 16.2.7. Resolved **all high-severity** advisories (Next.js request smuggling / Server Actions CSRF bypass / DoS) — prod audit down from 22 vulns (6 high) to 7 (0 high; remaining are moderate/low). | `package.json`, `package-lock.json` |
+| **L3** | Geocoding proxy is `rateLimitStrict` (kept unauthenticated so guest booking still geocodes) — stops anonymous loops running up the Google Maps bill. | `server/api/routes/geocoding.ts` |
+| **L6** | `/documents` now verifies the **actual** S3 object size (HEAD) instead of the client-reported `fileSize`, rejecting + deleting oversized uploads. (MIME was already enforced via zod enum + pinned PUT ContentType.) | `lib/s3.ts` (`getObjectSize`/`deleteFile`), `server/api/routes/onboarding.ts` |
+| **L8** | `docker-compose.yml`: Postgres no longer published to the host (`expose` only); app bound to `127.0.0.1`. | `docker-compose.yml` |
+
+> **Verify in CI/Docker:** the dependency bump can't be build-verified here (host is Node 18; Next needs ≥20). `tsc` + `eslint` pass; **run `npm run build` + e2e in CI (Node 20) before merging.**
+> **Remaining audit items (no clean fix):** `nodemailer` SMTP-injection moderates (transitive via `@auth/core`, **no upstream fix** yet) and a `postcss` build-time XSS moderate (bundled inside `next`). Both moderate, low real-world exposure; revisit when upstream patches land.
+> **L9 (ops, not code):** move live Twilio creds + `AUTH_SECRET` out of plain container env into Coolify secrets/vault and rotate if access is broad — a manual Coolify action.
+
 **Validation:** local dockerized rebuild + per-IP correctness tests — distinct IPs get separate buckets, single IP still caps at limit, fails open with one throttled warning when unidentified, no 429 storm under load. Reusable harness left at `loadtest/part-a-correctness.sh` and `loadtest/part-b-local-ramp.js` (untracked).
 
 **Tag:** `v1.4.2-rc.1` pushed. ⚠️ The `deploy-staging` CI job is a **stub** — there is no staging environment, so this tag deployed nowhere. (`COOLIFY_STAGING_APP_UUID` is unset.)

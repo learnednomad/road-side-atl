@@ -1,4 +1,10 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -84,6 +90,29 @@ export async function getPresignedUploadUrl(
     ContentType: contentType,
   });
   return getSignedUrl(getS3Client(), command, { expiresIn });
+}
+
+/**
+ * Return the actual byte size of an uploaded S3 object, or null if it doesn't
+ * exist. Used to verify a direct-to-S3 upload server-side instead of trusting
+ * the client-reported size.
+ */
+export async function getObjectSize(key: string): Promise<number | null> {
+  try {
+    const res = await getS3Client().send(
+      new HeadObjectCommand({ Bucket: getBucket(), Key: key })
+    );
+    return res.ContentLength ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort delete of an S3 object (e.g. an oversized/invalid upload). */
+export async function deleteFile(key: string): Promise<void> {
+  await getS3Client().send(
+    new DeleteObjectCommand({ Bucket: getBucket(), Key: key })
+  );
 }
 
 /** Validate file content type matches actual content (magic bytes) */
