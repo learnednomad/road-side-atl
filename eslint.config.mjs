@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "loadtest/**",
     // CommonJS runtime helper invoked by the Docker entrypoint (not app code).
     "db/baseline-adopt.cjs",
+    // CommonJS operator script (run manually against prod before the cutover).
+    "scripts/preflight-cutover.cjs",
   ]),
 ]);
 
