@@ -24,4 +24,5 @@ export * from "./pricing-zones";
 export * from "./service-bundles";
 export * from "./rate-limits";
 export * from "./webhook-events";
+export * from "./fleet-vehicles";
 // provider-invites consolidated into providerInviteTokens in auth.ts

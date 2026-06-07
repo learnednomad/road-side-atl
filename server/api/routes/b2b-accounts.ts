@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { b2bAccounts, b2bPriceList, bookings, services, invoices } from "@/db/schema";
+import { b2bAccounts, b2bPriceList, fleetVehicles, bookings, services, invoices } from "@/db/schema";
 import { eq, desc, and, ilike, count, inArray } from "drizzle-orm";
 import { requireAdmin } from "@/server/api/middleware/auth";
 import { rateLimitStandard } from "@/server/api/middleware/rate-limit";
@@ -12,6 +12,7 @@ import {
   createB2bBookingSchema,
   generateB2bInvoiceSchema,
   setB2bPriceListSchema,
+  createFleetVehicleSchema,
 } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import { createB2bMonthlyInvoice } from "../lib/invoice-generator";
@@ -363,6 +364,47 @@ app.post("/:id/bookings", async (c) => {
     },
     dispatchResult,
   }, 201);
+});
+
+// GET /:id/vehicles — fleet vehicles for an account
+app.get("/:id/vehicles", async (c) => {
+  const accountId = c.req.param("id");
+  const rows = await db
+    .select()
+    .from(fleetVehicles)
+    .where(eq(fleetVehicles.accountId, accountId))
+    .orderBy(desc(fleetVehicles.createdAt));
+  return c.json({ data: rows });
+});
+
+// POST /:id/vehicles — add a fleet vehicle
+app.post("/:id/vehicles", async (c) => {
+  const accountId = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = createFleetVehicleSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+  const account = await db.query.b2bAccounts.findFirst({ where: eq(b2bAccounts.id, accountId) });
+  if (!account) return c.json({ error: "B2B account not found" }, 404);
+
+  const [vehicle] = await db
+    .insert(fleetVehicles)
+    .values({ accountId, ...parsed.data })
+    .returning();
+  return c.json(vehicle, 201);
+});
+
+// DELETE /:id/vehicles/:vehicleId — remove a fleet vehicle (account-scoped)
+app.delete("/:id/vehicles/:vehicleId", async (c) => {
+  const accountId = c.req.param("id");
+  const vehicleId = c.req.param("vehicleId");
+  const [deleted] = await db
+    .delete(fleetVehicles)
+    .where(and(eq(fleetVehicles.id, vehicleId), eq(fleetVehicles.accountId, accountId)))
+    .returning();
+  if (!deleted) return c.json({ error: "Vehicle not found" }, 404);
+  return c.json({ success: true });
 });
 
 // GET /:id/price-list — negotiated per-service prices for an account

@@ -376,8 +376,21 @@ export const createB2bBookingSchema = z.object({
   contactEmail: z.email("Valid email is required"),
   scheduledAt: z.string().datetime().optional(),
   notes: z.string().optional(),
+  fleetVehicleId: z.string().optional(), // B2B: book against a saved fleet vehicle
 });
 export type CreateB2bBookingInput = z.infer<typeof createB2bBookingSchema>;
+
+export const createFleetVehicleSchema = z.object({
+  label: z.string().max(100).optional(),
+  year: z.number().int().min(1900).max(2100).optional(),
+  make: z.string().min(1, "Make is required"),
+  model: z.string().min(1, "Model is required"),
+  color: z.string().max(40).optional(),
+  vin: z.string().max(40).optional(),
+  licensePlate: z.string().max(20).optional(),
+  notes: z.string().max(500).optional(),
+});
+export type CreateFleetVehicleInput = z.infer<typeof createFleetVehicleSchema>;
 
 export const setB2bPriceListSchema = z.object({
   entries: z.array(
