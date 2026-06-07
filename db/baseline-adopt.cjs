@@ -41,14 +41,20 @@ const sql = postgres(process.env.DATABASE_URL, { max: 1, onnotice: () => {} });
     return;
   }
 
-  const hash = crypto
-    .createHash("sha256")
-    .update(fs.readFileSync("db/migrations/0000_baseline.sql"))
-    .digest("hex");
-  const when = JSON.parse(fs.readFileSync("db/migrations/meta/_journal.json", "utf8")).entries[0].when;
-
-  await sql`insert into drizzle."__drizzle_migrations" (hash, created_at) values (${hash}, ${when})`;
-  console.log("[baseline-adopt] existing schema adopted — baseline marked as applied");
+  // Mark EVERY current migration as applied — the preceding `push` synced the DB
+  // to the full current schema (all migrations to date), so a later `migrate`
+  // must not replay any of them (e.g. 0001's ADD COLUMN would fail "already
+  // exists" and crash the container). Record each entry's sha256 + journal
+  // timestamp, in order. Future migrations apply normally via migrate.
+  const journal = JSON.parse(fs.readFileSync("db/migrations/meta/_journal.json", "utf8"));
+  for (const entry of journal.entries) {
+    const hash = crypto
+      .createHash("sha256")
+      .update(fs.readFileSync(`db/migrations/${entry.tag}.sql`))
+      .digest("hex");
+    await sql`insert into drizzle."__drizzle_migrations" (hash, created_at) values (${hash}, ${entry.when})`;
+  }
+  console.log(`[baseline-adopt] existing schema adopted — ${journal.entries.length} migration(s) marked as applied`);
 })()
   .then(() => sql.end())
   .catch((err) => {

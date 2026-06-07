@@ -255,6 +255,20 @@ app.post("/stripe", async (c) => {
               if (!isUniqueViolation(err)) throw err;
             }
           }
+
+          // B3: also cancel any not-yet-paid (pending) standard payout so the
+          // provider isn't paid out for a fully-refunded booking. (The paid
+          // case above is handled via clawback.) Mirrors the admin refund path.
+          await db
+            .update(providerPayouts)
+            .set({ status: "held", amount: 0, holdReason: `Full refund (${charge.id})` })
+            .where(
+              and(
+                eq(providerPayouts.bookingId, payment.bookingId),
+                eq(providerPayouts.status, "pending"),
+                sql`${providerPayouts.payoutType} = 'standard'`,
+              ),
+            );
         }
       }
       break;
