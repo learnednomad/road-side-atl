@@ -14,9 +14,19 @@ type Frequency = "daily" | "weekly" | "monthly";
 
 export function advanceDate(from: Date, frequency: Frequency, intervalCount: number): Date {
   const d = new Date(from);
-  if (frequency === "daily") d.setDate(d.getDate() + intervalCount);
-  else if (frequency === "weekly") d.setDate(d.getDate() + 7 * intervalCount);
-  else d.setMonth(d.getMonth() + intervalCount); // monthly
+  if (frequency === "daily") {
+    d.setDate(d.getDate() + intervalCount);
+  } else if (frequency === "weekly") {
+    d.setDate(d.getDate() + 7 * intervalCount);
+  } else {
+    // Monthly: clamp to the target month's last day so Jan 31 → Feb 28, not an
+    // overflow into March (JS setMonth rolls over otherwise).
+    const day = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + intervalCount);
+    const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(day, daysInMonth));
+  }
   return d;
 }
 
