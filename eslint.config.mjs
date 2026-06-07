@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Standalone load-test harness scripts (CommonJS Node scripts, run manually).
     "loadtest/**",
+    // CommonJS runtime helper invoked by the Docker entrypoint (not app code).
+    "db/baseline-adopt.cjs",
   ]),
 ]);
 
