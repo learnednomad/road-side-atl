@@ -6,6 +6,36 @@ import { eq, and, sql } from "drizzle-orm";
 // A provider whose rate differs from this has a deliberate special arrangement.
 const DEFAULT_PROVIDER_COMMISSION_RATE = 7000;
 
+/**
+ * The provider's earned share of a booking, in cents. SINGLE SOURCE OF TRUTH for
+ * provider economics — used both to RECORD the payout and to compute the
+ * destination-charge application fee at checkout (fee = price - this), so the
+ * Stripe transfer to the provider always equals the recorded payout (B2).
+ *
+ * Priority: flat_per_job → service-level commission (platform's cut) →
+ * provider-level rate. A provider rate that differs from the system default is
+ * treated as an explicit special arrangement and overrides the service cut.
+ */
+export function computeProviderAmount(
+  effectivePrice: number,
+  provider: { commissionType: string; commissionRate: number; flatFeeAmount: number | null },
+  service: { commissionRate: number } | null | undefined,
+): number {
+  let amount: number;
+  if (provider.commissionType === "flat_per_job") {
+    amount = provider.flatFeeAmount || 0;
+  } else if (service && service.commissionRate > 0) {
+    const serviceProviderAmount = effectivePrice - Math.round((effectivePrice * service.commissionRate) / 10000);
+    amount =
+      provider.commissionRate !== DEFAULT_PROVIDER_COMMISSION_RATE
+        ? Math.round((effectivePrice * provider.commissionRate) / 10000)
+        : serviceProviderAmount;
+  } else {
+    amount = Math.round((effectivePrice * provider.commissionRate) / 10000);
+  }
+  return Math.max(0, amount);
+}
+
 /** True for a Postgres unique-constraint violation (SQLSTATE 23505). */
 function isUniqueViolation(err: unknown): boolean {
   return (
@@ -111,34 +141,8 @@ export async function createPayoutIfEligible(bookingId: string) {
   // Determine effective booking price (override takes precedence)
   const effectivePrice = booking.priceOverrideCents ?? confirmedPayment.amount;
 
-  // Calculate provider payout using priority chain:
-  // 1. Provider flat_per_job (special arrangement)
-  // 2. Service-level commission rate (standard)
-  // 3. Provider-level commission rate (fallback)
-  let providerAmount: number;
-
-  if (provider.commissionType === "flat_per_job") {
-    // Special provider arrangement: flat fee per job
-    providerAmount = provider.flatFeeAmount || 0;
-  } else if (service && service.commissionRate > 0) {
-    // Service-level commission (platform's cut, basis points) is authoritative.
-    const serviceProviderAmount = effectivePrice - Math.round(effectivePrice * service.commissionRate / 10000);
-    if (provider.commissionRate !== DEFAULT_PROVIDER_COMMISSION_RATE) {
-      // Explicit special arrangement (e.g. beta provider at 8000 = 80% share)
-      // overrides the service cut. Previously a Math.max made the provider's
-      // default rate a payout *floor*, silently overpaying when a service's
-      // platform cut exceeded 30% (M9).
-      providerAmount = Math.round((effectivePrice * provider.commissionRate) / 10000);
-    } else {
-      providerAmount = serviceProviderAmount;
-    }
-  } else {
-    // Fallback: provider-level commission (commissionRate = provider's share in basis points)
-    providerAmount = Math.round((effectivePrice * provider.commissionRate) / 10000);
-  }
-
-  // Ensure provider amount is non-negative
-  providerAmount = Math.max(0, providerAmount);
+  // Provider's earned share (shared with the checkout application-fee math).
+  const providerAmount = computeProviderAmount(effectivePrice, provider, service);
 
   // Determine if this was a destination charge (split already done at charge time)
   // We check the payment's Stripe session metadata for chargeType
