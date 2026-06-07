@@ -13,16 +13,8 @@ import {
   generateB2bInvoiceSchema,
 } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
-import {
-  TOWING_BASE_MILES,
-  TOWING_PRICE_PER_MILE_CENTS,
-} from "@/lib/constants";
-import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
-import { geocodeAddress } from "@/lib/geocoding";
-import { notifyB2bServiceDispatched } from "@/lib/notifications";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
-import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { createB2bMonthlyInvoice } from "../lib/invoice-generator";
+import { createB2bBooking } from "../lib/b2b-booking";
 
 type AuthEnv = {
   Variables: {
@@ -330,56 +322,9 @@ app.post("/:id/bookings", async (c) => {
     return c.json({ error: "Service not found" }, 404);
   }
 
-  // Calculate price via centralized pricing engine
-  const pricing = await calculateBookingPrice(
-    data.serviceId,
-    data.scheduledAt ? new Date(data.scheduledAt) : null,
-  );
-  let estimatedPrice = pricing.finalPrice;
-  let towingMiles: number | undefined;
-
-  // Towing per-mile is ADDITIVE (not multiplied by time-block)
-  if (service.slug === "towing" && data.location.estimatedMiles) {
-    towingMiles = data.location.estimatedMiles;
-    const extraMiles = Math.max(0, towingMiles - TOWING_BASE_MILES);
-    estimatedPrice += extraMiles * TOWING_PRICE_PER_MILE_CENTS;
-  }
-
-  // Server-side geocoding fallback
-  const locationData = { ...data.location };
-  if (!locationData.latitude || !locationData.longitude) {
-    const geocoded = await geocodeAddress(locationData.address).catch(() => null);
-    if (geocoded) {
-      locationData.latitude = geocoded.latitude;
-      locationData.longitude = geocoded.longitude;
-      locationData.placeId = geocoded.placeId;
-    }
-  }
-  if (locationData.destination && !locationData.destinationLatitude) {
-    const geocoded = await geocodeAddress(locationData.destination).catch(() => null);
-    if (geocoded) {
-      locationData.destinationLatitude = geocoded.latitude;
-      locationData.destinationLongitude = geocoded.longitude;
-    }
-  }
-
-  // Create booking with tenantId = B2B account ID
-  const [booking] = await db
-    .insert(bookings)
-    .values({
-      serviceId: data.serviceId,
-      vehicleInfo: data.vehicleInfo,
-      location: locationData,
-      contactName: data.contactName,
-      contactPhone: data.contactPhone,
-      contactEmail: data.contactEmail,
-      scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
-      estimatedPrice,
-      towingMiles,
-      notes: data.notes,
-      tenantId: accountId,
-    })
-    .returning();
+  // Create the booking through the shared B2B path (price + geocode + insert +
+  // notify + dispatch). Reused by bulk/recurring/estimate-convert.
+  const { booking, pricing, dispatchResult } = await createB2bBooking(account, service, data);
 
   const user = c.get("user");
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
@@ -394,35 +339,11 @@ app.post("/:id/bookings", async (c) => {
       companyName: account.companyName,
       serviceName: service.name,
       contactEmail: data.contactEmail,
-      estimatedPrice,
+      estimatedPrice: booking.estimatedPrice,
     },
     ipAddress,
     userAgent,
   });
-
-  // Fire-and-forget B2B-specific notification + broadcast
-  notifyB2bServiceDispatched(
-    { name: data.contactName, email: data.contactEmail, phone: data.contactPhone },
-    account.companyName,
-    service.name,
-    data.location.address,
-  ).catch((err) => { console.error("[Notifications] Failed:", err); });
-  broadcastToAdmins({
-    type: "booking:created",
-    data: {
-      bookingId: booking.id,
-      contactName: booking.contactName,
-      status: booking.status,
-      serviceName: service.name,
-      b2bAccountId: accountId,
-    },
-  });
-
-  // Auto-dispatch for immediate bookings
-  let dispatchResult = null;
-  if (!booking.scheduledAt && process.env.AUTO_DISPATCH_ENABLED === "true") {
-    dispatchResult = await autoDispatchBooking(booking.id).catch(() => null);
-  }
 
   return c.json({
     ...booking,
