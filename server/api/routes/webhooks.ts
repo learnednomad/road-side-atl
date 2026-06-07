@@ -14,6 +14,7 @@ import { isValidStepTransition } from "../lib/onboarding-state-machine";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { notifyBackgroundCheckResult, notifyStripeConnectCompleted } from "@/lib/notifications";
 import { checkAllStepsCompleteAndTransition, onStripeConnectStepComplete } from "../lib/all-steps-complete";
+import { stripeExtensionHandlers } from "../lib/webhook-handlers/stripe-extensions";
 
 const app = new Hono();
 
@@ -39,11 +40,16 @@ function isUniqueViolation(err: unknown): boolean {
  * error so a transient DB hiccup never drops a webhook — duplicate side effects
  * are caught by the unique constraints.
  */
-async function markEventProcessed(eventId: string, source: "stripe" | "checkr" = "stripe") {
+async function markEventProcessed(
+  eventId: string,
+  source: "stripe" | "checkr" = "stripe",
+  eventType?: string,
+  status: "processed" | "skipped" | "failed" = "processed",
+) {
   try {
     await db
       .insert(webhookEvents)
-      .values({ id: eventId, source })
+      .values({ id: eventId, source, eventType, status })
       .onConflictDoNothing();
   } catch (err) {
     console.error("[Webhook] failed to record processed event:", err);
@@ -129,6 +135,7 @@ app.post("/stripe", async (c) => {
     return c.json({ received: true, deduplicated: true });
   }
 
+  let unhandled = false;
   switch (event.type) {
     // ── Payment Confirmed ──────────────────────────────────────
     case "checkout.session.completed": {
@@ -755,13 +762,22 @@ app.post("/stripe", async (c) => {
       break;
     }
 
-    // ── Catch-all for unhandled events ───────────────────────────
-    default:
-      // Log unhandled events at debug level — don't fail
+    // ── Extension registry / catch-all ──────────────────────────
+    default: {
+      // Events not in the core switch dispatch to the extension registry
+      // (Phase 4c invoice.paid, Phase 5b subscriptions). Truly-unknown events
+      // are recorded as "skipped" rather than silently dropped.
+      const handler = stripeExtensionHandlers[event.type];
+      if (handler) {
+        await handler(event);
+      } else {
+        unhandled = true;
+      }
       break;
+    }
   }
 
-  await markEventProcessed(event.id, "stripe");
+  await markEventProcessed(event.id, "stripe", event.type, unhandled ? "skipped" : "processed");
   return c.json({ received: true });
 });
 

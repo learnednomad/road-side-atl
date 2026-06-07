@@ -10,6 +10,8 @@ export const webhookEvents = pgTable(
   {
     id: text("id").notNull(), // provider event id (Stripe evt_..., Checkr uuid)
     source: text("source").notNull(), // "stripe" | "checkr"
+    eventType: text("eventType"), // e.g. checkout.session.completed (observability)
+    status: text("status").notNull().default("processed"), // processed | skipped | failed
     processedAt: timestamp("processedAt", { mode: "date" }).defaultNow().notNull(),
   },
   (t) => ({
