@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { b2bAccounts, bookings, services, invoices } from "@/db/schema";
+import { b2bAccounts, b2bPriceList, bookings, services, invoices } from "@/db/schema";
 import { eq, desc, and, ilike, count, inArray } from "drizzle-orm";
 import { requireAdmin } from "@/server/api/middleware/auth";
 import { rateLimitStandard } from "@/server/api/middleware/rate-limit";
@@ -11,6 +11,7 @@ import {
   updateB2bAccountStatusSchema,
   createB2bBookingSchema,
   generateB2bInvoiceSchema,
+  setB2bPriceListSchema,
 } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import { createB2bMonthlyInvoice } from "../lib/invoice-generator";
@@ -87,6 +88,13 @@ app.post("/", async (c) => {
     return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
   }
 
+  // Human-friendly sequential account number (B2B-00001). The partial unique
+  // index backstops the rare concurrent-collision.
+  const [{ value: existingCount }] = await db
+    .select({ value: count() })
+    .from(b2bAccounts);
+  const accountNumber = `B2B-${String(existingCount + 1).padStart(5, "0")}`;
+
   const [account] = await db
     .insert(b2bAccounts)
     .values({
@@ -96,6 +104,7 @@ app.post("/", async (c) => {
       contactPhone: parsed.data.contactPhone,
       billingAddress: parsed.data.billingAddress,
       paymentTerms: parsed.data.paymentTerms || "net_30",
+      accountNumber,
       notes: parsed.data.notes || null,
     })
     .returning();
@@ -354,6 +363,67 @@ app.post("/:id/bookings", async (c) => {
     },
     dispatchResult,
   }, 201);
+});
+
+// GET /:id/price-list — negotiated per-service prices for an account
+app.get("/:id/price-list", async (c) => {
+  const accountId = c.req.param("id");
+  const rows = await db
+    .select({
+      id: b2bPriceList.id,
+      serviceId: b2bPriceList.serviceId,
+      serviceName: services.name,
+      priceCents: b2bPriceList.priceCents,
+    })
+    .from(b2bPriceList)
+    .leftJoin(services, eq(b2bPriceList.serviceId, services.id))
+    .where(eq(b2bPriceList.accountId, accountId));
+  return c.json({ data: rows });
+});
+
+// PUT /:id/price-list — replace an account's negotiated price list (full set)
+app.put("/:id/price-list", async (c) => {
+  const accountId = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = setB2bPriceListSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+
+  const account = await db.query.b2bAccounts.findFirst({ where: eq(b2bAccounts.id, accountId) });
+  if (!account) return c.json({ error: "B2B account not found" }, 404);
+
+  // Validate the referenced services exist.
+  const serviceIds = [...new Set(parsed.data.entries.map((e) => e.serviceId))];
+  if (serviceIds.length > 0) {
+    const found = await db.select({ id: services.id }).from(services).where(inArray(services.id, serviceIds));
+    if (found.length !== serviceIds.length) {
+      return c.json({ error: "One or more serviceIds do not exist" }, 400);
+    }
+  }
+
+  const inserted = await db.transaction(async (tx) => {
+    await tx.delete(b2bPriceList).where(eq(b2bPriceList.accountId, accountId));
+    if (parsed.data.entries.length === 0) return [];
+    return tx
+      .insert(b2bPriceList)
+      .values(parsed.data.entries.map((e) => ({ accountId, serviceId: e.serviceId, priceCents: e.priceCents })))
+      .returning();
+  });
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "b2b_account.update",
+    userId: user.id,
+    resourceType: "b2b_account",
+    resourceId: accountId,
+    details: { companyName: account.companyName, priceListEntries: inserted.length },
+    ipAddress,
+    userAgent,
+  });
+
+  return c.json({ data: inserted });
 });
 
 // GET /:id/invoices — List invoices for a B2B account
