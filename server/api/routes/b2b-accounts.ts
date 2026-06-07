@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { b2bAccounts, b2bPriceList, fleetVehicles, b2bEstimates, bookings, services, invoices } from "@/db/schema";
+import { b2bAccounts, b2bPriceList, fleetVehicles, b2bEstimates, recurringBookingSchedules, bookings, services, invoices } from "@/db/schema";
 import type { B2bEstimateLine } from "@/db/schema/b2b-estimates";
 import { eq, desc, and, ilike, count, inArray } from "drizzle-orm";
 import { requireAdmin } from "@/server/api/middleware/auth";
@@ -16,6 +16,8 @@ import {
   createFleetVehicleSchema,
   createB2bEstimateSchema,
   convertB2bEstimateSchema,
+  bulkB2bBookingSchema,
+  createRecurringScheduleSchema,
 } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import { createB2bMonthlyInvoice } from "../lib/invoice-generator";
@@ -367,6 +369,104 @@ app.post("/:id/bookings", async (c) => {
     },
     dispatchResult,
   }, 201);
+});
+
+// POST /:id/bookings/bulk — create many bookings at once (best-effort per item)
+app.post("/:id/bookings/bulk", async (c) => {
+  const accountId = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = bulkB2bBookingSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+  const account = await db.query.b2bAccounts.findFirst({ where: eq(b2bAccounts.id, accountId) });
+  if (!account) return c.json({ error: "B2B account not found" }, 404);
+  if (account.status === "suspended") {
+    return c.json({ error: "Cannot create bookings for suspended accounts" }, 400);
+  }
+
+  const created: string[] = [];
+  const failed: { index: number; error: string }[] = [];
+  for (let i = 0; i < parsed.data.bookings.length; i++) {
+    const data = parsed.data.bookings[i];
+    try {
+      const service = await db.query.services.findFirst({ where: eq(services.id, data.serviceId) });
+      if (!service) {
+        failed.push({ index: i, error: "Service not found" });
+        continue;
+      }
+      const { booking } = await createB2bBooking(account, service, data);
+      created.push(booking.id);
+    } catch (err) {
+      failed.push({ index: i, error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  }
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "b2b_account.create_booking",
+    userId: user.id,
+    resourceType: "b2b_account",
+    resourceId: accountId,
+    details: { companyName: account.companyName, bulkCreated: created.length, bulkFailed: failed.length },
+    ipAddress,
+    userAgent,
+  });
+  return c.json({ created, failed }, failed.length && !created.length ? 400 : 201);
+});
+
+// POST /:id/recurring — create a recurring booking schedule
+app.post("/:id/recurring", async (c) => {
+  const accountId = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = createRecurringScheduleSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+  const account = await db.query.b2bAccounts.findFirst({ where: eq(b2bAccounts.id, accountId) });
+  if (!account) return c.json({ error: "B2B account not found" }, 404);
+  const service = await db.query.services.findFirst({ where: eq(services.id, parsed.data.serviceId) });
+  if (!service) return c.json({ error: "Service not found" }, 400);
+
+  const [schedule] = await db
+    .insert(recurringBookingSchedules)
+    .values({
+      accountId,
+      serviceId: parsed.data.serviceId,
+      frequency: parsed.data.frequency,
+      intervalCount: parsed.data.intervalCount ?? 1,
+      nextRunAt: parsed.data.startAt ? new Date(parsed.data.startAt) : new Date(),
+      template: parsed.data.template,
+    })
+    .returning();
+  return c.json(schedule, 201);
+});
+
+// GET /:id/recurring — list recurring schedules
+app.get("/:id/recurring", async (c) => {
+  const rows = await db
+    .select()
+    .from(recurringBookingSchedules)
+    .where(eq(recurringBookingSchedules.accountId, c.req.param("id")))
+    .orderBy(desc(recurringBookingSchedules.createdAt));
+  return c.json({ data: rows });
+});
+
+// DELETE /:id/recurring/:rid — deactivate a recurring schedule
+app.delete("/:id/recurring/:rid", async (c) => {
+  const [updated] = await db
+    .update(recurringBookingSchedules)
+    .set({ active: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(recurringBookingSchedules.id, c.req.param("rid")),
+        eq(recurringBookingSchedules.accountId, c.req.param("id")),
+      ),
+    )
+    .returning();
+  if (!updated) return c.json({ error: "Schedule not found" }, 404);
+  return c.json({ success: true });
 });
 
 // POST /:id/estimates — build an account-priced, banded estimate

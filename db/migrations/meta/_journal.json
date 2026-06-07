@@ -57,6 +57,13 @@
       "when": 1780841585429,
       "tag": "0007_b2b_estimates",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780841810660,
+      "tag": "0008_recurring_bookings",
+      "breakpoints": true
     }
   ]
 }

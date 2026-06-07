@@ -428,6 +428,28 @@ export const convertB2bEstimateSchema = z.object({
 });
 export type ConvertB2bEstimateInput = z.infer<typeof convertB2bEstimateSchema>;
 
+export const bulkB2bBookingSchema = z.object({
+  bookings: z.array(createB2bBookingSchema).min(1, "At least one booking").max(50),
+});
+export type BulkB2bBookingInput = z.infer<typeof bulkB2bBookingSchema>;
+
+export const createRecurringScheduleSchema = z.object({
+  serviceId: z.string().min(1),
+  frequency: z.enum(["daily", "weekly", "monthly"]),
+  intervalCount: z.number().int().min(1).max(52).optional(),
+  startAt: z.string().datetime().optional(),
+  template: z.object({
+    location: locationSchema,
+    vehicleInfo: vehicleInfoSchema,
+    contactName: z.string().min(2, "Contact name is required"),
+    contactPhone: z.string().min(10, "Phone number is required"),
+    contactEmail: z.email("Valid email is required"),
+    fleetVehicleId: z.string().optional(),
+    notes: z.string().max(500).optional(),
+  }),
+});
+export type CreateRecurringScheduleInput = z.infer<typeof createRecurringScheduleSchema>;
+
 export const setB2bPriceListSchema = z.object({
   entries: z.array(
     z.object({
