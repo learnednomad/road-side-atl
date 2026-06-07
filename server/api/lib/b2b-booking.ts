@@ -7,7 +7,7 @@
  * validating input, loading the account/service, authz, and audit logging.
  */
 import { db } from "@/db";
-import { bookings, b2bPriceList } from "@/db/schema";
+import { bookings, b2bPriceList, fleetVehicles } from "@/db/schema";
 import type { B2bContract } from "@/db/schema/b2b-accounts";
 import { and, eq } from "drizzle-orm";
 import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS } from "@/lib/constants";
@@ -65,6 +65,25 @@ export async function createB2bBooking(
     pricingSource = "discount";
   }
 
+  // Fleet vehicle: if booking against a saved vehicle (scoped to the account),
+  // snapshot its details into vehicleInfo so the booking record stays stable.
+  let vehicleInfo = data.vehicleInfo;
+  let fleetVehicleId: string | undefined;
+  if (data.fleetVehicleId) {
+    const fv = await db.query.fleetVehicles.findFirst({
+      where: and(eq(fleetVehicles.id, data.fleetVehicleId), eq(fleetVehicles.accountId, account.id)),
+    });
+    if (fv) {
+      fleetVehicleId = fv.id;
+      vehicleInfo = {
+        year: fv.year != null ? String(fv.year) : "",
+        make: fv.make,
+        model: fv.model,
+        color: fv.color ?? "",
+      };
+    }
+  }
+
   let towingMiles: number | undefined;
 
   // Towing per-mile is ADDITIVE (not multiplied by time-block).
@@ -96,7 +115,8 @@ export async function createB2bBooking(
     .insert(bookings)
     .values({
       serviceId: data.serviceId,
-      vehicleInfo: data.vehicleInfo,
+      vehicleInfo,
+      fleetVehicleId,
       location: locationData,
       contactName: data.contactName,
       contactPhone: data.contactPhone,
