@@ -281,6 +281,13 @@ app.post("/refund", async (c) => {
         await getStripe().refunds.create({
           payment_intent: payment.stripePaymentIntentId,
           amount: refundAmount,
+          // M8: for destination charges the funds were already transferred to the
+          // provider's Connect account, so reverse a proportional part of the
+          // transfer and refund the application fee — otherwise the platform
+          // absorbs the provider's share of the refund.
+          ...(payment.chargeType === "destination"
+            ? { reverse_transfer: true, refund_application_fee: true }
+            : {}),
         });
       } catch (err) {
         console.error("[Refund] Stripe refund API failed:", err);
@@ -327,41 +334,62 @@ app.post("/refund", async (c) => {
             .set({ amount: newPayoutAmount, notes: `Adjusted: partial refund (${Math.round(refundRatio * 100)}%) - ${reason}` })
             .where(eq(providerPayouts.id, existingPayout.id));
         }
+      } else if (existingPayout.status === "paid" && payment.chargeType === "destination") {
+        // Destination charge: the Stripe refund above used reverse_transfer to
+        // pull the provider's (proportional) share back from their Connect
+        // balance directly. Creating a clawback record too would double-debit
+        // the provider (Stripe reversal + clawback netting), so we don't.
       } else if (existingPayout.status === "paid") {
-        // Already paid: create clawback record
-        const clawbackAmount = refundType === "full"
-          ? existingPayout.amount
-          : Math.round(existingPayout.amount * (refundAmount / payment.amount));
-
-        [clawbackPayout] = await tx
-          .insert(providerPayouts)
-          .values({
-            providerId: existingPayout.providerId,
-            bookingId,
-            amount: -clawbackAmount, // negative amount
-            status: "pending", // pending settlement in next batch
-            payoutType: "clawback",
-            originalPayoutId: existingPayout.id,
-            paymentId: payment.id,
-            notes: `Clawback: ${refundType} refund - ${reason}`,
-          })
-          .returning();
-
-        // Audit clawback
-        logAudit({
-          action: "payout.clawback",
-          userId: user.id,
-          resourceType: "payout",
-          resourceId: clawbackPayout.id,
-          details: {
-            originalPayoutId: existingPayout.id,
-            clawbackAmount,
-            refundType,
-            bookingId,
-          },
-          ipAddress,
-          userAgent,
+        // Platform/manual charge: no Stripe-side reversal happened, so record a
+        // clawback to net against the provider's future payouts — unless one
+        // already exists for this payout (e.g. a webhook refund/dispute clawed
+        // back first). The unique index would otherwise abort this transaction
+        // *after* the Stripe refund was already issued, leaving money refunded
+        // with no DB record; pre-checking inside the tx avoids that.
+        const existingClawback = await tx.query.providerPayouts.findFirst({
+          where: and(
+            eq(providerPayouts.originalPayoutId, existingPayout.id),
+            eq(providerPayouts.payoutType, "clawback"),
+          ),
         });
+
+        if (existingClawback) {
+          clawbackPayout = existingClawback;
+        } else {
+          const clawbackAmount = refundType === "full"
+            ? existingPayout.amount
+            : Math.round(existingPayout.amount * (refundAmount / payment.amount));
+
+          [clawbackPayout] = await tx
+            .insert(providerPayouts)
+            .values({
+              providerId: existingPayout.providerId,
+              bookingId,
+              amount: -clawbackAmount, // negative amount
+              status: "pending", // pending settlement in next batch
+              payoutType: "clawback",
+              originalPayoutId: existingPayout.id,
+              paymentId: payment.id,
+              notes: `Clawback: ${refundType} refund - ${reason}`,
+            })
+            .returning();
+
+          // Audit clawback
+          logAudit({
+            action: "payout.clawback",
+            userId: user.id,
+            resourceType: "payout",
+            resourceId: clawbackPayout.id,
+            details: {
+              originalPayoutId: existingPayout.id,
+              clawbackAmount,
+              refundType,
+              bookingId,
+            },
+            ipAddress,
+            userAgent,
+          });
+        }
       }
     }
 

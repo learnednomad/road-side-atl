@@ -10,9 +10,17 @@ vi.mock("@/db", () => ({
       payments: { findFirst: vi.fn() },
       bookings: { findFirst: vi.fn() },
       providerPayouts: { findFirst: vi.fn() },
+      webhookEvents: { findFirst: vi.fn() },
     },
     update: vi.fn(),
-    insert: vi.fn(),
+    // Chainable by default so markEventProcessed() (insert→values→onConflictDoNothing)
+    // and clawback inserts (insert→values[→returning]) don't throw.
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn().mockResolvedValue([{ id: "generated" }]),
+        onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
   },
 }));
 
@@ -66,6 +74,7 @@ vi.mock("@/db/schema", () => ({
     holdReason: "holdReason",
     heldAt: "heldAt",
   },
+  webhookEvents: { id: "id", source: "source", processedAt: "processedAt" },
 }));
 
 // ---------------------------------------------------------------------------
@@ -81,6 +90,7 @@ import app from "@/server/api/routes/webhooks";
 // Typed mock references for clarity
 const mockConstructEvent = stripe.webhooks.constructEvent as ReturnType<typeof vi.fn>;
 const mockPaymentsFindFirst = db.query.payments.findFirst as ReturnType<typeof vi.fn>;
+const mockWebhookEventsFindFirst = db.query.webhookEvents.findFirst as ReturnType<typeof vi.fn>;
 const mockDbUpdate = db.update as ReturnType<typeof vi.fn>;
 const mockCreatePayoutIfEligible = createPayoutIfEligible as ReturnType<typeof vi.fn>;
 const mockLogAudit = logAudit as ReturnType<typeof vi.fn>;
@@ -182,6 +192,12 @@ describe("POST /stripe — Stripe Webhook Handler", () => {
     });
     mockConstructEvent.mockReturnValue(event);
     mockPaymentsFindFirst.mockResolvedValue(undefined);
+
+    // Dedup is persisted in the webhook_events table: not found on the first
+    // delivery (processes), found on the second (deduplicated).
+    mockWebhookEventsFindFirst
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ source: "stripe", id: event.id });
 
     const whereFn = vi.fn().mockResolvedValue(undefined);
     const setFn = vi.fn().mockReturnValue({ where: whereFn });

@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import { encode } from "next-auth/jwt";
 import { registerSchema, loginSchema } from "@/lib/validators";
 import { NEXTAUTH_JWT_SALT } from "@/lib/constants";
-import { rateLimitAuth } from "../middleware/rate-limit";
+import { rateLimitAuthDb, rateLimitStrictDb } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { logger } from "@/lib/logger";
 import { generateReferralCode } from "../lib/referral-credits";
@@ -20,12 +20,18 @@ import {
 
 const app = new Hono();
 
-// Apply strict rate limiting to auth endpoints
-app.use("/register", rateLimitAuth);
-app.use("/forgot-password", rateLimitAuth);
-app.use("/reset-password", rateLimitAuth);
-app.use("/resend-verification", rateLimitAuth);
-app.use("/mobile-login", rateLimitAuth);
+// Durable (Postgres-backed) rate limiting on auth endpoints. Email-bearing
+// endpoints also key on the email so distributed-IP attacks against one account
+// are throttled. reset-password carries a token (no email) so it keys on IP only.
+app.use("/register", rateLimitAuthDb);
+app.use("/forgot-password", rateLimitAuthDb);
+app.use("/reset-password", rateLimitAuthDb);
+app.use("/resend-verification", rateLimitAuthDb);
+app.use("/mobile-login", rateLimitAuthDb);
+// Token-validation endpoints — previously unprotected, vulnerable to token
+// enumeration. IP-keyed strict limit.
+app.use("/verify-email", rateLimitStrictDb);
+app.use("/verify-reset-token", rateLimitStrictDb);
 
 // Register new user
 app.post("/register", async (c) => {

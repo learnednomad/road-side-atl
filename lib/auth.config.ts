@@ -7,6 +7,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { loginSchema } from "./validators";
+import { assertLoginAllowed, recordLoginFailure, clearLoginThrottle } from "./auth/login-throttle";
 
 export default {
   providers: [
@@ -16,23 +17,41 @@ export default {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
+
+        // Brute-force throttle (per-email + per-IP, Postgres-backed, durable).
+        // Read-only gate first — throws "TooManyAttempts" if locked out; the
+        // counter is incremented only on an actual failed attempt below.
+        const headers =
+          request instanceof Request ? request.headers : undefined;
+        await assertLoginAllowed(parsed.data.email, headers);
 
         const user = await db.query.users.findFirst({
           where: eq(users.email, parsed.data.email),
         });
 
-        if (!user?.password) return null;
+        if (!user?.password) {
+          await recordLoginFailure(parsed.data.email, headers);
+          return null;
+        }
 
         const valid = await bcrypt.compare(parsed.data.password, user.password);
-        if (!valid) return null;
+        if (!valid) {
+          await recordLoginFailure(parsed.data.email, headers);
+          return null;
+        }
 
-        // Check if email is verified (skip for admin accounts)
-        if (!user.emailVerified && user.role !== "admin") {
+        // Require a verified email for all roles. Seeded admins are created
+        // with emailVerified set, so this does not lock them out. (Not a
+        // credential failure — don't count it toward the throttle.)
+        if (!user.emailVerified) {
           throw new Error("EmailNotVerified");
         }
+
+        // Successful login — clear the email + IP counters.
+        await clearLoginThrottle(parsed.data.email, headers);
 
         return {
           id: user.id,

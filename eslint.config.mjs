@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone load-test harness scripts (CommonJS Node scripts, run manually).
+    "loadtest/**",
   ]),
 ]);
 

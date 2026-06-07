@@ -1,4 +1,5 @@
-import { pgTable, text, integer, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createId } from "./utils";
 import { bookings } from "./bookings";
 import { users } from "./users";
@@ -15,6 +16,7 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "confirmed",
   "failed",
   "refunded",
+  "partially_refunded",
   "disputed",
 ]);
 
@@ -42,4 +44,10 @@ export const payments = pgTable("payments", {
   chargeType: text("chargeType"), // "destination" | "platform" — tracks which charge model was used
   stripeConnectAccountId: text("stripeConnectAccountId"), // provider's Connect account used for this payment
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-});
+}, (t) => ({
+  // One payment row per Stripe Checkout Session — backstops duplicate
+  // confirmation from webhook retries (M6). Nulls (cash/zelle) are exempt.
+  uniqStripeSession: uniqueIndex("uniq_payments_stripe_session")
+    .on(t.stripeSessionId)
+    .where(sql`${t.stripeSessionId} IS NOT NULL`),
+}));

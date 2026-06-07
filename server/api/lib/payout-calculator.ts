@@ -1,6 +1,20 @@
 import { db } from "@/db";
 import { bookings, payments, providers, providerPayouts, services } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
+
+// System default provider share (basis points) — see providers.commissionRate.
+// A provider whose rate differs from this has a deliberate special arrangement.
+const DEFAULT_PROVIDER_COMMISSION_RATE = 7000;
+
+/** True for a Postgres unique-constraint violation (SQLSTATE 23505). */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: string }).code === "23505"
+  );
+}
 import { getStripe } from "@/lib/stripe";
 import { createInvoiceForBooking } from "./invoice-generator";
 import { logger } from "@/lib/logger";
@@ -22,6 +36,33 @@ import { logger } from "@/lib/logger";
  * For legacy platform charges, we issue a Stripe Transfer if the provider has
  * a Connect account, otherwise queue for manual batch.
  */
+/**
+ * Insert a standard payout, tolerating a concurrent insert. If the unique
+ * "one standard payout per booking" index rejects it, return the row that won
+ * the race instead of throwing. `created` tells the caller whether to run
+ * one-time side effects (Stripe transfer, invoice generation).
+ */
+async function insertPayoutOrExisting(
+  values: typeof providerPayouts.$inferInsert,
+  bookingId: string
+): Promise<{ payout: typeof providerPayouts.$inferSelect; created: boolean }> {
+  try {
+    const [payout] = await db.insert(providerPayouts).values(values).returning();
+    return { payout, created: true };
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      const existing = await db.query.providerPayouts.findFirst({
+        where: and(
+          eq(providerPayouts.bookingId, bookingId),
+          sql`${providerPayouts.payoutType} = 'standard'`
+        ),
+      });
+      if (existing) return { payout: existing, created: false };
+    }
+    throw err;
+  }
+}
+
 export async function createPayoutIfEligible(bookingId: string) {
   const booking = await db.query.bookings.findFirst({
     where: eq(bookings.id, bookingId),
@@ -79,13 +120,17 @@ export async function createPayoutIfEligible(bookingId: string) {
     // Special provider arrangement: flat fee per job
     providerAmount = provider.flatFeeAmount || 0;
   } else if (service && service.commissionRate > 0) {
-    // Service-level commission: commissionRate = platform's cut in basis points
+    // Service-level commission (platform's cut, basis points) is authoritative.
     const serviceProviderAmount = effectivePrice - Math.round(effectivePrice * service.commissionRate / 10000);
-    // Provider-level commission: commissionRate = provider's share in basis points
-    // (e.g., beta providers get 8000 = 80% share instead of default 70%)
-    const providerLevelAmount = Math.round((effectivePrice * provider.commissionRate) / 10000);
-    // Use whichever is higher — honors beta/special provider rates
-    providerAmount = Math.max(serviceProviderAmount, providerLevelAmount);
+    if (provider.commissionRate !== DEFAULT_PROVIDER_COMMISSION_RATE) {
+      // Explicit special arrangement (e.g. beta provider at 8000 = 80% share)
+      // overrides the service cut. Previously a Math.max made the provider's
+      // default rate a payout *floor*, silently overpaying when a service's
+      // platform cut exceeded 30% (M9).
+      providerAmount = Math.round((effectivePrice * provider.commissionRate) / 10000);
+    } else {
+      providerAmount = serviceProviderAmount;
+    }
   } else {
     // Fallback: provider-level commission (commissionRate = provider's share in basis points)
     providerAmount = Math.round((effectivePrice * provider.commissionRate) / 10000);
@@ -101,9 +146,8 @@ export async function createPayoutIfEligible(bookingId: string) {
   if (isDestinationCharge) {
     // Destination charge: funds already split at charge time.
     // Record the payout as paid immediately — Stripe handled the transfer.
-    const [payout] = await db
-      .insert(providerPayouts)
-      .values({
+    const { payout, created } = await insertPayoutOrExisting(
+      {
         providerId: provider.id,
         bookingId,
         amount: providerAmount,
@@ -111,12 +155,15 @@ export async function createPayoutIfEligible(bookingId: string) {
         paidAt: new Date(),
         payoutMethod: "stripe_connect",
         metadata: { chargeType: "destination", stripeSessionId: confirmedPayment.stripeSessionId },
-      })
-      .returning();
+      },
+      bookingId,
+    );
 
-    createInvoiceForBooking(bookingId).catch((err) => {
-      console.error("[Payout] Failed to generate invoice for booking:", bookingId, err);
-    });
+    if (created) {
+      createInvoiceForBooking(bookingId).catch((err) => {
+        console.error("[Payout] Failed to generate invoice for booking:", bookingId, err);
+      });
+    }
 
     return payout;
   }
@@ -127,20 +174,22 @@ export async function createPayoutIfEligible(bookingId: string) {
   }
 
   // No Connect account: queue for manual batch processing
-  const [payout] = await db
-    .insert(providerPayouts)
-    .values({
+  const { payout, created } = await insertPayoutOrExisting(
+    {
       providerId: provider.id,
       bookingId,
       amount: providerAmount,
       status: "pending",
       payoutMethod: "manual_batch",
-    })
-    .returning();
+    },
+    bookingId,
+  );
 
-  createInvoiceForBooking(bookingId).catch((err) => {
-    console.error("[Payout] Failed to generate invoice for booking:", bookingId, err);
-  });
+  if (created) {
+    createInvoiceForBooking(bookingId).catch((err) => {
+      console.error("[Payout] Failed to generate invoice for booking:", bookingId, err);
+    });
+  }
 
   return payout;
 }
@@ -170,18 +219,23 @@ async function createStripeConnectPayout(
   providerAmount: number,
   paymentId: string,
 ) {
-  // Create payout record first (pending)
-  const [payout] = await db
-    .insert(providerPayouts)
-    .values({
+  // Create payout record first (pending). If a concurrent call already created
+  // the standard payout, return it without issuing a second transfer.
+  const { payout, created } = await insertPayoutOrExisting(
+    {
       providerId: provider.id,
       bookingId,
       amount: providerAmount,
       status: "pending",
       payoutMethod: "stripe_connect",
       paymentId,
-    })
-    .returning();
+    },
+    bookingId,
+  );
+
+  if (!created) {
+    return payout;
+  }
 
   try {
     const transfer = await getStripe().transfers.create(
