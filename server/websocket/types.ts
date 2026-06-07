@@ -20,4 +20,5 @@ export type WSEvent =
   | { type: "onboarding:step_updated"; data: { providerId: string; stepType: string; newStatus: string } }
   | { type: "onboarding:new_submission"; data: { providerId: string; providerName: string; stepType: string } }
   | { type: "onboarding:activated"; data: { providerId: string; providerName: string } }
-  | { type: "onboarding:document_reviewed"; data: { providerId: string; documentType: string; status: string; rejectionReason?: string } };
+  | { type: "onboarding:document_reviewed"; data: { providerId: string; documentType: string; status: string; rejectionReason?: string } }
+  | { type: "quote:sent"; data: { bookingId: string; quoteId: string; totalCents: number } };
