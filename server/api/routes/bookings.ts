@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, payments } from "@/db/schema";
+import { bookings, services, payments, serviceBundles } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { requireAuth } from "../middleware/auth";
@@ -51,7 +51,23 @@ app.post("/", async (c) => {
     data.scheduledAt ? new Date(data.scheduledAt) : null,
   );
   let estimatedPrice = pricing.finalPrice;
+  let pricingSource = "retail";
   let towingMiles: number | undefined;
+
+  // Bundle: a discounted package price overrides the per-service estimate.
+  let bundleId: string | undefined;
+  if (data.bundleId) {
+    const bundle = await db.query.serviceBundles.findFirst({
+      where: and(eq(serviceBundles.id, data.bundleId), eq(serviceBundles.active, true)),
+    });
+    if (!bundle) return c.json({ error: "Bundle not found or inactive" }, 400);
+    if (!bundle.serviceIds.includes(data.serviceId)) {
+      return c.json({ error: "Service is not part of this bundle" }, 400);
+    }
+    estimatedPrice = bundle.bundlePrice;
+    pricingSource = "bundle";
+    bundleId = bundle.id;
+  }
 
   // Towing per-mile is ADDITIVE (not multiplied by time-block)
   if (service.slug === "towing" && data.location.estimatedMiles) {
@@ -97,12 +113,13 @@ app.post("/", async (c) => {
       towingMiles,
       notes: data.notes,
       preferredPaymentMethod: data.paymentMethod,
+      bundleId,
       pricingSnapshot: {
         basePrice: pricing.basePrice,
         multiplier: pricing.multiplier,
         blockName: pricing.blockName ?? null,
         estimatedPrice,
-        source: "retail",
+        source: pricingSource,
         estimateMinCents: service.estimateMinCents ?? null,
         estimateMaxCents: service.estimateMaxCents ?? null,
       },

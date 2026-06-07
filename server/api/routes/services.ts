@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { services } from "@/db/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { services, serviceBundles } from "@/db/schema";
+import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import { PRICING_SCENARIOS } from "@/lib/pricing-scenarios";
 
@@ -10,6 +10,16 @@ const serviceCategoryFilterSchema = z.object({
 });
 
 const app = new Hono();
+
+// GET /services/bundles — active discounted service bundles (public)
+app.get("/bundles", async (c) => {
+  const rows = await db
+    .select()
+    .from(serviceBundles)
+    .where(eq(serviceBundles.active, true))
+    .orderBy(desc(serviceBundles.createdAt));
+  return c.json({ data: rows });
+});
 
 // GET /services?category=mechanics — list active services, optionally filtered
 app.get("/", async (c) => {

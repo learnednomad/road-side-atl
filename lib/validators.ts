@@ -29,6 +29,7 @@ export const createBookingSchema = z.object({
   scheduledAt: z.string().datetime().optional(),
   notes: z.string().optional(),
   paymentMethod: z.enum(["cash", "cashapp", "zelle", "stripe"]).optional(),
+  bundleId: z.string().optional(), // B2C: book a discounted service bundle
 }).refine(
   (data) => !data.scheduledAt || new Date(data.scheduledAt) > new Date(Date.now() + 2 * 60 * 60 * 1000),
   { message: "Scheduled time must be at least 2 hours from now", path: ["scheduledAt"] }
@@ -462,6 +463,17 @@ export const addB2bMemberSchema = z.object({
   role: z.enum(["owner", "manager", "member"]).optional(),
 });
 export type AddB2bMemberInput = z.infer<typeof addB2bMemberSchema>;
+
+export const createServiceBundleSchema = z.object({
+  name: z.string().min(1).max(120),
+  slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/, "lowercase-kebab only"),
+  description: z.string().max(500).optional(),
+  serviceIds: z.array(z.string().min(1)).min(2, "A bundle needs at least 2 services").max(10),
+  bundlePrice: z.number().int().min(0),
+  savingsAmount: z.number().int().min(0).optional(),
+  active: z.boolean().optional(),
+});
+export type CreateServiceBundleInput = z.infer<typeof createServiceBundleSchema>;
 
 export const setB2bPriceListSchema = z.object({
   entries: z.array(
