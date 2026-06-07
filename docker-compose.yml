@@ -60,6 +60,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-roadside_atl}
     # Internal-only — reachable by the app over the compose network as db:5432.
     # NOT published to the host, so the DB isn't exposed by `docker compose up` (L8).
+    # (Supersedes the earlier "map to host 5433" change — when the DB isn't
+    # published there is no host port to conflict with.)
     expose:
       - "5432"
     volumes:
