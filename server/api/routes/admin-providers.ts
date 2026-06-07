@@ -438,6 +438,9 @@ app.post("/", async (c) => {
       phone: parsed.data.phone,
       commissionType: parsed.data.commissionType,
       commissionRate: parsed.data.commissionRate,
+      // An explicitly-provided non-default rate is a negotiated arrangement.
+      rateIsNegotiated:
+        parsed.data.commissionRate !== undefined && parsed.data.commissionRate !== 7000,
       flatFeeAmount: parsed.data.flatFeeAmount ?? null,
       specialties: parsed.data.specialties ?? [],
       status: parsed.data.status ?? "pending",
@@ -466,7 +469,10 @@ app.patch("/:id", async (c) => {
   if (parsed.data.email !== undefined) updateData.email = parsed.data.email;
   if (parsed.data.phone !== undefined) updateData.phone = parsed.data.phone;
   if (parsed.data.commissionType !== undefined) updateData.commissionType = parsed.data.commissionType;
-  if (parsed.data.commissionRate !== undefined) updateData.commissionRate = parsed.data.commissionRate;
+  if (parsed.data.commissionRate !== undefined) {
+    updateData.commissionRate = parsed.data.commissionRate;
+    updateData.rateIsNegotiated = parsed.data.commissionRate !== 7000;
+  }
   if (parsed.data.flatFeeAmount !== undefined) updateData.flatFeeAmount = parsed.data.flatFeeAmount;
   if (parsed.data.specialties !== undefined) updateData.specialties = parsed.data.specialties;
   if (parsed.data.status !== undefined) updateData.status = parsed.data.status;

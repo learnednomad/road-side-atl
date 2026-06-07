@@ -15,6 +15,13 @@
       "when": 1780811645434,
       "tag": "0001_service_estimate_ranges",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780816306731,
+      "tag": "0002_provider_rate_negotiated",
+      "breakpoints": true
     }
   ]
 }

@@ -18,7 +18,7 @@ const DEFAULT_PROVIDER_COMMISSION_RATE = 7000;
  */
 export function computeProviderAmount(
   effectivePrice: number,
-  provider: { commissionType: string; commissionRate: number; flatFeeAmount: number | null },
+  provider: { commissionType: string; commissionRate: number; flatFeeAmount: number | null; rateIsNegotiated?: boolean },
   service: { commissionRate: number } | null | undefined,
 ): number {
   let amount: number;
@@ -26,10 +26,14 @@ export function computeProviderAmount(
     amount = provider.flatFeeAmount || 0;
   } else if (service && service.commissionRate > 0) {
     const serviceProviderAmount = effectivePrice - Math.round((effectivePrice * service.commissionRate) / 10000);
-    amount =
-      provider.commissionRate !== DEFAULT_PROVIDER_COMMISSION_RATE
-        ? Math.round((effectivePrice * provider.commissionRate) / 10000)
-        : serviceProviderAmount;
+    // A negotiated provider rate overrides the service cut. Prefer the explicit
+    // flag; fall back to the legacy "rate != default" heuristic if a caller
+    // didn't select the column.
+    const negotiated =
+      provider.rateIsNegotiated ?? provider.commissionRate !== DEFAULT_PROVIDER_COMMISSION_RATE;
+    amount = negotiated
+      ? Math.round((effectivePrice * provider.commissionRate) / 10000)
+      : serviceProviderAmount;
   } else {
     amount = Math.round((effectivePrice * provider.commissionRate) / 10000);
   }
