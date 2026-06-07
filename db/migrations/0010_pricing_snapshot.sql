@@ -1,0 +1,1 @@
+ALTER TABLE "bookings" ADD COLUMN "pricingSnapshot" jsonb DEFAULT 'null'::jsonb;

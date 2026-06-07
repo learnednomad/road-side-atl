@@ -645,17 +645,22 @@ app.post("/:id/estimates/:eid/convert", async (c) => {
     const service = await db.query.services.findFirst({ where: eq(services.id, line.serviceId) });
     if (!service) continue;
     for (let i = 0; i < line.qty; i++) {
-      const { booking } = await createB2bBooking(account, service, {
-        serviceId: line.serviceId,
-        vehicleInfo: parsed.data.vehicleInfo,
-        location: parsed.data.location,
-        contactName: parsed.data.contactName,
-        contactPhone: parsed.data.contactPhone,
-        contactEmail: parsed.data.contactEmail,
-        scheduledAt: parsed.data.scheduledAt,
-        fleetVehicleId: line.fleetVehicleId ?? undefined,
-        notes: `From estimate ${estimate.id}`,
-      });
+      const { booking } = await createB2bBooking(
+        account,
+        service,
+        {
+          serviceId: line.serviceId,
+          vehicleInfo: parsed.data.vehicleInfo,
+          location: parsed.data.location,
+          contactName: parsed.data.contactName,
+          contactPhone: parsed.data.contactPhone,
+          contactEmail: parsed.data.contactEmail,
+          scheduledAt: parsed.data.scheduledAt,
+          fleetVehicleId: line.fleetVehicleId ?? undefined,
+          notes: `From estimate ${estimate.id}`,
+        },
+        { priceOverrideCents: line.unitPriceCents }, // frozen quote price (1b)
+      );
       bookingIds.push(booking.id);
     }
   }
