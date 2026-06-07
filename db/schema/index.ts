@@ -36,3 +36,4 @@ export * from "./outbound-webhooks";
 export * from "./loyalty";
 export * from "./booking-quotes";
 export * from "./memberships";
+export * from "./pricing-rules";
