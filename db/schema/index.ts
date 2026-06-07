@@ -33,3 +33,4 @@ export * from "./b2b-members";
 // provider-invites consolidated into providerInviteTokens in auth.ts
 
 export * from "./outbound-webhooks";
+export * from "./loyalty";

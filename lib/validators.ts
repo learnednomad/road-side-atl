@@ -464,6 +464,12 @@ export const addB2bMemberSchema = z.object({
 });
 export type AddB2bMemberInput = z.infer<typeof addB2bMemberSchema>;
 
+export const redeemLoyaltySchema = z.object({
+  bookingId: z.string().min(1),
+  points: z.number().int().min(1),
+});
+export type RedeemLoyaltyInput = z.infer<typeof redeemLoyaltySchema>;
+
 export const createWebhookSubscriptionSchema = z.object({
   url: z.url("Valid https URL required"),
   events: z.array(z.string().min(1)).min(1, "Subscribe to at least one event").max(20),
