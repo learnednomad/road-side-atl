@@ -57,12 +57,33 @@ if [ "${SEED_DB:-false}" = "true" ]; then
     exit 1
   fi
 else
-  # No seed: use migrations for safe incremental updates
+  # ONE-TIME cutover: bring an existing, push-provisioned database (e.g. the live
+  # prod DB, which had NO migration history) onto the squashed migration baseline.
+  # Because such a DB may be missing the newest objects, we first `push` to sync
+  # the schema to the baseline, then mark the baseline as applied so the upcoming
+  # `migrate` skips it. Enable for a SINGLE deploy via DB_ADOPT_BASELINE=true,
+  # then remove the var. Fresh DBs do NOT need this — migrate builds the baseline.
+  if [ "${DB_ADOPT_BASELINE:-false}" = "true" ]; then
+    echo "DB_ADOPT_BASELINE=true: syncing schema to baseline (push) + marking applied..."
+    if ! npx drizzle-kit push --force 2>&1; then
+      echo "ERROR: schema sync (push) failed. Aborting startup (fail-closed)."
+      exit 1
+    fi
+    if ! node db/baseline-adopt.cjs 2>&1; then
+      echo "ERROR: baseline adoption failed. Aborting startup (fail-closed)."
+      exit 1
+    fi
+  fi
+
+  # Apply migrations. Fresh DBs get the full schema from the baseline; adopted
+  # DBs skip the baseline and apply only newer migrations.
   echo "Running database migrations..."
   if npx drizzle-kit migrate 2>&1; then
     echo "Migrations completed successfully!"
   else
     echo "ERROR: Migrations failed. Aborting startup (fail-closed)."
+    echo "  (An existing DB with no migration history needs a one-time"
+    echo "   DB_ADOPT_BASELINE=true deploy to adopt the baseline.)"
     exit 1
   fi
 fi
