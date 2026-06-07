@@ -28,4 +28,5 @@ export * from "./fleet-vehicles";
 export * from "./commission-rules";
 export * from "./b2b-estimates";
 export * from "./recurring-bookings";
+export * from "./b2b-credit";
 // provider-invites consolidated into providerInviteTokens in auth.ts

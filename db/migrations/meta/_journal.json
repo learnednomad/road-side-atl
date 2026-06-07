@@ -64,6 +64,13 @@
       "when": 1780841810660,
       "tag": "0008_recurring_bookings",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780842067436,
+      "tag": "0009_b2b_credit",
+      "breakpoints": true
     }
   ]
 }

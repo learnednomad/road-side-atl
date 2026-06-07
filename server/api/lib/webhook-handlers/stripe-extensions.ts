@@ -11,10 +11,11 @@
  * reprocessing the same event id).
  */
 import type Stripe from "stripe";
+import { handleInvoicePaid } from "./invoice-paid";
 
 export type StripeWebhookHandler = (event: Stripe.Event) => Promise<void>;
 
 export const stripeExtensionHandlers: Record<string, StripeWebhookHandler> = {
-  // Phase 4c will register: "invoice.paid": handleInvoicePaid,
+  "invoice.paid": handleInvoicePaid, // Phase 4c — B2B NET credit paydown
   // Phase 5b will register: "customer.subscription.updated": ...
 };
