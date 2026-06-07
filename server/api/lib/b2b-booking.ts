@@ -86,14 +86,17 @@ export async function createB2bBooking(
   account: B2bAccount,
   service: Service,
   data: CreateB2bBookingInput,
+  opts?: { priceOverrideCents?: number },
 ): Promise<B2bBookingResult> {
   const { unitPriceCents, source, pricing } = await priceServiceForAccount(
     account,
     data.serviceId,
     data.scheduledAt ? new Date(data.scheduledAt) : null,
   );
-  let estimatedPrice = unitPriceCents;
-  const pricingSource: B2bPricingSource = source;
+  // A frozen quote price (estimate→convert) overrides live resolution so the
+  // booking matches what was quoted (roadmap 1b).
+  let estimatedPrice = opts?.priceOverrideCents ?? unitPriceCents;
+  const pricingSource: B2bPricingSource = opts?.priceOverrideCents != null ? "price_list" : source;
 
   // Fleet vehicle: if booking against a saved vehicle (scoped to the account),
   // snapshot its details into vehicleInfo so the booking record stays stable.
@@ -154,6 +157,13 @@ export async function createB2bBooking(
     towingMiles,
     notes: data.notes,
     tenantId: account.id,
+    pricingSnapshot: {
+      basePrice: pricing.basePrice,
+      multiplier: pricing.multiplier,
+      blockName: pricing.blockName ?? null,
+      estimatedPrice,
+      source: pricingSource,
+    },
   };
 
   // NET accounts draw down credit: guard the limit + record a ledger charge +

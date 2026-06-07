@@ -97,6 +97,15 @@ app.post("/", async (c) => {
       towingMiles,
       notes: data.notes,
       preferredPaymentMethod: data.paymentMethod,
+      pricingSnapshot: {
+        basePrice: pricing.basePrice,
+        multiplier: pricing.multiplier,
+        blockName: pricing.blockName ?? null,
+        estimatedPrice,
+        source: "retail",
+        estimateMinCents: service.estimateMinCents ?? null,
+        estimateMaxCents: service.estimateMaxCents ?? null,
+      },
     })
     .returning();
 
