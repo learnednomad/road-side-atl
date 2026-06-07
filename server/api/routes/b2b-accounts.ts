@@ -22,8 +22,8 @@ import {
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import { createB2bMonthlyInvoice } from "../lib/invoice-generator";
 import { createB2bBooking, priceServiceForAccount, CreditLimitError } from "../lib/b2b-booking";
-import { b2bCreditTransactions } from "@/db/schema";
-import { recordB2bCreditPaymentSchema } from "@/lib/validators";
+import { b2bCreditTransactions, b2bAccountMembers, users } from "@/db/schema";
+import { recordB2bCreditPaymentSchema, addB2bMemberSchema } from "@/lib/validators";
 
 type AuthEnv = {
   Variables: {
@@ -383,6 +383,54 @@ app.post("/:id/bookings", async (c) => {
     },
     dispatchResult,
   }, 201);
+});
+
+// GET /:id/members — list portal members (admin)
+app.get("/:id/members", async (c) => {
+  const rows = await db
+    .select({
+      id: b2bAccountMembers.id,
+      userId: b2bAccountMembers.userId,
+      role: b2bAccountMembers.role,
+      name: users.name,
+      email: users.email,
+      createdAt: b2bAccountMembers.createdAt,
+    })
+    .from(b2bAccountMembers)
+    .leftJoin(users, eq(b2bAccountMembers.userId, users.id))
+    .where(eq(b2bAccountMembers.accountId, c.req.param("id")));
+  return c.json({ data: rows });
+});
+
+// POST /:id/members — add a portal member by email (admin; seeds the first owner)
+app.post("/:id/members", async (c) => {
+  const accountId = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = addB2bMemberSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  const account = await db.query.b2bAccounts.findFirst({ where: eq(b2bAccounts.id, accountId) });
+  if (!account) return c.json({ error: "B2B account not found" }, 404);
+  const targetUser = await db.query.users.findFirst({ where: eq(users.email, parsed.data.email) });
+  if (!targetUser) return c.json({ error: "No user with that email" }, 404);
+  try {
+    const [member] = await db
+      .insert(b2bAccountMembers)
+      .values({ accountId, userId: targetUser.id, role: parsed.data.role ?? "owner" })
+      .returning();
+    return c.json(member, 201);
+  } catch {
+    return c.json({ error: "User is already a member" }, 409);
+  }
+});
+
+// DELETE /:id/members/:mid — remove a portal member (admin)
+app.delete("/:id/members/:mid", async (c) => {
+  const [deleted] = await db
+    .delete(b2bAccountMembers)
+    .where(and(eq(b2bAccountMembers.id, c.req.param("mid")), eq(b2bAccountMembers.accountId, c.req.param("id"))))
+    .returning();
+  if (!deleted) return c.json({ error: "Member not found" }, 404);
+  return c.json({ success: true });
 });
 
 // GET /:id/credit — NET balance/limit + ledger

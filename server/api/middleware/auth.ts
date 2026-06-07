@@ -18,7 +18,7 @@ type AuthEnv = {
  * For mobile clients, we also accept Authorization: Bearer <session-token>
  * and decode the NextAuth JWT manually.
  */
-async function resolveUser(c: { req: { header: (name: string) => string | undefined } }) {
+export async function resolveUser(c: { req: { header: (name: string) => string | undefined } }) {
   // 1. Try NextAuth session (works for web with cookies)
   const session = await auth();
   if (session?.user?.id) {
