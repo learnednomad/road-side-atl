@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { b2bAccounts, b2bPriceList, fleetVehicles, bookings, services, invoices } from "@/db/schema";
+import { b2bAccounts, b2bPriceList, fleetVehicles, b2bEstimates, bookings, services, invoices } from "@/db/schema";
+import type { B2bEstimateLine } from "@/db/schema/b2b-estimates";
 import { eq, desc, and, ilike, count, inArray } from "drizzle-orm";
 import { requireAdmin } from "@/server/api/middleware/auth";
 import { rateLimitStandard } from "@/server/api/middleware/rate-limit";
@@ -13,10 +14,12 @@ import {
   generateB2bInvoiceSchema,
   setB2bPriceListSchema,
   createFleetVehicleSchema,
+  createB2bEstimateSchema,
+  convertB2bEstimateSchema,
 } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import { createB2bMonthlyInvoice } from "../lib/invoice-generator";
-import { createB2bBooking } from "../lib/b2b-booking";
+import { createB2bBooking, priceServiceForAccount } from "../lib/b2b-booking";
 
 type AuthEnv = {
   Variables: {
@@ -364,6 +367,139 @@ app.post("/:id/bookings", async (c) => {
     },
     dispatchResult,
   }, 201);
+});
+
+// POST /:id/estimates — build an account-priced, banded estimate
+app.post("/:id/estimates", async (c) => {
+  const accountId = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = createB2bEstimateSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+  const account = await db.query.b2bAccounts.findFirst({ where: eq(b2bAccounts.id, accountId) });
+  if (!account) return c.json({ error: "B2B account not found" }, 404);
+
+  const lines: B2bEstimateLine[] = [];
+  let subtotalCents = 0;
+  let estMinCents = 0;
+  let estMaxCents = 0;
+  for (const line of parsed.data.lines) {
+    const service = await db.query.services.findFirst({ where: eq(services.id, line.serviceId) });
+    if (!service) return c.json({ error: `Service not found: ${line.serviceId}` }, 400);
+    const { unitPriceCents, source } = await priceServiceForAccount(account, line.serviceId);
+    const minUnit = service.estimateMinCents ?? unitPriceCents;
+    const maxUnit = service.estimateMaxCents ?? unitPriceCents;
+    lines.push({
+      serviceId: service.id,
+      serviceName: service.name,
+      qty: line.qty,
+      unitPriceCents,
+      source,
+      lineMinCents: minUnit * line.qty,
+      lineMaxCents: maxUnit * line.qty,
+      fleetVehicleId: line.fleetVehicleId ?? null,
+    });
+    subtotalCents += unitPriceCents * line.qty;
+    estMinCents += minUnit * line.qty;
+    estMaxCents += maxUnit * line.qty;
+  }
+
+  const [estimate] = await db
+    .insert(b2bEstimates)
+    .values({
+      accountId,
+      title: parsed.data.title,
+      notes: parsed.data.notes,
+      validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null,
+      lines,
+      subtotalCents,
+      estMinCents,
+      estMaxCents,
+    })
+    .returning();
+  return c.json(estimate, 201);
+});
+
+// GET /:id/estimates — list estimates for an account
+app.get("/:id/estimates", async (c) => {
+  const accountId = c.req.param("id");
+  const rows = await db
+    .select()
+    .from(b2bEstimates)
+    .where(eq(b2bEstimates.accountId, accountId))
+    .orderBy(desc(b2bEstimates.createdAt));
+  return c.json({ data: rows });
+});
+
+// GET /:id/estimates/:eid — estimate detail
+app.get("/:id/estimates/:eid", async (c) => {
+  const estimate = await db.query.b2bEstimates.findFirst({
+    where: and(eq(b2bEstimates.id, c.req.param("eid")), eq(b2bEstimates.accountId, c.req.param("id"))),
+  });
+  if (!estimate) return c.json({ error: "Estimate not found" }, 404);
+  return c.json(estimate);
+});
+
+// POST /:id/estimates/:eid/convert — create bookings from an estimate's lines
+app.post("/:id/estimates/:eid/convert", async (c) => {
+  const accountId = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = convertB2bEstimateSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+  const account = await db.query.b2bAccounts.findFirst({ where: eq(b2bAccounts.id, accountId) });
+  if (!account) return c.json({ error: "B2B account not found" }, 404);
+  if (account.status === "suspended") {
+    return c.json({ error: "Cannot create bookings for suspended accounts" }, 400);
+  }
+  const estimate = await db.query.b2bEstimates.findFirst({
+    where: and(eq(b2bEstimates.id, c.req.param("eid")), eq(b2bEstimates.accountId, accountId)),
+  });
+  if (!estimate) return c.json({ error: "Estimate not found" }, 404);
+  if (estimate.status === "converted") {
+    return c.json({ error: "Estimate already converted" }, 400);
+  }
+
+  const bookingIds: string[] = [];
+  for (const line of estimate.lines) {
+    const service = await db.query.services.findFirst({ where: eq(services.id, line.serviceId) });
+    if (!service) continue;
+    for (let i = 0; i < line.qty; i++) {
+      const { booking } = await createB2bBooking(account, service, {
+        serviceId: line.serviceId,
+        vehicleInfo: parsed.data.vehicleInfo,
+        location: parsed.data.location,
+        contactName: parsed.data.contactName,
+        contactPhone: parsed.data.contactPhone,
+        contactEmail: parsed.data.contactEmail,
+        scheduledAt: parsed.data.scheduledAt,
+        fleetVehicleId: line.fleetVehicleId ?? undefined,
+        notes: `From estimate ${estimate.id}`,
+      });
+      bookingIds.push(booking.id);
+    }
+  }
+
+  const [updated] = await db
+    .update(b2bEstimates)
+    .set({ status: "converted", convertedBookingIds: bookingIds, updatedAt: new Date() })
+    .where(eq(b2bEstimates.id, estimate.id))
+    .returning();
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "b2b_account.create_booking",
+    userId: user.id,
+    resourceType: "b2b_estimate",
+    resourceId: estimate.id,
+    details: { companyName: account.companyName, bookingsCreated: bookingIds.length },
+    ipAddress,
+    userAgent,
+  });
+  return c.json({ estimate: updated, bookingIds }, 201);
 });
 
 // GET /:id/vehicles — fleet vehicles for an account

@@ -35,6 +35,41 @@ export interface B2bBookingResult {
 }
 
 /**
+ * Resolve the account's per-unit price for a service (before any towing
+ * additive): price_list > contract.perJobRateCents > defaultDiscountBp > retail.
+ * SINGLE SOURCE used by both booking creation and estimate building so a quote
+ * always matches what the booking will cost.
+ */
+export async function priceServiceForAccount(
+  account: B2bAccount,
+  serviceId: string,
+  scheduledAt?: Date | null,
+): Promise<{
+  unitPriceCents: number;
+  source: B2bPricingSource;
+  pricing: Awaited<ReturnType<typeof calculateBookingPrice>>;
+}> {
+  const pricing = await calculateBookingPrice(serviceId, scheduledAt ?? null);
+  let unitPriceCents = pricing.finalPrice;
+  let source: B2bPricingSource = "retail";
+
+  const priceListEntry = await db.query.b2bPriceList.findFirst({
+    where: and(eq(b2bPriceList.accountId, account.id), eq(b2bPriceList.serviceId, serviceId)),
+  });
+  if (priceListEntry) {
+    unitPriceCents = priceListEntry.priceCents;
+    source = "price_list";
+  } else if (account.contract?.perJobRateCents != null) {
+    unitPriceCents = account.contract.perJobRateCents;
+    source = "contract";
+  } else if ((account.defaultDiscountBp ?? 0) > 0) {
+    unitPriceCents = Math.round((unitPriceCents * (10000 - (account.defaultDiscountBp ?? 0))) / 10000);
+    source = "discount";
+  }
+  return { unitPriceCents, source, pricing };
+}
+
+/**
  * Create a single B2B booking (tenantId = account.id). Pure of HTTP concerns.
  */
 export async function createB2bBooking(
@@ -42,28 +77,13 @@ export async function createB2bBooking(
   service: Service,
   data: CreateB2bBookingInput,
 ): Promise<B2bBookingResult> {
-  const pricing = await calculateBookingPrice(
+  const { unitPriceCents, source, pricing } = await priceServiceForAccount(
+    account,
     data.serviceId,
     data.scheduledAt ? new Date(data.scheduledAt) : null,
   );
-  let estimatedPrice = pricing.finalPrice; // retail base
-  let pricingSource: B2bPricingSource = "retail";
-
-  // Account pricing resolution (before towing additive):
-  //   price_list  >  contract.perJobRateCents  >  defaultDiscountBp  >  retail
-  const priceListEntry = await db.query.b2bPriceList.findFirst({
-    where: and(eq(b2bPriceList.accountId, account.id), eq(b2bPriceList.serviceId, data.serviceId)),
-  });
-  if (priceListEntry) {
-    estimatedPrice = priceListEntry.priceCents;
-    pricingSource = "price_list";
-  } else if (account.contract?.perJobRateCents != null) {
-    estimatedPrice = account.contract.perJobRateCents;
-    pricingSource = "contract";
-  } else if ((account.defaultDiscountBp ?? 0) > 0) {
-    estimatedPrice = Math.round((estimatedPrice * (10000 - (account.defaultDiscountBp ?? 0))) / 10000);
-    pricingSource = "discount";
-  }
+  let estimatedPrice = unitPriceCents;
+  const pricingSource: B2bPricingSource = source;
 
   // Fleet vehicle: if booking against a saved vehicle (scoped to the account),
   // snapshot its details into vehicleInfo so the booking record stays stable.
