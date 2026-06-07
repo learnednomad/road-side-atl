@@ -19,6 +19,8 @@ export async function seedBase(db: PostgresJsDatabase) {
       {
         name: "Jump Start",
         slug: "jump-start",
+        estimateMinCents: 8000,
+        estimateMaxCents: 15000,
         description:
           "Dead battery? We'll get you running again with a professional jump start service.",
         basePrice: 10000,
@@ -29,6 +31,9 @@ export async function seedBase(db: PostgresJsDatabase) {
       {
         name: "Towing (Local)",
         slug: "towing",
+        estimateMinCents: 7500,
+        estimateMaxCents: 18000,
+        estimateNote: "Per-mile beyond 10 mi; flatbed and after-hours extra",
         description:
           "Local towing within the Atlanta metro area. $125 base rate plus $3 per mile.",
         basePrice: 12500,
@@ -40,6 +45,8 @@ export async function seedBase(db: PostgresJsDatabase) {
       {
         name: "Lockout Service",
         slug: "lockout",
+        estimateMinCents: 10000,
+        estimateMaxCents: 18000,
         description:
           "Locked out of your car? Our technicians will safely get you back in.",
         basePrice: 13500,
@@ -50,6 +57,9 @@ export async function seedBase(db: PostgresJsDatabase) {
       {
         name: "Flat Tire Change",
         slug: "flat-tire",
+        estimateMinCents: 8000,
+        estimateMaxCents: 22000,
+        estimateNote: "Tire cost extra if replacement is needed",
         description:
           "We'll swap your flat for your spare tire and get you back on the road. $100 service fee plus cost of tire if needed.",
         basePrice: 10000,
@@ -60,6 +70,8 @@ export async function seedBase(db: PostgresJsDatabase) {
       {
         name: "Fuel Delivery",
         slug: "fuel-delivery",
+        estimateMinCents: 6000,
+        estimateMaxCents: 12000,
         description:
           "Ran out of gas? We'll bring enough fuel to get you to the nearest station. $75 delivery fee plus cost of gas.",
         basePrice: 7500,
@@ -70,6 +82,8 @@ export async function seedBase(db: PostgresJsDatabase) {
       {
         name: "Basic Inspection",
         slug: "basic-inspection",
+        estimateMinCents: 12000,
+        estimateMaxCents: 20000,
         description:
           "Essential pre-purchase check covering OBD2 scan, visual exterior/interior inspection, fluid levels, tire condition, and battery health.",
         basePrice: 15000,
@@ -80,6 +94,8 @@ export async function seedBase(db: PostgresJsDatabase) {
       {
         name: "Standard Inspection",
         slug: "standard-inspection",
+        estimateMinCents: 20000,
+        estimateMaxCents: 32000,
         description:
           "Comprehensive inspection including OBD2 diagnostics, brake system check, suspension test, electrical system review, engine performance analysis, and photo documentation.",
         basePrice: 25000,
@@ -89,6 +105,8 @@ export async function seedBase(db: PostgresJsDatabase) {
       {
         name: "Premium Inspection",
         slug: "premium-inspection",
+        estimateMinCents: 35000,
+        estimateMaxCents: 50000,
         description:
           "Complete diagnostic report with full mechanical inspection, detailed OBD2 code analysis, test drive evaluation, undercarriage examination, emissions check, and branded PDF report with repair cost estimates.",
         basePrice: 39900,
