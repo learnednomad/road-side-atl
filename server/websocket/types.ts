@@ -18,4 +18,5 @@ export type WSEvent =
   | { type: "booking:dispatch_failed"; data: { bookingId: string; reason?: string } }
   | { type: "onboarding:ready_for_review"; data: { providerId: string; providerName: string } }
   | { type: "onboarding:step_updated"; data: { providerId: string; stepType: string; newStatus: string } }
-  | { type: "onboarding:new_submission"; data: { providerId: string; providerName: string; stepType: string } };
+  | { type: "onboarding:new_submission"; data: { providerId: string; providerName: string; stepType: string } }
+  | { type: "onboarding:activated"; data: { providerId: string; providerName: string } };

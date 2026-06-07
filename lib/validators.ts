@@ -474,3 +474,23 @@ export const adminDocumentReviewSchema = z.object({
   { message: "Rejection reason required when rejecting" },
 );
 export type AdminDocumentReviewInput = z.infer<typeof adminDocumentReviewSchema>;
+
+// Admin provider lifecycle (restored — used by admin-providers routes)
+export const adminRejectProviderSchema = z.object({
+  reason: z.string().min(1, "Rejection reason is required"),
+});
+export type AdminRejectProviderInput = z.infer<typeof adminRejectProviderSchema>;
+
+export const adminSuspendProviderSchema = z.object({
+  reason: z.string().min(1, "Suspension reason is required"),
+});
+export type AdminSuspendProviderInput = z.infer<typeof adminSuspendProviderSchema>;
+
+export const adminReviewStepSchema = z.object({
+  status: z.enum(["complete", "rejected"]),
+  rejectionReason: z.string().min(1).optional(),
+}).refine(
+  (val) => val.status !== "rejected" || (val.rejectionReason !== undefined && val.rejectionReason.length > 0),
+  { message: "Rejection reason is required when rejecting a step" },
+);
+export type AdminReviewStepInput = z.infer<typeof adminReviewStepSchema>;
