@@ -142,7 +142,13 @@ app.post("/stripe", async (c) => {
         const existing = await db.query.payments.findFirst({
           where: and(eq(payments.stripeSessionId, session.id), eq(payments.status, "confirmed")),
         });
-        if (existing) break;
+        if (existing) {
+          // Payment already confirmed (duplicate/retry). Still ensure the payout
+          // exists — createPayoutIfEligible is idempotent — to cover the case
+          // where a prior run confirmed the payment but threw before creating it.
+          await createPayoutIfEligible(bookingId);
+          break;
+        }
 
         // For destination charges, retrieve the PaymentIntent to capture the transfer ID
         let stripeTransferId: string | null = null;

@@ -334,12 +334,18 @@ app.post("/refund", async (c) => {
             .set({ amount: newPayoutAmount, notes: `Adjusted: partial refund (${Math.round(refundRatio * 100)}%) - ${reason}` })
             .where(eq(providerPayouts.id, existingPayout.id));
         }
+      } else if (existingPayout.status === "paid" && payment.chargeType === "destination") {
+        // Destination charge: the Stripe refund above used reverse_transfer to
+        // pull the provider's (proportional) share back from their Connect
+        // balance directly. Creating a clawback record too would double-debit
+        // the provider (Stripe reversal + clawback netting), so we don't.
       } else if (existingPayout.status === "paid") {
-        // Already paid: create clawback record — unless one already exists for
-        // this payout (e.g. a webhook refund/dispute clawed back first). The
-        // unique index would otherwise abort this transaction *after* the
-        // Stripe refund was already issued, leaving money refunded with no DB
-        // record. Pre-checking inside the tx avoids that.
+        // Platform/manual charge: no Stripe-side reversal happened, so record a
+        // clawback to net against the provider's future payouts — unless one
+        // already exists for this payout (e.g. a webhook refund/dispute clawed
+        // back first). The unique index would otherwise abort this transaction
+        // *after* the Stripe refund was already issued, leaving money refunded
+        // with no DB record; pre-checking inside the tx avoids that.
         const existingClawback = await tx.query.providerPayouts.findFirst({
           where: and(
             eq(providerPayouts.originalPayoutId, existingPayout.id),

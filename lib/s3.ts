@@ -93,9 +93,10 @@ export async function getPresignedUploadUrl(
 }
 
 /**
- * Return the actual byte size of an uploaded S3 object, or null if it doesn't
- * exist. Used to verify a direct-to-S3 upload server-side instead of trusting
- * the client-reported size.
+ * Return the actual byte size of an uploaded S3 object, or null if the object
+ * genuinely does not exist (404). Throws on any other (transient) error so the
+ * caller can distinguish "missing" from "couldn't check" and avoid rejecting a
+ * valid upload on a network/throttle blip.
  */
 export async function getObjectSize(key: string): Promise<number | null> {
   try {
@@ -103,8 +104,13 @@ export async function getObjectSize(key: string): Promise<number | null> {
       new HeadObjectCommand({ Bucket: getBucket(), Key: key })
     );
     return res.ContentLength ?? null;
-  } catch {
-    return null;
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    const name = (err as { name?: string })?.name;
+    if (status === 404 || name === "NotFound" || name === "NoSuchKey") {
+      return null;
+    }
+    throw err;
   }
 }
 

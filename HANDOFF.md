@@ -110,6 +110,38 @@ These stop active exposure immediately and are the owner's to perform:
 
 ---
 
+## 3a. 🚨 DEPLOY BLOCKER — migration journal drift (verify the new DB objects exist)
+
+An independent review of all six batches flagged this as the top risk. **The Drizzle migration journal (`db/migrations/meta/_journal.json`) stops at idx 19**, but SQL files `0020`–`0031` exist and are **not registered**. Consequences:
+
+- `docker-entrypoint.sh`'s normal path runs `drizzle-kit migrate`, which only applies *journaled* migrations → it will **skip** `0030_rate_limits.sql` and `0031_money_invariants.sql`. And Batch A made a failed `migrate` **fatal**, while the journal drift means migrate already fails at `0000` (`type "user_role" already exists`) — so the container **won't boot via the migrate path** until the journal is reconciled.
+- This means prod must apply schema via **`drizzle-kit push`** (what the team already does for 0020–0029) **or** the journal must be reconciled. Either way: the new tables/indexes/enum (`rate_limits`, `webhook_events`, the three partial unique indexes, the `partially_refunded` enum value) only exist if `push` runs or the journal is fixed.
+- The app **fails open** if these are missing (no crash — rate limiting and money-invariant backstops are simply inert, logged on use). So after deploying, **verify the objects exist**:
+  ```sql
+  \d rate_limits        \d webhook_events
+  select indexname from pg_indexes where indexname like 'uniq_payout%' or indexname='uniq_payments_stripe_session';
+  select 'partially_refunded'::payment_status;  -- must not error
+  ```
+- **Action:** reconcile the journal (the H5 task) **or** run `drizzle-kit push` against prod as part of this deploy, then run the checks above. Until then, none of the DB-backed protections (H7 limiting, M6 invariants) are actually active.
+
+---
+
+## 3b. Independent review (post-implementation)
+
+Three parallel adversarial reviews ran over the whole branch. Real bugs found **and fixed** in commits `c4def24` + the follow-up:
+- Login throttle counted *successful* logins toward the per-IP limit (shared-IP self-lockout) → now counts failures only.
+- `dispute.lost` clawback insert not tolerant of the new unique index → wrapped.
+- Admin refund clawback inside a transaction could abort *after* the Stripe refund → pre-check added.
+- **Destination-charge refund double-debited the provider** (M8 `reverse_transfer` + clawback record) → clawback now skipped for destination charges.
+- Payout could be missed on a confirm-retry → `createPayoutIfEligible` now runs on the already-confirmed path.
+- Transient S3 error wrongly rejected valid uploads → distinguishes 404 from transient.
+
+Confirmed **safe** (false alarms): referral payouts (`payoutType:'referral'`, not covered by the indexes); each checkout uses a fresh `stripeSessionId`; the M2 `EXISTS` correlated subquery generates correct SQL; env fatal-exit can't fire at build; Hono body-cache lets the email-keying middleware read the body without breaking handlers.
+
+Still-open judgement calls (need owner confirmation, not bugs): **M9** payout semantics — provider rate is now an *exact* override, not a floor (matches the audit's intent; confirm it's what you want for negotiated providers). **M2 partial out-of-band refund** doesn't proportionally claw back the payout (only full refunds do; admin refund path handles proportional). Per-email login lockout is a deliberate (standard) trade-off that allows targeted-account lockout DoS.
+
+---
+
 ## 4. Remaining roadmap (see plan + audit for detail)
 
 Batches land on `development` via PR, by severity/area:

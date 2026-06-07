@@ -28,6 +28,7 @@ app.get("/", requireAuth, async (c) => {
   // raw bank account fields (M3).
   if (user.role !== "admin") {
     const safe = { ...settings };
+    safe.bankName = null;
     safe.bankAccountNumber = null;
     safe.bankRoutingNumber = null;
     safe.bankSwiftCode = null;

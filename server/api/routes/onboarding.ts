@@ -16,15 +16,15 @@ import { requireProvider } from "../middleware/auth";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { getPresignedUploadUrl, getPresignedUrl, getObjectSize, deleteFile } from "@/lib/s3";
-
-// Max document upload size (matches documentCreateSchema's client-side cap).
-const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
 import { createCandidate, createInvitation, CheckrApiError } from "../lib/checkr";
 import { stripe, getStripe } from "@/lib/stripe";
 import { checkAllStepsCompleteAndTransition } from "../lib/all-steps-complete";
 import { isFeatureEnabled, FEATURE_FLAGS } from "../lib/feature-flags";
 import { logger } from "@/lib/logger";
 import { notifyApplicationReceived, notifyTrainingCompleted, notifyStripeConnectCompleted, notifyAdminProviderReadyForReview, notifyAdminNewDocumentSubmitted } from "@/lib/notifications";
+
+// Max document upload size (matches documentCreateSchema's client-side cap).
+const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
 
 const app = new Hono();
 
@@ -979,7 +979,15 @@ app.post("/documents", requireProvider, async (c) => {
 
   // Verify the actual uploaded object size server-side — don't trust the
   // client-reported fileSize (L6). Reject (and clean up) oversized uploads.
-  const actualSize = await getObjectSize(parsed.data.s3Key);
+  // A transient S3 error (vs a genuine 404) shouldn't block onboarding, so fall
+  // back to the client-reported size in that case rather than rejecting.
+  let actualSize: number | null;
+  try {
+    actualSize = await getObjectSize(parsed.data.s3Key);
+  } catch (err) {
+    console.error("[Onboarding] S3 size check failed, trusting client size:", err);
+    actualSize = parsed.data.fileSize;
+  }
   if (actualSize === null) {
     return c.json({ error: "Uploaded file not found in storage" }, 400);
   }
