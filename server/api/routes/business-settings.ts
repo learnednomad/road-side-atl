@@ -18,10 +18,24 @@ type AuthEnv = {
 
 const app = new Hono<AuthEnv>();
 
-// GET / - anyone authenticated
+// GET / - anyone authenticated, but bank details are admin-only
 app.get("/", requireAuth, async (c) => {
+  const user = c.get("user");
   const [settings] = await db.select().from(businessSettings).limit(1);
-  return c.json(settings || null);
+  if (!settings) return c.json(null);
+
+  // Non-admins (providers, customers) get company/invoice info but never the
+  // raw bank account fields (M3).
+  if (user.role !== "admin") {
+    const safe = { ...settings };
+    safe.bankAccountNumber = null;
+    safe.bankRoutingNumber = null;
+    safe.bankSwiftCode = null;
+    safe.bankAccountName = null;
+    return c.json(safe);
+  }
+
+  return c.json(settings);
 });
 
 // PUT / - admin only, upsert

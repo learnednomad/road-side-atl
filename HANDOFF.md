@@ -40,6 +40,18 @@ On branch `fix/audit-remediation-batch1` (open as **PR #41 → `development`**):
 > **Migration note:** `rate_limits` is created by `db/migrations/0030_rate_limits.sql` (idempotent `CREATE TABLE IF NOT EXISTS`) and by `drizzle-kit push` (the mechanism prod actually uses — the migration *journal* is drifted and stops at idx 19; that's the H5 reconciliation task). The DB limiter and login throttle **fail open** if the table/store is unavailable, so a missing migration degrades to "no limiting," never a broken login.
 > Still open: provider-registration still uses the in-memory `rateLimitAuth` (not yet email-keyed); no per-email lockout *persistence* test (needs a live DB).
 
+### Batch C — access control & PII (Step 4), committed on this branch
+
+| Finding | What | Files |
+|---|---|---|
+| **M2** | Provider customer-search now scoped to customers the provider actually serviced (EXISTS on bookings); admins keep full search. Stops PII-database enumeration. | `server/api/routes/user-search.ts` |
+| **M3** | `GET /business-settings` strips raw bank fields (account #, routing, swift, account name) for non-admins. | `server/api/routes/business-settings.ts` |
+| **M4** | Admin `/customers` now selects an explicit `safeUserColumns` whitelist instead of `select({ user: users })` — no more password hashes / `taxId` / Stripe ids in the response. | `server/api/routes/admin.ts`, `server/api/lib/safe-columns.ts` |
+| **L4** | Public provider reviews mask reviewer names ("Jasmine C." not full name). | `server/api/routes/reviews.ts` |
+| **L5** | LIKE/ILIKE wildcards escaped in user-search + admin customer search via shared `escapeLike`. | `server/api/lib/sql-escape.ts`, `user-search.ts`, `admin.ts` |
+
+> Pure code, no schema/deploy-order implications. Still open: `escapeLike` should also be applied to the other ~5 search endpoints the audit lists (only the two PII-bearing ones done here); audit remaining `.select({ x: <table> })` patterns for other over-fetches.
+
 **Validation:** local dockerized rebuild + per-IP correctness tests — distinct IPs get separate buckets, single IP still caps at limit, fails open with one throttled warning when unidentified, no 429 storm under load. Reusable harness left at `loadtest/part-a-correctness.sh` and `loadtest/part-b-local-ramp.js` (untracked).
 
 **Tag:** `v1.4.2-rc.1` pushed. ⚠️ The `deploy-staging` CI job is a **stub** — there is no staging environment, so this tag deployed nowhere. (`COOLIFY_STAGING_APP_UUID` is unset.)
