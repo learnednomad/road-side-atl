@@ -4,6 +4,7 @@
 
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
+import { sendOpsAlert, type OpsSeverity } from "./ops-alerts";
 
 export type AuditAction =
   | "booking.create"
@@ -125,7 +126,30 @@ let tableEnsured = false;
  * Log an audit event
  * Events are buffered and written in batches for performance
  */
+// Money/ops-critical audit actions that also fire a Slack ops alert.
+const OPS_ALERT_ACTIONS: Partial<Record<AuditAction, OpsSeverity>> = {
+  "payout.stripe_connect_failed": "critical",
+  "payout.transfer_failed": "critical",
+  "payment.dispute": "warning",
+  "payout.clawback": "warning",
+  "reconciliation.stripe_connect_deadline_suspend": "warning",
+};
+
 export async function logAudit(entry: AuditLogEntry): Promise<void> {
+  // Fan money/ops-critical events out to Slack (fail-open, fire-and-forget).
+  const severity = OPS_ALERT_ACTIONS[entry.action];
+  if (severity) {
+    sendOpsAlert({
+      title: entry.action,
+      severity,
+      fields: {
+        resource: entry.resourceId ? `${entry.resourceType ?? "resource"} ${entry.resourceId}` : undefined,
+        ...(entry.details as Record<string, string | number | null | undefined> | undefined),
+      },
+      dedupeKey: `${entry.action}:${entry.resourceId ?? ""}`,
+    });
+  }
+
   logBuffer.push({
     ...entry,
     details: entry.details || {},
