@@ -61,6 +61,8 @@ export type AuditAction =
   | "payment.receipt_sent"
   | "payout.clawback"
   | "payout.batch_paid"
+  | "commission_rule.created"
+  | "commission_rule.deleted"
   | "booking.delay_notification"
   | "service.update_checklist_config"
   | "provider.view_tax_id"

@@ -20,10 +20,15 @@ export function computeProviderAmount(
   effectivePrice: number,
   provider: { commissionType: string; commissionRate: number; flatFeeAmount: number | null; rateIsNegotiated?: boolean },
   service: { commissionRate: number } | null | undefined,
+  overrideCommissionBp?: number | null,
 ): number {
   let amount: number;
   if (provider.commissionType === "flat_per_job") {
     amount = provider.flatFeeAmount || 0;
+  } else if (overrideCommissionBp != null) {
+    // A matching commission_rule (account/provider/service/global) sets the
+    // platform's cut; provider keeps the remainder.
+    amount = effectivePrice - Math.round((effectivePrice * overrideCommissionBp) / 10000);
   } else if (service && service.commissionRate > 0) {
     const serviceProviderAmount = effectivePrice - Math.round((effectivePrice * service.commissionRate) / 10000);
     // A negotiated provider rate overrides the service cut. Prefer the explicit
@@ -52,6 +57,7 @@ function isUniqueViolation(err: unknown): boolean {
 import { getStripe } from "@/lib/stripe";
 import { createInvoiceForBooking } from "./invoice-generator";
 import { logAudit } from "./audit-logger";
+import { resolveCommissionBp } from "./commission";
 import { logger } from "@/lib/logger";
 
 /**
@@ -146,7 +152,13 @@ export async function createPayoutIfEligible(bookingId: string) {
   const effectivePrice = booking.priceOverrideCents ?? confirmedPayment.amount;
 
   // Provider's earned share (shared with the checkout application-fee math).
-  const providerAmount = computeProviderAmount(effectivePrice, provider, service);
+  // Resolve any commission_rule override for this account/provider/service.
+  const overrideCommissionBp = await resolveCommissionBp({
+    accountId: booking.tenantId,
+    providerId: booking.providerId,
+    serviceId: booking.serviceId,
+  });
+  const providerAmount = computeProviderAmount(effectivePrice, provider, service, overrideCommissionBp);
 
   // Determine if this was a destination charge (split already done at charge time)
   // We check the payment's Stripe session metadata for chargeType

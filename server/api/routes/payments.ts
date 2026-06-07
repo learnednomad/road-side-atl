@@ -11,6 +11,7 @@ import { validatePaymentMethod } from "@/server/api/middleware/trust-tier";
 import { rateLimitStrict } from "@/server/api/middleware/rate-limit";
 import { isFeatureEnabled, FEATURE_FLAGS } from "@/server/api/lib/feature-flags";
 import { computeProviderAmount } from "@/server/api/lib/payout-calculator";
+import { resolveCommissionBp } from "@/server/api/lib/commission";
 
 type AuthEnv = {
   Variables: {
@@ -131,7 +132,12 @@ app.post("/stripe/checkout", async (c) => {
   // to the provider exactly equals the recorded payout (B2 — no special-rate drift).
   let applicationFeeAmount: number | undefined;
   if (useDestinationCharge && service) {
-    const providerShare = computeProviderAmount(booking.estimatedPrice, provider!, service);
+    const overrideCommissionBp = await resolveCommissionBp({
+      accountId: booking.tenantId,
+      providerId: provider!.id,
+      serviceId: booking.serviceId,
+    });
+    const providerShare = computeProviderAmount(booking.estimatedPrice, provider!, service, overrideCommissionBp);
     applicationFeeAmount = Math.max(0, booking.estimatedPrice - providerShare);
   }
 
