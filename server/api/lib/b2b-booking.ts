@@ -24,6 +24,7 @@ import { geocodeAddress } from "@/lib/geocoding";
 import { notifyB2bServiceDispatched } from "@/lib/notifications";
 import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "./auto-dispatch";
+import { emitPartnerEvent } from "./outbound-webhooks";
 import type { CreateB2bBookingInput } from "@/lib/validators";
 
 type B2bAccount = {
@@ -224,6 +225,16 @@ export async function createB2bBooking(
       serviceName: service.name,
       b2bAccountId: account.id,
     },
+  });
+
+  // Outbound partner webhook (fire-and-forget; enqueues to active subscriptions).
+  void emitPartnerEvent(account.id, "booking.created", {
+    bookingId: booking.id,
+    serviceId: booking.serviceId,
+    serviceName: service.name,
+    status: booking.status,
+    estimatedPrice: booking.estimatedPrice,
+    scheduledAt: booking.scheduledAt,
   });
 
   // Auto-dispatch immediate (unscheduled) bookings.

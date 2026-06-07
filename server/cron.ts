@@ -135,6 +135,14 @@ const jobs: CronJob[] = [
       return materializeRecurringBookings();
     },
   },
+  {
+    name: "deliver-outbound-webhooks",
+    intervalMs: 1 * MINUTE,
+    run: async () => {
+      const { deliverPendingWebhooks } = await import("./api/lib/outbound-webhooks");
+      return deliverPendingWebhooks();
+    },
+  },
 ];
 
 function runJob(job: CronJob) {

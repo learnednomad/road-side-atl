@@ -16,7 +16,9 @@ import {
   services,
   invoices,
   users,
+  webhookSubscriptions,
 } from "@/db/schema";
+import crypto from "crypto";
 import type { B2bEstimateLine } from "@/db/schema/b2b-estimates";
 import { and, eq, desc, ne } from "drizzle-orm";
 import { requireB2bMember, requireB2bRole, type B2bMemberEnv } from "../middleware/b2b-member";
@@ -26,6 +28,7 @@ import {
   createB2bEstimateSchema,
   convertB2bEstimateSchema,
   addB2bMemberSchema,
+  createWebhookSubscriptionSchema,
 } from "@/lib/validators";
 import { createB2bBooking, priceServiceForAccount, CreditLimitError } from "../lib/b2b-booking";
 
@@ -315,6 +318,51 @@ app.delete("/members/:id", requireB2bRole("owner"), async (c) => {
     if (owners.length <= 1) return c.json({ error: "Cannot remove the last owner" }, 400);
   }
   await db.delete(b2bAccountMembers).where(eq(b2bAccountMembers.id, target.id));
+  return c.json({ success: true });
+});
+
+// GET /webhooks — list this account's webhook subscriptions (secret redacted)
+app.get("/webhooks", requireB2bRole("owner", "manager"), async (c) => {
+  const rows = await db
+    .select({
+      id: webhookSubscriptions.id,
+      url: webhookSubscriptions.url,
+      events: webhookSubscriptions.events,
+      active: webhookSubscriptions.active,
+      createdAt: webhookSubscriptions.createdAt,
+    })
+    .from(webhookSubscriptions)
+    .where(eq(webhookSubscriptions.accountId, c.get("b2bAccountId")))
+    .orderBy(desc(webhookSubscriptions.createdAt));
+  return c.json({ data: rows });
+});
+
+// POST /webhooks — register a subscription (owner). Secret returned ONCE.
+app.post("/webhooks", requireB2bRole("owner"), async (c) => {
+  const body = await c.req.json();
+  const parsed = createWebhookSubscriptionSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  const secret = parsed.data.secret ?? crypto.randomBytes(24).toString("hex");
+  const [sub] = await db
+    .insert(webhookSubscriptions)
+    .values({
+      accountId: c.get("b2bAccountId"),
+      url: parsed.data.url,
+      events: parsed.data.events,
+      secret,
+    })
+    .returning();
+  // Return the secret once so the partner can verify HMAC signatures.
+  return c.json({ id: sub.id, url: sub.url, events: sub.events, active: sub.active, secret }, 201);
+});
+
+// DELETE /webhooks/:id — remove a subscription (owner, account-scoped)
+app.delete("/webhooks/:id", requireB2bRole("owner"), async (c) => {
+  const [deleted] = await db
+    .delete(webhookSubscriptions)
+    .where(and(eq(webhookSubscriptions.id, c.req.param("id")), eq(webhookSubscriptions.accountId, c.get("b2bAccountId"))))
+    .returning();
+  if (!deleted) return c.json({ error: "Subscription not found" }, 404);
   return c.json({ success: true });
 });
 
