@@ -13,6 +13,7 @@ import { Check, ArrowRight, ArrowLeft, Loader2, AlertTriangle, MapPin, Clock } f
 import { cn, formatPrice } from "@/lib/utils";
 import { PaymentMethodSelector } from "@/components/booking/payment-method-selector";
 import { ReferralCreditSelector } from "@/components/booking/referral-credit-selector";
+import { EstimateBreakdown } from "@/components/booking/estimate-breakdown";
 import { useGoogleMaps } from "@/lib/hooks/use-google-maps";
 
 interface Service {
@@ -24,6 +25,9 @@ interface Service {
   pricePerMile: number | null;
   category: string;
   schedulingMode?: string;
+  estimateMinCents?: number | null;
+  estimateMaxCents?: number | null;
+  estimateNote?: string | null;
 }
 
 const STEPS = [
@@ -523,6 +527,14 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
               </div>
             </CardContent>
           </Card>
+          {selectedService && (
+            <EstimateBreakdown
+              basePrice={selectedService.basePrice}
+              estimateMinCents={selectedService.estimateMinCents}
+              estimateMaxCents={selectedService.estimateMaxCents}
+              estimateNote={selectedService.estimateNote}
+            />
+          )}
         </>
       )}
 

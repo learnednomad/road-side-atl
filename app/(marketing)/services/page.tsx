@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { ServiceCard } from "@/components/marketing/service-card";
+import { CostExpectations } from "@/components/marketing/cost-expectations";
 import { buildMetadata, SITE_URL } from "@/lib/seo";
 import { BreadcrumbJsonLd } from "@/components/seo/json-ld";
 import { db } from "@/db";
@@ -76,6 +77,8 @@ export default async function ServicesPage() {
         Professional 24/7 roadside assistance and comprehensive vehicle diagnostics
         serving the entire Atlanta metro area. Affordable, fast, and reliable.
       </p>
+
+      <CostExpectations />
 
       <h2
         className="mb-6 border-l-4 border-red-600 pl-4 text-2xl font-semibold"
