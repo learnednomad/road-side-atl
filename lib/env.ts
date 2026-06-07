@@ -23,6 +23,8 @@ const envSchema = z.object({
   AUTH_GOOGLE_SECRET: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
   SLACK_OPS_WEBHOOK_URL: z.string().optional(), // Slack Incoming Webhook for ops alerts (optional)
+  SLACK_SIGNING_SECRET: z.string().optional(), // Slack app signing secret for the slash-command bot
+  SLACK_ADMIN_USER_IDS: z.string().optional(), // comma-separated Slack user ids allowed to use the bot
 
   // Encryption
   ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i, "ENCRYPTION_KEY must be 64 hex characters (32 bytes)").optional(),
