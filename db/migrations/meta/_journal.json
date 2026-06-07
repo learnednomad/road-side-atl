@@ -43,6 +43,13 @@
       "when": 1780818159618,
       "tag": "0005_commission_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780818984672,
+      "tag": "0006_webhook_observability",
+      "breakpoints": true
     }
   ]
 }
