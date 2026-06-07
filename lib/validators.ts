@@ -450,6 +450,13 @@ export const createRecurringScheduleSchema = z.object({
 });
 export type CreateRecurringScheduleInput = z.infer<typeof createRecurringScheduleSchema>;
 
+export const recordB2bCreditPaymentSchema = z.object({
+  amountCents: z.number().int().min(1, "Amount must be positive"),
+  invoiceId: z.string().optional(),
+  notes: z.string().max(500).optional(),
+});
+export type RecordB2bCreditPaymentInput = z.infer<typeof recordB2bCreditPaymentSchema>;
+
 export const setB2bPriceListSchema = z.object({
   entries: z.array(
     z.object({

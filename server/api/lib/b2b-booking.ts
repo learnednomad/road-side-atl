@@ -7,9 +7,17 @@
  * validating input, loading the account/service, authz, and audit logging.
  */
 import { db } from "@/db";
-import { bookings, b2bPriceList, fleetVehicles } from "@/db/schema";
+import { bookings, b2bPriceList, fleetVehicles, b2bAccounts, b2bCreditTransactions } from "@/db/schema";
 import type { B2bContract } from "@/db/schema/b2b-accounts";
 import { and, eq } from "drizzle-orm";
+
+/** Thrown when a NET booking would exceed the account's credit limit. */
+export class CreditLimitError extends Error {
+  constructor(public readonly balanceCents: number, public readonly limitCents: number, public readonly chargeCents: number) {
+    super(`Credit limit exceeded: balance ${balanceCents} + charge ${chargeCents} > limit ${limitCents}`);
+    this.name = "CreditLimitError";
+  }
+}
 import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS } from "@/lib/constants";
 import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { geocodeAddress } from "@/lib/geocoding";
@@ -23,6 +31,8 @@ type B2bAccount = {
   companyName: string;
   contract?: B2bContract | null;
   defaultDiscountBp?: number;
+  paymentTerms?: string;
+  creditLimitCents?: number;
 };
 type Service = { id: string; name: string; slug: string };
 export type B2bPricingSource = "retail" | "discount" | "contract" | "price_list";
@@ -131,23 +141,60 @@ export async function createB2bBooking(
     }
   }
 
-  const [booking] = await db
-    .insert(bookings)
-    .values({
-      serviceId: data.serviceId,
-      vehicleInfo,
-      fleetVehicleId,
-      location: locationData,
-      contactName: data.contactName,
-      contactPhone: data.contactPhone,
-      contactEmail: data.contactEmail,
-      scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
-      estimatedPrice,
-      towingMiles,
-      notes: data.notes,
-      tenantId: account.id,
-    })
-    .returning();
+  const bookingValues = {
+    serviceId: data.serviceId,
+    vehicleInfo,
+    fleetVehicleId,
+    location: locationData,
+    contactName: data.contactName,
+    contactPhone: data.contactPhone,
+    contactEmail: data.contactEmail,
+    scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+    estimatedPrice,
+    towingMiles,
+    notes: data.notes,
+    tenantId: account.id,
+  };
+
+  // NET accounts draw down credit: guard the limit + record a ledger charge +
+  // bump the balance, all in one transaction with a locked balance read so
+  // concurrent bookings can't blow past the limit. Prepaid accounts (no credit
+  // limit) keep the plain insert — no behavior change.
+  const isNet =
+    account.paymentTerms !== undefined &&
+    account.paymentTerms !== "prepaid" &&
+    (account.creditLimitCents ?? 0) > 0;
+
+  let booking: typeof bookings.$inferSelect;
+  if (isNet) {
+    booking = await db.transaction(async (tx) => {
+      const [acct] = await tx
+        .select({ balance: b2bAccounts.currentBalanceCents, limit: b2bAccounts.creditLimitCents })
+        .from(b2bAccounts)
+        .where(eq(b2bAccounts.id, account.id))
+        .for("update");
+      const balance = acct?.balance ?? 0;
+      const limit = acct?.limit ?? 0;
+      if (balance + estimatedPrice > limit) {
+        throw new CreditLimitError(balance, limit, estimatedPrice);
+      }
+      const [b] = await tx.insert(bookings).values(bookingValues).returning();
+      await tx.insert(b2bCreditTransactions).values({
+        accountId: account.id,
+        type: "charge",
+        amountCents: estimatedPrice,
+        bookingId: b.id,
+        notes: `Booking ${b.id}`,
+      });
+      await tx
+        .update(b2bAccounts)
+        .set({ currentBalanceCents: balance + estimatedPrice, updatedAt: new Date() })
+        .where(eq(b2bAccounts.id, account.id));
+      return b;
+    });
+  } else {
+    [booking] = await db.insert(bookings).values(bookingValues).returning();
+  }
 
   // Fire-and-forget B2B notification + admin broadcast.
   notifyB2bServiceDispatched(

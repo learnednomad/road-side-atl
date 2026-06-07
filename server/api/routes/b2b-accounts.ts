@@ -21,7 +21,9 @@ import {
 } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import { createB2bMonthlyInvoice } from "../lib/invoice-generator";
-import { createB2bBooking, priceServiceForAccount } from "../lib/b2b-booking";
+import { createB2bBooking, priceServiceForAccount, CreditLimitError } from "../lib/b2b-booking";
+import { b2bCreditTransactions } from "@/db/schema";
+import { recordB2bCreditPaymentSchema } from "@/lib/validators";
 
 type AuthEnv = {
   Variables: {
@@ -339,7 +341,19 @@ app.post("/:id/bookings", async (c) => {
 
   // Create the booking through the shared B2B path (price + geocode + insert +
   // notify + dispatch). Reused by bulk/recurring/estimate-convert.
-  const { booking, pricing, dispatchResult } = await createB2bBooking(account, service, data);
+  let result;
+  try {
+    result = await createB2bBooking(account, service, data);
+  } catch (err) {
+    if (err instanceof CreditLimitError) {
+      return c.json(
+        { error: "Credit limit exceeded", balanceCents: err.balanceCents, limitCents: err.limitCents },
+        402,
+      );
+    }
+    throw err;
+  }
+  const { booking, pricing, dispatchResult } = result;
 
   const user = c.get("user");
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
@@ -369,6 +383,70 @@ app.post("/:id/bookings", async (c) => {
     },
     dispatchResult,
   }, 201);
+});
+
+// GET /:id/credit — NET balance/limit + ledger
+app.get("/:id/credit", async (c) => {
+  const accountId = c.req.param("id");
+  const account = await db.query.b2bAccounts.findFirst({ where: eq(b2bAccounts.id, accountId) });
+  if (!account) return c.json({ error: "B2B account not found" }, 404);
+  const transactions = await db
+    .select()
+    .from(b2bCreditTransactions)
+    .where(eq(b2bCreditTransactions.accountId, accountId))
+    .orderBy(desc(b2bCreditTransactions.createdAt))
+    .limit(200);
+  return c.json({
+    currentBalanceCents: account.currentBalanceCents,
+    creditLimitCents: account.creditLimitCents,
+    availableCreditCents: Math.max(0, account.creditLimitCents - account.currentBalanceCents),
+    transactions,
+  });
+});
+
+// POST /:id/credit/payment — record an AR payment received (pays down balance)
+app.post("/:id/credit/payment", async (c) => {
+  const accountId = c.req.param("id");
+  const body = await c.req.json();
+  const parsed = recordB2bCreditPaymentSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+  }
+  const result = await db.transaction(async (tx) => {
+    const [acct] = await tx
+      .select({ balance: b2bAccounts.currentBalanceCents })
+      .from(b2bAccounts)
+      .where(eq(b2bAccounts.id, accountId))
+      .for("update");
+    if (!acct) return null;
+    const newBalance = acct.balance - parsed.data.amountCents;
+    await tx.insert(b2bCreditTransactions).values({
+      accountId,
+      type: "payment",
+      amountCents: -parsed.data.amountCents,
+      invoiceId: parsed.data.invoiceId,
+      notes: parsed.data.notes,
+    });
+    await tx
+      .update(b2bAccounts)
+      .set({ currentBalanceCents: newBalance, updatedAt: new Date() })
+      .where(eq(b2bAccounts.id, accountId));
+    return newBalance;
+  });
+  if (result === null) return c.json({ error: "B2B account not found" }, 404);
+
+  const user = c.get("user");
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  logAudit({
+    action: "invoice.mark_paid",
+    userId: user.id,
+    resourceType: "b2b_account",
+    resourceId: accountId,
+    details: { amountCents: parsed.data.amountCents, newBalanceCents: result },
+    ipAddress,
+    userAgent,
+  });
+  return c.json({ currentBalanceCents: result });
 });
 
 // POST /:id/bookings/bulk — create many bookings at once (best-effort per item)
