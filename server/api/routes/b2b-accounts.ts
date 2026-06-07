@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "@/db";
 import { b2bAccounts, b2bPriceList, fleetVehicles, b2bEstimates, recurringBookingSchedules, bookings, services, invoices } from "@/db/schema";
 import type { B2bEstimateLine } from "@/db/schema/b2b-estimates";
-import { eq, desc, and, ilike, count, inArray } from "drizzle-orm";
+import { eq, desc, and, ilike, count, inArray, ne } from "drizzle-orm";
 import { requireAdmin } from "@/server/api/middleware/auth";
 import { rateLimitStandard } from "@/server/api/middleware/rate-limit";
 import {
@@ -684,38 +684,55 @@ app.post("/:id/estimates/:eid/convert", async (c) => {
     where: and(eq(b2bEstimates.id, c.req.param("eid")), eq(b2bEstimates.accountId, accountId)),
   });
   if (!estimate) return c.json({ error: "Estimate not found" }, 404);
-  if (estimate.status === "converted") {
-    return c.json({ error: "Estimate already converted" }, 400);
-  }
+
+  // Atomically CLAIM the estimate (mark converted only if not already) BEFORE
+  // creating any bookings. This makes convert idempotent: a retry after a
+  // partial/mid-loop failure can't re-run the loop and double-book / double-
+  // charge credit.
+  const [claimed] = await db
+    .update(b2bEstimates)
+    .set({ status: "converted", updatedAt: new Date() })
+    .where(and(eq(b2bEstimates.id, estimate.id), ne(b2bEstimates.status, "converted")))
+    .returning();
+  if (!claimed) return c.json({ error: "Estimate already converted" }, 400);
 
   const bookingIds: string[] = [];
-  for (const line of estimate.lines) {
-    const service = await db.query.services.findFirst({ where: eq(services.id, line.serviceId) });
-    if (!service) continue;
-    for (let i = 0; i < line.qty; i++) {
-      const { booking } = await createB2bBooking(
-        account,
-        service,
-        {
-          serviceId: line.serviceId,
-          vehicleInfo: parsed.data.vehicleInfo,
-          location: parsed.data.location,
-          contactName: parsed.data.contactName,
-          contactPhone: parsed.data.contactPhone,
-          contactEmail: parsed.data.contactEmail,
-          scheduledAt: parsed.data.scheduledAt,
-          fleetVehicleId: line.fleetVehicleId ?? undefined,
-          notes: `From estimate ${estimate.id}`,
-        },
-        { priceOverrideCents: line.unitPriceCents }, // frozen quote price (1b)
-      );
-      bookingIds.push(booking.id);
+  try {
+    for (const line of estimate.lines) {
+      const service = await db.query.services.findFirst({ where: eq(services.id, line.serviceId) });
+      if (!service) continue;
+      for (let i = 0; i < line.qty; i++) {
+        const { booking } = await createB2bBooking(
+          account,
+          service,
+          {
+            serviceId: line.serviceId,
+            vehicleInfo: parsed.data.vehicleInfo,
+            location: parsed.data.location,
+            contactName: parsed.data.contactName,
+            contactPhone: parsed.data.contactPhone,
+            contactEmail: parsed.data.contactEmail,
+            scheduledAt: parsed.data.scheduledAt,
+            fleetVehicleId: line.fleetVehicleId ?? undefined,
+            notes: `From estimate ${estimate.id}`,
+          },
+          { priceOverrideCents: line.unitPriceCents }, // frozen quote price (1b)
+        );
+        bookingIds.push(booking.id);
+      }
     }
+  } catch (err) {
+    // Persist what was created; the estimate stays claimed (no double-book on retry).
+    await db.update(b2bEstimates).set({ convertedBookingIds: bookingIds }).where(eq(b2bEstimates.id, estimate.id));
+    if (err instanceof CreditLimitError) {
+      return c.json({ error: "Credit limit exceeded", createdBookingIds: bookingIds }, 402);
+    }
+    throw err;
   }
 
   const [updated] = await db
     .update(b2bEstimates)
-    .set({ status: "converted", convertedBookingIds: bookingIds, updatedAt: new Date() })
+    .set({ convertedBookingIds: bookingIds, updatedAt: new Date() })
     .where(eq(b2bEstimates.id, estimate.id))
     .returning();
 

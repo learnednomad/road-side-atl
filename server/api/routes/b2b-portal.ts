@@ -18,7 +18,7 @@ import {
   users,
 } from "@/db/schema";
 import type { B2bEstimateLine } from "@/db/schema/b2b-estimates";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, ne } from "drizzle-orm";
 import { requireB2bMember, requireB2bRole, type B2bMemberEnv } from "../middleware/b2b-member";
 import {
   createB2bBookingSchema,
@@ -186,7 +186,15 @@ app.post("/estimates/:eid/convert", async (c) => {
     where: and(eq(b2bEstimates.id, c.req.param("eid")), eq(b2bEstimates.accountId, c.get("b2bAccountId"))),
   });
   if (!estimate) return c.json({ error: "Estimate not found" }, 404);
-  if (estimate.status === "converted") return c.json({ error: "Estimate already converted" }, 400);
+
+  // Atomically claim before booking so a retry after a partial failure can't
+  // double-book / double-charge credit (idempotent convert).
+  const [claimed] = await db
+    .update(b2bEstimates)
+    .set({ status: "converted", updatedAt: new Date() })
+    .where(and(eq(b2bEstimates.id, estimate.id), ne(b2bEstimates.status, "converted")))
+    .returning();
+  if (!claimed) return c.json({ error: "Estimate already converted" }, 400);
 
   const bookingIds: string[] = [];
   try {
@@ -214,6 +222,7 @@ app.post("/estimates/:eid/convert", async (c) => {
       }
     }
   } catch (err) {
+    await db.update(b2bEstimates).set({ convertedBookingIds: bookingIds }).where(eq(b2bEstimates.id, estimate.id));
     if (err instanceof CreditLimitError) {
       return c.json({ error: "Credit limit exceeded", createdBookingIds: bookingIds }, 402);
     }
@@ -221,7 +230,7 @@ app.post("/estimates/:eid/convert", async (c) => {
   }
   const [updated] = await db
     .update(b2bEstimates)
-    .set({ status: "converted", convertedBookingIds: bookingIds, updatedAt: new Date() })
+    .set({ convertedBookingIds: bookingIds, updatedAt: new Date() })
     .where(eq(b2bEstimates.id, estimate.id))
     .returning();
   return c.json({ estimate: updated, bookingIds }, 201);

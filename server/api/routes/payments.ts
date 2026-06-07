@@ -125,7 +125,10 @@ app.post("/stripe/checkout", async (c) => {
   }
 
   const destinationChargesEnabled = await isFeatureEnabled(FEATURE_FLAGS.DESTINATION_CHARGES);
-  const useDestinationCharge = destinationChargesEnabled && !!provider?.stripeConnectAccountId;
+  // Require a resolved service: the application fee is derived from it, and a
+  // destination charge without a fee would transfer 100% to the provider while
+  // the payout still records the platform's cut (B2 invariant break).
+  const useDestinationCharge = destinationChargesEnabled && !!provider?.stripeConnectAccountId && !!service;
 
   // Application fee for destination charges = price − the provider's earned share,
   // computed by the SAME function that records the payout, so the Stripe transfer
@@ -175,7 +178,11 @@ app.post("/stripe/checkout", async (c) => {
     line_items: [lineItem],
     mode: "payment",
     customer: stripeCustomerId,
-    allow_promotion_codes: true,
+    // Promo codes lower the captured amount but the destination-charge
+    // application_fee is a fixed absolute value — a discount would make the
+    // provider transfer != the recorded payout (and can exceed the charge).
+    // Only offer promo codes on non-destination charges.
+    allow_promotion_codes: !useDestinationCharge,
     success_url: `${baseUrl}/book/confirmation?bookingId=${booking.id}&paid=true`,
     cancel_url: `${baseUrl}/book/confirmation?bookingId=${booking.id}`,
     metadata: sessionMetadata,

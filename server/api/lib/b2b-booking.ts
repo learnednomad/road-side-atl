@@ -170,10 +170,10 @@ export async function createB2bBooking(
   // bump the balance, all in one transaction with a locked balance read so
   // concurrent bookings can't blow past the limit. Prepaid accounts (no credit
   // limit) keep the plain insert — no behavior change.
-  const isNet =
-    account.paymentTerms !== undefined &&
-    account.paymentTerms !== "prepaid" &&
-    (account.creditLimitCents ?? 0) > 0;
+  // Any non-prepaid account accrues AR (ledger + balance) so it can be invoiced.
+  // The credit-limit ceiling is only ENFORCED when a positive limit is set
+  // (limit 0 = "track, don't cap"); prepaid accounts keep the plain insert.
+  const isNet = account.paymentTerms !== undefined && account.paymentTerms !== "prepaid";
 
   let booking: typeof bookings.$inferSelect;
   if (isNet) {
@@ -185,7 +185,7 @@ export async function createB2bBooking(
         .for("update");
       const balance = acct?.balance ?? 0;
       const limit = acct?.limit ?? 0;
-      if (balance + estimatedPrice > limit) {
+      if (limit > 0 && balance + estimatedPrice > limit) {
         throw new CreditLimitError(balance, limit, estimatedPrice);
       }
       const [b] = await tx.insert(bookings).values(bookingValues).returning();

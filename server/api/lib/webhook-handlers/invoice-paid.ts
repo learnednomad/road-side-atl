@@ -8,7 +8,7 @@
 import type Stripe from "stripe";
 import { db } from "@/db";
 import { b2bAccounts, b2bCreditTransactions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 
 export async function handleInvoicePaid(event: Stripe.Event): Promise<void> {
@@ -25,6 +25,15 @@ export async function handleInvoicePaid(event: Stripe.Event): Promise<void> {
         .where(eq(b2bAccounts.id, accountId))
         .for("update");
       if (!acct) return;
+      // Idempotency backstop: event-level dedup marks AFTER the handler, so a
+      // concurrent redelivery could reach here twice. Skip if a payment for this
+      // invoice is already recorded.
+      const existing = await tx
+        .select({ id: b2bCreditTransactions.id })
+        .from(b2bCreditTransactions)
+        .where(and(eq(b2bCreditTransactions.invoiceId, invoice.id), eq(b2bCreditTransactions.type, "payment")))
+        .limit(1);
+      if (existing.length > 0) return;
       await tx.insert(b2bCreditTransactions).values({
         accountId,
         type: "payment",
