@@ -1,0 +1,19 @@
+-- DATA BACKFILL (run once against prod post-cutover; seed-base covers fresh DBs).
+-- Idempotent UPDATEs — safe to re-run. Estimate bands are informational (surge may exceed).
+
+-- Backfill estimate ranges for base roadside + diagnostic services (Atlanta 2026 bands).
+UPDATE "services" SET "estimateMinCents" = 8000, "estimateMaxCents" = 15000 WHERE slug = 'jump-start';
+--> statement-breakpoint
+UPDATE "services" SET "estimateMinCents" = 7500, "estimateMaxCents" = 18000, "estimateNote" = 'Per-mile beyond 10 mi; flatbed and after-hours extra' WHERE slug = 'towing';
+--> statement-breakpoint
+UPDATE "services" SET "estimateMinCents" = 10000, "estimateMaxCents" = 18000 WHERE slug = 'lockout';
+--> statement-breakpoint
+UPDATE "services" SET "estimateMinCents" = 8000, "estimateMaxCents" = 22000, "estimateNote" = 'Tire cost extra if replacement is needed' WHERE slug = 'flat-tire';
+--> statement-breakpoint
+UPDATE "services" SET "estimateMinCents" = 6000, "estimateMaxCents" = 12000 WHERE slug = 'fuel-delivery';
+--> statement-breakpoint
+UPDATE "services" SET "estimateMinCents" = 12000, "estimateMaxCents" = 20000 WHERE slug = 'basic-inspection';
+--> statement-breakpoint
+UPDATE "services" SET "estimateMinCents" = 20000, "estimateMaxCents" = 32000 WHERE slug = 'standard-inspection';
+--> statement-breakpoint
+UPDATE "services" SET "estimateMinCents" = 35000, "estimateMaxCents" = 50000 WHERE slug = 'premium-inspection';

@@ -4,7 +4,13 @@ export function generateCSV(
 ): string {
   const escape = (val: string | number | null | undefined): string => {
     if (val === null || val === undefined) return "";
-    const str = String(val);
+    let str = String(val);
+    // Neutralize CSV/spreadsheet formula injection. Only string values are
+    // user-controlled text; leaving numbers untouched preserves negative
+    // amounts (e.g. -500) instead of mangling them into text.
+    if (typeof val === "string" && /^[=+\-@\t\r]/.test(str)) {
+      str = `'${str}`;
+    }
     if (str.includes(",") || str.includes('"') || str.includes("\n")) {
       return `"${str.replace(/"/g, '""')}"`;
     }

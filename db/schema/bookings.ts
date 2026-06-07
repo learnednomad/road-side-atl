@@ -19,6 +19,22 @@ export const bookingStatusEnum = pgEnum("booking_status", [
   "cancelled",
 ]);
 
+/**
+ * Immutable record of how a booking's price was derived (roadmap 1b). Frozen at
+ * creation so quote→booking conversion and later reads don't drift if rates,
+ * surge, or account terms change. Commission/payout fields are added by the
+ * payout path when the provider is known.
+ */
+export type PricingSnapshot = {
+  basePrice: number;
+  multiplier: number;
+  blockName: string | null;
+  estimatedPrice: number;
+  source: string; // retail | discount | contract | price_list
+  estimateMinCents?: number | null;
+  estimateMaxCents?: number | null;
+};
+
 export const bookings = pgTable("bookings", {
   id: text("id")
     .primaryKey()
@@ -62,6 +78,9 @@ export const bookings = pgTable("bookings", {
   notes: text("notes"),
   preferredPaymentMethod: text("preferredPaymentMethod"),
   providerId: text("providerId"), // FK to providers, managed at app level to avoid circular imports
+  fleetVehicleId: text("fleetVehicleId"), // FK to fleet_vehicles (B2B), app-level ref
+  bundleId: text("bundleId"), // FK to service_bundles (B2C), app-level ref
+  pricingSnapshot: jsonb("pricingSnapshot").$type<PricingSnapshot | null>().default(null),
   tenantId: text("tenantId"),
   offerExpiresAt: timestamp("offerExpiresAt", { mode: "date" }), // V2 dispatch: when current offer expires (null = no active offer)
   dispatchAttempt: integer("dispatchAttempt").default(0).notNull(), // V2 dispatch: cascade attempt counter

@@ -201,8 +201,8 @@ export async function seedDemo(db: PostgresJsDatabase, refs: BaseRefs) {
   console.log("\n  LOGIN ACCOUNTS:");
   console.log("  ─────────────────────────────────────");
   console.log("  ADMINS:");
-  console.log("    admin@roadsidega.com      / admin123");
-  console.log("    ops@roadsidega.com        / admin123");
+  console.log("    admin@roadsidega.com      / (set via ADMIN_PASSWORD env)");
+  console.log("    ops@roadsidega.com        / (set via ADMIN_PASSWORD env)");
   console.log("\n  PROVIDERS:");
   console.log("    marcus@roadsidega.com     / provider123");
   console.log("    terrence@roadsidega.com   / provider123");

@@ -22,4 +22,18 @@ export * from "./provider-documents";
 export * from "./surge-pricing";
 export * from "./pricing-zones";
 export * from "./service-bundles";
+export * from "./rate-limits";
+export * from "./webhook-events";
+export * from "./fleet-vehicles";
+export * from "./commission-rules";
+export * from "./b2b-estimates";
+export * from "./recurring-bookings";
+export * from "./b2b-credit";
+export * from "./b2b-members";
 // provider-invites consolidated into providerInviteTokens in auth.ts
+
+export * from "./outbound-webhooks";
+export * from "./loyalty";
+export * from "./booking-quotes";
+export * from "./memberships";
+export * from "./pricing-rules";

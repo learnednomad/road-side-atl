@@ -127,6 +127,22 @@ const jobs: CronJob[] = [
       return checkProviderReverification();
     },
   },
+  {
+    name: "materialize-recurring-bookings",
+    intervalMs: 1 * HOUR,
+    run: async () => {
+      const { materializeRecurringBookings } = await import("./api/lib/recurring-bookings");
+      return materializeRecurringBookings();
+    },
+  },
+  {
+    name: "deliver-outbound-webhooks",
+    intervalMs: 1 * MINUTE,
+    run: async () => {
+      const { deliverPendingWebhooks } = await import("./api/lib/outbound-webhooks");
+      return deliverPendingWebhooks();
+    },
+  },
 ];
 
 function runJob(job: CronJob) {
@@ -140,11 +156,20 @@ function runJob(job: CronJob) {
     });
 }
 
+let started = false;
+
 export function startCronJobs() {
+  if (started) {
+    logger.info("[Cron] Already started — skipping duplicate start");
+    return;
+  }
+
   if (process.env.DISABLE_CRON === "true") {
     logger.info("[Cron] Disabled via DISABLE_CRON env var");
     return;
   }
+
+  started = true;
 
   logger.info("[Cron] Starting reconciliation scheduler", {
     jobs: jobs.map((j) => ({ name: j.name, intervalHours: j.intervalMs / HOUR })),
@@ -167,5 +192,6 @@ export function stopCronJobs() {
       job.timer = undefined;
     }
   }
+  started = false;
   logger.info("[Cron] All cron jobs stopped");
 }

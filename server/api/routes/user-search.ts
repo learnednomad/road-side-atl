@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq, or, ilike, and } from "drizzle-orm";
+import { users, providers, bookings } from "@/db/schema";
+import { eq, or, ilike, and, exists } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
+import { escapeLike } from "../lib/sql-escape";
 
 type AuthEnv = {
   Variables: {
@@ -29,6 +30,43 @@ app.get("/search", requireAuth, async (c) => {
     return c.json({ data: [] });
   }
 
+  // Escape LIKE wildcards so the query matches literally (L5).
+  const safe = escapeLike(q);
+  const conditions = [
+    eq(users.role, "customer"),
+    or(
+      ilike(users.name, `%${safe}%`),
+      ilike(users.email, `%${safe}%`),
+      ilike(users.phone, `%${safe}%`)
+    )!,
+  ];
+
+  // Providers may only search customers they have actually serviced — otherwise
+  // any provider could enumerate the entire customer PII database (M2). Admins
+  // retain full search.
+  if (user.role === "provider") {
+    const providerRecord = await db.query.providers.findFirst({
+      where: eq(providers.userId, user.id),
+      columns: { id: true },
+    });
+    if (!providerRecord) {
+      return c.json({ data: [] });
+    }
+    conditions.push(
+      exists(
+        db
+          .select({ one: bookings.id })
+          .from(bookings)
+          .where(
+            and(
+              eq(bookings.providerId, providerRecord.id),
+              eq(bookings.userId, users.id)
+            )
+          )
+      )
+    );
+  }
+
   const results = await db
     .select({
       id: users.id,
@@ -37,16 +75,7 @@ app.get("/search", requireAuth, async (c) => {
       phone: users.phone,
     })
     .from(users)
-    .where(
-      and(
-        eq(users.role, "customer"),
-        or(
-          ilike(users.name, `%${q}%`),
-          ilike(users.email, `%${q}%`),
-          ilike(users.phone, `%${q}%`)
-        )
-      )
-    )
+    .where(and(...conditions))
     .limit(10);
 
   return c.json({ data: results });

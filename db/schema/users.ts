@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   tenantId: text("tenantId"),
   trustTier: integer("trustTier").default(1).notNull(),
   cleanTransactionCount: integer("cleanTransactionCount").default(0).notNull(),
+  loyaltyPoints: integer("loyaltyPoints").default(0).notNull(), // running balance (synced w/ loyalty_transactions)
   referralCode: text("referralCode").unique(),
   taxId: text("taxId"),
   stripeCustomerId: text("stripeCustomerId"),

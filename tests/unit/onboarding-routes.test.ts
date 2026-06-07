@@ -380,7 +380,7 @@ describe("POST /invite-accept — Accept Onboarding Invite", () => {
     name: "Jane Provider",
     token: "valid-token-123",
     usedAt: null,
-    expiresAt: new Date(Date.now() + 86400000),
+    expires: new Date(Date.now() + 86400000),
   };
 
   beforeEach(() => {
@@ -444,7 +444,7 @@ describe("POST /invite-accept — Accept Onboarding Invite", () => {
   it("returns 400 for expired invite token", async () => {
     mockProviderInvitesFindFirst.mockResolvedValue({
       ...validInvite,
-      expiresAt: new Date(Date.now() - 86400000),
+      expires: new Date(Date.now() - 86400000),
     });
 
     const res = await app.fetch(makeRequest("/invite-accept", validInviteAcceptData));

@@ -1,9 +1,12 @@
 import { Hono } from "hono";
 import { geocodeAddress } from "@/lib/geocoding";
+import { rateLimitStrict } from "../middleware/rate-limit";
 
 const app = new Hono();
 
-app.post("/address", async (c) => {
+// Rate-limited (not auth-gated) so guest booking can still geocode, but an
+// anonymous loop can't run up the paid Google Maps bill (L3).
+app.post("/address", rateLimitStrict, async (c) => {
   const body = await c.req.json();
   const address = body.address;
 

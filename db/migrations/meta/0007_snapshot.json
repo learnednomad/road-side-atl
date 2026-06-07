@@ -1,6 +1,6 @@
 {
-  "id": "38633318-c4e3-47c2-b1e6-f7ae71c6ddf4",
-  "prevId": "4b222f04-4f91-42fd-93d9-0bd31b7183a6",
+  "id": "e20b0c6f-cf6e-445f-8de0-a0839f38021f",
+  "prevId": "12a2bb36-5db1-4303-9107-1b89bebf0c6b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -78,6 +78,42 @@
           "notNull": true,
           "default": 0
         },
+        "referralCode": {
+          "name": "referralCode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taxId": {
+          "name": "taxId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripeCustomerId": {
+          "name": "stripeCustomerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "defaultPaymentMethodId": {
+          "name": "defaultPaymentMethodId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trustTierUpdatedAt": {
+          "name": "trustTierUpdatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trustTierReason": {
+          "name": "trustTierReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "createdAt": {
           "name": "createdAt",
           "type": "timestamp",
@@ -102,6 +138,13 @@
           "nullsNotDistinct": false,
           "columns": [
             "email"
+          ]
+        },
+        "users_referralCode_unique": {
+          "name": "users_referralCode_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "referralCode"
           ]
         }
       },
@@ -149,6 +192,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "estimateMinCents": {
+          "name": "estimateMinCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estimateMaxCents": {
+          "name": "estimateMaxCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estimateNote": {
+          "name": "estimateNote",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "category": {
           "name": "category",
           "type": "service_category",
@@ -162,6 +223,33 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "checklistConfig": {
+          "name": "checklistConfig",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "schedulingMode": {
+          "name": "schedulingMode",
+          "type": "scheduling_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'both'"
+        },
+        "commissionRate": {
+          "name": "commissionRate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2500
+        },
+        "stripeProductId": {
+          "name": "stripeProductId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "tenantId": {
           "name": "tenantId",
@@ -255,6 +343,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "rateIsNegotiated": {
+          "name": "rateIsNegotiated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "status": {
           "name": "status",
           "type": "provider_status",
@@ -307,6 +402,13 @@
           "notNull": false,
           "default": "'[]'::jsonb"
         },
+        "serviceAreas": {
+          "name": "serviceAreas",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
         "average_rating": {
           "name": "average_rating",
           "type": "real",
@@ -319,6 +421,42 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "stripeConnectAccountId": {
+          "name": "stripeConnectAccountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "migrationBypassExpiresAt": {
+          "name": "migrationBypassExpiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "activatedAt": {
+          "name": "activatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suspendedAt": {
+          "name": "suspendedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suspendedReason": {
+          "name": "suspendedReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "previousApplicationId": {
+          "name": "previousApplicationId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "tenantId": {
           "name": "tenantId",
@@ -447,8 +585,32 @@
           "primaryKey": false,
           "notNull": false
         },
+        "referralCreditApplied": {
+          "name": "referralCreditApplied",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priceOverrideCents": {
+          "name": "priceOverrideCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priceOverrideReason": {
+          "name": "priceOverrideReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "notes": {
           "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preferredPaymentMethod": {
+          "name": "preferredPaymentMethod",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -459,11 +621,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "fleetVehicleId": {
+          "name": "fleetVehicleId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "tenantId": {
           "name": "tenantId",
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "offerExpiresAt": {
+          "name": "offerExpiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dispatchAttempt": {
+          "name": "dispatchAttempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "createdAt": {
           "name": "createdAt",
@@ -558,6 +739,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "stripePaymentIntentId": {
+          "name": "stripePaymentIntentId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "confirmedAt": {
           "name": "confirmedAt",
           "type": "timestamp",
@@ -576,6 +763,54 @@
           "primaryKey": false,
           "notNull": false
         },
+        "refundAmount": {
+          "name": "refundAmount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refundedAt": {
+          "name": "refundedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refundedBy": {
+          "name": "refundedBy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refundReason": {
+          "name": "refundReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripeTransferId": {
+          "name": "stripeTransferId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "applicationFeeAmount": {
+          "name": "applicationFeeAmount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "chargeType": {
+          "name": "chargeType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripeConnectAccountId": {
+          "name": "stripeConnectAccountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "createdAt": {
           "name": "createdAt",
           "type": "timestamp",
@@ -584,7 +819,24 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "uniq_payments_stripe_session": {
+          "name": "uniq_payments_stripe_session",
+          "columns": [
+            {
+              "expression": "stripeSessionId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"payments\".\"stripeSessionId\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "payments_bookingId_bookings_id_fk": {
           "name": "payments_bookingId_bookings_id_fk",
@@ -605,6 +857,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "confirmedBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payments_refundedBy_users_id_fk": {
+          "name": "payments_refundedBy_users_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "users",
+          "columnsFrom": [
+            "refundedBy"
           ],
           "columnsTo": [
             "id"
@@ -661,6 +926,63 @@
           "primaryKey": false,
           "notNull": false
         },
+        "payoutMethod": {
+          "name": "payoutMethod",
+          "type": "payout_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual_batch'"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payoutType": {
+          "name": "payoutType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'standard'"
+        },
+        "originalPayoutId": {
+          "name": "originalPayoutId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paymentId": {
+          "name": "paymentId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripeTransferId": {
+          "name": "stripeTransferId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "holdReason": {
+          "name": "holdReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "heldAt": {
+          "name": "heldAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "createdAt": {
           "name": "createdAt",
           "type": "timestamp",
@@ -669,7 +991,40 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "uniq_payout_standard_booking": {
+          "name": "uniq_payout_standard_booking",
+          "columns": [
+            {
+              "expression": "bookingId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"provider_payouts\".\"payoutType\" = 'standard'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "uniq_payout_clawback_original": {
+          "name": "uniq_payout_clawback_original",
+          "columns": [
+            {
+              "expression": "originalPayoutId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"provider_payouts\".\"payoutType\" = 'clawback' AND \"provider_payouts\".\"originalPayoutId\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "provider_payouts_providerId_providers_id_fk": {
           "name": "provider_payouts_providerId_providers_id_fk",
@@ -748,6 +1103,30 @@
         "reason": {
           "name": "reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score": {
+          "name": "score",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attemptNumber": {
+          "name": "attemptNumber",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scoringWeights": {
+          "name": "scoringWeights",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -954,10 +1333,30 @@
           "name": "providerId",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "invitedBy": {
           "name": "invitedBy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inviteType": {
+          "name": "inviteType",
+          "type": "invite_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'admin'"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "referringProviderId": {
+          "name": "referringProviderId",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1011,6 +1410,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "invitedBy"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "provider_invite_tokens_referringProviderId_providers_id_fk": {
+          "name": "provider_invite_tokens_referringProviderId_providers_id_fk",
+          "tableFrom": "provider_invite_tokens",
+          "tableTo": "providers",
+          "columnsFrom": [
+            "referringProviderId"
           ],
           "columnsTo": [
             "id"
@@ -1299,8 +1711,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.invoices": {
-      "name": "invoices",
+    "public.business_settings": {
+      "name": "business_settings",
       "schema": "",
       "columns": {
         "id": {
@@ -1309,94 +1721,100 @@
           "primaryKey": true,
           "notNull": true
         },
-        "invoiceNumber": {
-          "name": "invoiceNumber",
+        "companyName": {
+          "name": "companyName",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "bookingId": {
-          "name": "bookingId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "paymentId": {
-          "name": "paymentId",
+        "companyAddress": {
+          "name": "companyAddress",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "customerName": {
-          "name": "customerName",
+        "companyPhone": {
+          "name": "companyPhone",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "customerEmail": {
-          "name": "customerEmail",
+        "companyEmail": {
+          "name": "companyEmail",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "customerPhone": {
-          "name": "customerPhone",
+        "logoUrl": {
+          "name": "logoUrl",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "lineItems": {
-          "name": "lineItems",
-          "type": "jsonb",
+        "bankName": {
+          "name": "bankName",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "subtotal": {
-          "name": "subtotal",
-          "type": "integer",
+        "bankAccountName": {
+          "name": "bankAccountName",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "total": {
-          "name": "total",
-          "type": "integer",
+        "bankAccountNumber": {
+          "name": "bankAccountNumber",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "status": {
-          "name": "status",
-          "type": "invoice_status",
-          "typeSchema": "public",
+        "bankRoutingNumber": {
+          "name": "bankRoutingNumber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bankSwiftCode": {
+          "name": "bankSwiftCode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "defaultPaymentTerms": {
+          "name": "defaultPaymentTerms",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "defaultPaymentMethod": {
+          "name": "defaultPaymentMethod",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "defaultPaymentInstructions": {
+          "name": "defaultPaymentInstructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoicePrefix": {
+          "name": "invoicePrefix",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'draft'"
+          "default": "'INV'"
         },
-        "providerId": {
-          "name": "providerId",
-          "type": "text",
+        "defaultTaxRate": {
+          "name": "defaultTaxRate",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": 0
         },
-        "providerName": {
-          "name": "providerName",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "issuedAt": {
-          "name": "issuedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "paidAt": {
-          "name": "paidAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "notes": {
-          "name": "notes",
+        "invoiceFooterNote": {
+          "name": "invoiceFooterNote",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1413,10 +1831,257 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.invoices": {
+      "name": "invoices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "invoiceNumber": {
+          "name": "invoiceNumber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "invoice_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "createdById": {
+          "name": "createdById",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "customerId": {
+          "name": "customerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "customerName": {
+          "name": "customerName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customerEmail": {
+          "name": "customerEmail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "customerPhone": {
+          "name": "customerPhone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "customerCompany": {
+          "name": "customerCompany",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "customerAddress": {
+          "name": "customerAddress",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bookingId": {
+          "name": "bookingId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paymentId": {
+          "name": "paymentId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lineItems": {
+          "name": "lineItems",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "providerId": {
+          "name": "providerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "providerName": {
+          "name": "providerName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issueDate": {
+          "name": "issueDate",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "issuedAt": {
+          "name": "issuedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paidAt": {
+          "name": "paidAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dueDate": {
+          "name": "dueDate",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subtotal": {
+          "name": "subtotal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "taxRate": {
+          "name": "taxRate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "taxAmount": {
+          "name": "taxAmount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "total": {
+          "name": "total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "paymentTerms": {
+          "name": "paymentTerms",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paymentMethod": {
+          "name": "paymentMethod",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paymentInstructions": {
+          "name": "paymentInstructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "billingPeriodStart": {
+          "name": "billingPeriodStart",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "billingPeriodEnd": {
+          "name": "billingPeriodEnd",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {},
       "foreignKeys": {
+        "invoices_createdById_users_id_fk": {
+          "name": "invoices_createdById_users_id_fk",
+          "tableFrom": "invoices",
+          "tableTo": "users",
+          "columnsFrom": [
+            "createdById"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invoices_customerId_users_id_fk": {
+          "name": "invoices_customerId_users_id_fk",
+          "tableFrom": "invoices",
+          "tableTo": "users",
+          "columnsFrom": [
+            "customerId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "invoices_bookingId_bookings_id_fk": {
           "name": "invoices_bookingId_bookings_id_fk",
           "tableFrom": "invoices",
@@ -1454,6 +2119,92 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.invoice_line_items": {
+      "name": "invoice_line_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "invoiceId": {
+          "name": "invoiceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "details": {
+          "name": "details",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "unitPrice": {
+          "name": "unitPrice",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "total": {
+          "name": "total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "sortOrder": {
+          "name": "sortOrder",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "invoice_line_items_invoiceId_invoices_id_fk": {
+          "name": "invoice_line_items_invoiceId_invoices_id_fk",
+          "tableFrom": "invoice_line_items",
+          "tableTo": "invoices",
+          "columnsFrom": [
+            "invoiceId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1503,6 +2254,1569 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.observations": {
+      "name": "observations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bookingId": {
+          "name": "bookingId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "providerId": {
+          "name": "providerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "items": {
+          "name": "items",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "followUpSent": {
+          "name": "followUpSent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "observations_bookingId_bookings_id_fk": {
+          "name": "observations_bookingId_bookings_id_fk",
+          "tableFrom": "observations",
+          "tableTo": "bookings",
+          "columnsFrom": [
+            "bookingId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.referrals": {
+      "name": "referrals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "referrerId": {
+          "name": "referrerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refereeId": {
+          "name": "refereeId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bookingId": {
+          "name": "bookingId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creditAmount": {
+          "name": "creditAmount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "referral_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "referrals_referrerId_users_id_fk": {
+          "name": "referrals_referrerId_users_id_fk",
+          "tableFrom": "referrals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "referrerId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "referrals_refereeId_users_id_fk": {
+          "name": "referrals_refereeId_users_id_fk",
+          "tableFrom": "referrals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "refereeId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "referrals_bookingId_bookings_id_fk": {
+          "name": "referrals_bookingId_bookings_id_fk",
+          "tableFrom": "referrals",
+          "tableTo": "bookings",
+          "columnsFrom": [
+            "bookingId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.inspection_reports": {
+      "name": "inspection_reports",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bookingId": {
+          "name": "bookingId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "providerId": {
+          "name": "providerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "findings": {
+          "name": "findings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reportUrl": {
+          "name": "reportUrl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "emailedAt": {
+          "name": "emailedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "inspection_reports_bookingId_bookings_id_fk": {
+          "name": "inspection_reports_bookingId_bookings_id_fk",
+          "tableFrom": "inspection_reports",
+          "tableTo": "bookings",
+          "columnsFrom": [
+            "bookingId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.time_block_configs": {
+      "name": "time_block_configs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "startHour": {
+          "name": "startHour",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endHour": {
+          "name": "endHour",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "multiplier": {
+          "name": "multiplier",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "isActive": {
+          "name": "isActive",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.b2b_accounts": {
+      "name": "b2b_accounts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "companyName": {
+          "name": "companyName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contactName": {
+          "name": "contactName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contactEmail": {
+          "name": "contactEmail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contactPhone": {
+          "name": "contactPhone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "billingAddress": {
+          "name": "billingAddress",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paymentTerms": {
+          "name": "paymentTerms",
+          "type": "b2b_payment_terms",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'net_30'"
+        },
+        "status": {
+          "name": "status",
+          "type": "b2b_account_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "contract": {
+          "name": "contract",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'null'::jsonb"
+        },
+        "accountNumber": {
+          "name": "accountNumber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pricingMode": {
+          "name": "pricingMode",
+          "type": "b2b_pricing_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'retail'"
+        },
+        "defaultDiscountBp": {
+          "name": "defaultDiscountBp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "commissionRateBp": {
+          "name": "commissionRateBp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creditLimitCents": {
+          "name": "creditLimitCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "currentBalanceCents": {
+          "name": "currentBalanceCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "uniq_b2b_account_number": {
+          "name": "uniq_b2b_account_number",
+          "columns": [
+            {
+              "expression": "accountNumber",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"b2b_accounts\".\"accountNumber\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.b2b_price_list": {
+      "name": "b2b_price_list",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "accountId": {
+          "name": "accountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "serviceId": {
+          "name": "serviceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "priceCents": {
+          "name": "priceCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "uniq_b2b_price_list_account_service": {
+          "name": "uniq_b2b_price_list_account_service",
+          "columns": [
+            {
+              "expression": "accountId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "serviceId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "b2b_price_list_accountId_b2b_accounts_id_fk": {
+          "name": "b2b_price_list_accountId_b2b_accounts_id_fk",
+          "tableFrom": "b2b_price_list",
+          "tableTo": "b2b_accounts",
+          "columnsFrom": [
+            "accountId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "b2b_price_list_serviceId_services_id_fk": {
+          "name": "b2b_price_list_serviceId_services_id_fk",
+          "tableFrom": "b2b_price_list",
+          "tableTo": "services",
+          "columnsFrom": [
+            "serviceId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.onboarding_steps": {
+      "name": "onboarding_steps",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "providerId": {
+          "name": "providerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stepType": {
+          "name": "stepType",
+          "type": "step_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "step_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "draftData": {
+          "name": "draftData",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completedAt": {
+          "name": "completedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewedBy": {
+          "name": "reviewedBy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewedAt": {
+          "name": "reviewedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rejectionReason": {
+          "name": "rejectionReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "onboarding_steps_providerId_providers_id_fk": {
+          "name": "onboarding_steps_providerId_providers_id_fk",
+          "tableFrom": "onboarding_steps",
+          "tableTo": "providers",
+          "columnsFrom": [
+            "providerId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.provider_documents": {
+      "name": "provider_documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "providerId": {
+          "name": "providerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "onboardingStepId": {
+          "name": "onboardingStepId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "documentType": {
+          "name": "documentType",
+          "type": "document_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "s3Key": {
+          "name": "s3Key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "originalFileName": {
+          "name": "originalFileName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fileSize": {
+          "name": "fileSize",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mimeType": {
+          "name": "mimeType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "document_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending_review'"
+        },
+        "rejectionReason": {
+          "name": "rejectionReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewedBy": {
+          "name": "reviewedBy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewedAt": {
+          "name": "reviewedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "provider_documents_providerId_providers_id_fk": {
+          "name": "provider_documents_providerId_providers_id_fk",
+          "tableFrom": "provider_documents",
+          "tableTo": "providers",
+          "columnsFrom": [
+            "providerId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "provider_documents_onboardingStepId_onboarding_steps_id_fk": {
+          "name": "provider_documents_onboardingStepId_onboarding_steps_id_fk",
+          "tableFrom": "provider_documents",
+          "tableTo": "onboarding_steps",
+          "columnsFrom": [
+            "onboardingStepId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pricing_adjustments_log": {
+      "name": "pricing_adjustments_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bookingId": {
+          "name": "bookingId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "adjustmentType": {
+          "name": "adjustmentType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "multiplierBp": {
+          "name": "multiplierBp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.surge_configs": {
+      "name": "surge_configs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "zoneId": {
+          "name": "zoneId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thresholdBookingsPerHour": {
+          "name": "thresholdBookingsPerHour",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 10
+        },
+        "multiplierStepBp": {
+          "name": "multiplierStepBp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 500
+        },
+        "maxMultiplierBp": {
+          "name": "maxMultiplierBp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30000
+        },
+        "cooldownMinutes": {
+          "name": "cooldownMinutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pricing_zones": {
+      "name": "pricing_zones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "polygon": {
+          "name": "polygon",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "baseMultiplierBp": {
+          "name": "baseMultiplierBp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 10000
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.promotions": {
+      "name": "promotions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "stripeCouponId": {
+          "name": "stripeCouponId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stripePromotionCodeId": {
+          "name": "stripePromotionCodeId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discountType": {
+          "name": "discountType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "discountAmount": {
+          "name": "discountAmount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "maxRedemptions": {
+          "name": "maxRedemptions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currentRedemptions": {
+          "name": "currentRedemptions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "promotions_code_unique": {
+          "name": "promotions_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.service_bundles": {
+      "name": "service_bundles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "serviceIds": {
+          "name": "serviceIds",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bundlePrice": {
+          "name": "bundlePrice",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "savingsAmount": {
+          "name": "savingsAmount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "service_bundles_slug_unique": {
+          "name": "service_bundles_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.rate_limits": {
+      "name": "rate_limits",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "windowStart": {
+          "name": "windowStart",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.webhook_events": {
+      "name": "webhook_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventType": {
+          "name": "eventType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'processed'"
+        },
+        "processedAt": {
+          "name": "processedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "webhook_events_source_id_pk": {
+          "name": "webhook_events_source_id_pk",
+          "columns": [
+            "source",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fleet_vehicles": {
+      "name": "fleet_vehicles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "accountId": {
+          "name": "accountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "make": {
+          "name": "make",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vin": {
+          "name": "vin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "licensePlate": {
+          "name": "licensePlate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fleet_vehicles_accountId_b2b_accounts_id_fk": {
+          "name": "fleet_vehicles_accountId_b2b_accounts_id_fk",
+          "tableFrom": "fleet_vehicles",
+          "tableTo": "b2b_accounts",
+          "columnsFrom": [
+            "accountId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.commission_rules": {
+      "name": "commission_rules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "commission_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeId": {
+          "name": "scopeId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commissionRateBp": {
+          "name": "commissionRateBp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.b2b_estimates": {
+      "name": "b2b_estimates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "accountId": {
+          "name": "accountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "b2b_estimate_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "lines": {
+          "name": "lines",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "subtotalCents": {
+          "name": "subtotalCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "estMinCents": {
+          "name": "estMinCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "estMaxCents": {
+          "name": "estMaxCents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "validUntil": {
+          "name": "validUntil",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "convertedBookingIds": {
+          "name": "convertedBookingIds",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "b2b_estimates_accountId_b2b_accounts_id_fk": {
+          "name": "b2b_estimates_accountId_b2b_accounts_id_fk",
+          "tableFrom": "b2b_estimates",
+          "tableTo": "b2b_accounts",
+          "columnsFrom": [
+            "accountId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -1515,12 +3829,22 @@
         "provider"
       ]
     },
+    "public.scheduling_mode": {
+      "name": "scheduling_mode",
+      "schema": "public",
+      "values": [
+        "immediate",
+        "scheduled",
+        "both"
+      ]
+    },
     "public.service_category": {
       "name": "service_category",
       "schema": "public",
       "values": [
         "roadside",
-        "diagnostics"
+        "diagnostics",
+        "mechanics"
       ]
     },
     "public.commission_type": {
@@ -1537,7 +3861,13 @@
       "values": [
         "active",
         "inactive",
-        "pending"
+        "pending",
+        "resubmission_requested",
+        "applied",
+        "onboarding",
+        "pending_review",
+        "rejected",
+        "suspended"
       ]
     },
     "public.booking_status": {
@@ -1569,7 +3899,17 @@
         "pending",
         "confirmed",
         "failed",
-        "refunded"
+        "refunded",
+        "partially_refunded",
+        "disputed"
+      ]
+    },
+    "public.payout_method": {
+      "name": "payout_method",
+      "schema": "public",
+      "values": [
+        "manual_batch",
+        "stripe_connect"
       ]
     },
     "public.payout_status": {
@@ -1577,7 +3917,9 @@
       "schema": "public",
       "values": [
         "pending",
-        "paid"
+        "paid",
+        "clawback",
+        "held"
       ]
     },
     "public.dispatch_algorithm": {
@@ -1586,6 +3928,15 @@
       "values": [
         "auto",
         "manual"
+      ]
+    },
+    "public.invite_type": {
+      "name": "invite_type",
+      "schema": "public",
+      "values": [
+        "admin",
+        "beta",
+        "referral"
       ]
     },
     "public.provider_invite_status": {
@@ -1602,9 +3953,113 @@
       "schema": "public",
       "values": [
         "draft",
+        "sent",
         "issued",
         "paid",
+        "overdue",
+        "cancelled",
         "void"
+      ]
+    },
+    "public.referral_status": {
+      "name": "referral_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "credited",
+        "expired"
+      ]
+    },
+    "public.b2b_account_status": {
+      "name": "b2b_account_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "active",
+        "suspended"
+      ]
+    },
+    "public.b2b_payment_terms": {
+      "name": "b2b_payment_terms",
+      "schema": "public",
+      "values": [
+        "prepaid",
+        "net_30",
+        "net_60"
+      ]
+    },
+    "public.b2b_pricing_mode": {
+      "name": "b2b_pricing_mode",
+      "schema": "public",
+      "values": [
+        "retail",
+        "discount",
+        "price_list",
+        "contract"
+      ]
+    },
+    "public.step_status": {
+      "name": "step_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "draft",
+        "in_progress",
+        "pending_review",
+        "complete",
+        "rejected",
+        "blocked"
+      ]
+    },
+    "public.step_type": {
+      "name": "step_type",
+      "schema": "public",
+      "values": [
+        "ic_agreement",
+        "background_check",
+        "insurance",
+        "certifications",
+        "training",
+        "stripe_connect",
+        "identity_verification"
+      ]
+    },
+    "public.document_status": {
+      "name": "document_status",
+      "schema": "public",
+      "values": [
+        "pending_review",
+        "approved",
+        "rejected"
+      ]
+    },
+    "public.document_type": {
+      "name": "document_type",
+      "schema": "public",
+      "values": [
+        "insurance",
+        "certification",
+        "vehicle_doc"
+      ]
+    },
+    "public.commission_scope": {
+      "name": "commission_scope",
+      "schema": "public",
+      "values": [
+        "global",
+        "service",
+        "provider",
+        "account"
+      ]
+    },
+    "public.b2b_estimate_status": {
+      "name": "b2b_estimate_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "approved",
+        "converted",
+        "expired"
       ]
     }
   },

@@ -15,6 +15,12 @@ sleep 3
 
 # If SEED_DB is true, drop all tables so migrations + seed start fresh
 if [ "${SEED_DB:-false}" = "true" ]; then
+  # Guard: never wipe a production database without explicit authorization.
+  if [ "${APP_ENV}" = "production" ] && [ "${ALLOW_PROD_SEED:-false}" != "true" ]; then
+    echo "ERROR: SEED_DB=true in production without ALLOW_PROD_SEED=true."
+    echo "This would DROP ALL TABLES and wipe production data. Aborting."
+    exit 1
+  fi
   echo "SEED_DB=true: Resetting database for clean seed..."
   node -e "
 const postgres = require('postgres');
@@ -39,22 +45,46 @@ if [ "${SEED_DB:-false}" = "true" ]; then
   if npx drizzle-kit push --force 2>&1; then
     echo "Schema push completed successfully!"
   else
-    echo "Warning: Schema push may have failed, but continuing..."
+    echo "ERROR: Schema push failed. Aborting startup (fail-closed)."
+    exit 1
   fi
 
   echo "Seeding database (APP_ENV=${APP_ENV})..."
   if APP_ENV="${APP_ENV}" npx tsx db/seed.ts 2>&1; then
     echo "Database seeded successfully!"
   else
-    echo "Warning: Seed may have failed, but continuing..."
+    echo "ERROR: Seed failed. Aborting startup (fail-closed)."
+    exit 1
   fi
 else
-  # No seed: use migrations for safe incremental updates
+  # ONE-TIME cutover: bring an existing, push-provisioned database (e.g. the live
+  # prod DB, which had NO migration history) onto the squashed migration baseline.
+  # Because such a DB may be missing the newest objects, we first `push` to sync
+  # the schema to the baseline, then mark the baseline as applied so the upcoming
+  # `migrate` skips it. Enable for a SINGLE deploy via DB_ADOPT_BASELINE=true,
+  # then remove the var. Fresh DBs do NOT need this — migrate builds the baseline.
+  if [ "${DB_ADOPT_BASELINE:-false}" = "true" ]; then
+    echo "DB_ADOPT_BASELINE=true: syncing schema to baseline (push) + marking applied..."
+    if ! npx drizzle-kit push --force 2>&1; then
+      echo "ERROR: schema sync (push) failed. Aborting startup (fail-closed)."
+      exit 1
+    fi
+    if ! node db/baseline-adopt.cjs 2>&1; then
+      echo "ERROR: baseline adoption failed. Aborting startup (fail-closed)."
+      exit 1
+    fi
+  fi
+
+  # Apply migrations. Fresh DBs get the full schema from the baseline; adopted
+  # DBs skip the baseline and apply only newer migrations.
   echo "Running database migrations..."
   if npx drizzle-kit migrate 2>&1; then
     echo "Migrations completed successfully!"
   else
-    echo "Warning: Migrations may have failed, but continuing..."
+    echo "ERROR: Migrations failed. Aborting startup (fail-closed)."
+    echo "  (An existing DB with no migration history needs a one-time"
+    echo "   DB_ADOPT_BASELINE=true deploy to adopt the baseline.)"
+    exit 1
   fi
 fi
 

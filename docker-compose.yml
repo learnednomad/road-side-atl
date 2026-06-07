@@ -10,10 +10,17 @@ services:
         - NEXT_PUBLIC_BUSINESS_PHONE=${NEXT_PUBLIC_BUSINESS_PHONE:-}
         - NEXT_PUBLIC_BUSINESS_NAME=${NEXT_PUBLIC_BUSINESS_NAME:-RoadSide GA}
         - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+    # Bind to localhost only — don't expose the app on all host interfaces (L8).
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       - NODE_ENV=production
+      # Business operates in Atlanta — local hour/day math runs in ET, not UTC (M10).
+      - TZ=${TZ:-America/New_York}
+      # Enable when running behind a reverse proxy (Coolify/Traefik, nginx, Cloudflare)
+      # so per-client rate limiting keys on the real client IP. Without it the app
+      # only sees the proxy IP and rate limiting fails open.
+      - TRUST_PROXY=${TRUST_PROXY:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-dealer}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-roadside_atl}
       - AUTH_SECRET=${AUTH_SECRET}
       - AUTH_TRUST_HOST=true
@@ -51,8 +58,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-dealer}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: ${POSTGRES_DB:-roadside_atl}
-    ports:
-      - "5432:5432"
+    # Internal-only — reachable by the app over the compose network as db:5432.
+    # NOT published to the host, so the DB isn't exposed by `docker compose up` (L8).
+    # (Supersedes the earlier "map to host 5433" change — when the DB isn't
+    # published there is no host port to conflict with.)
+    expose:
+      - "5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

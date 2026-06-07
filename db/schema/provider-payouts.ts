@@ -1,4 +1,5 @@
-import { pgTable, text, integer, timestamp, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, jsonb, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createId } from "./utils";
 import { providers } from "./providers";
 import { bookings } from "./bookings";
@@ -29,4 +30,14 @@ export const providerPayouts = pgTable("provider_payouts", {
   holdReason: text("holdReason"), // reason payout is held (e.g., dispute)
   heldAt: timestamp("heldAt", { mode: "date" }), // when payout was put on hold
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-});
+}, (t) => ({
+  // At most one standard payout per booking — backstops double-payout races (M6).
+  uniqStandardPerBooking: uniqueIndex("uniq_payout_standard_booking")
+    .on(t.bookingId)
+    .where(sql`${t.payoutType} = 'standard'`),
+  // At most one clawback per original payout — backstops duplicate clawbacks
+  // from redelivered dispute/refund events (M6).
+  uniqClawbackPerOriginal: uniqueIndex("uniq_payout_clawback_original")
+    .on(t.originalPayoutId)
+    .where(sql`${t.payoutType} = 'clawback' AND ${t.originalPayoutId} IS NOT NULL`),
+}));

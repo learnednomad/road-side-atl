@@ -29,6 +29,7 @@ export const createBookingSchema = z.object({
   scheduledAt: z.string().datetime().optional(),
   notes: z.string().optional(),
   paymentMethod: z.enum(["cash", "cashapp", "zelle", "stripe"]).optional(),
+  bundleId: z.string().optional(), // B2C: book a discounted service bundle
 }).refine(
   (data) => !data.scheduledAt || new Date(data.scheduledAt) > new Date(Date.now() + 2 * 60 * 60 * 1000),
   { message: "Scheduled time must be at least 2 hours from now", path: ["scheduledAt"] }
@@ -376,8 +377,161 @@ export const createB2bBookingSchema = z.object({
   contactEmail: z.email("Valid email is required"),
   scheduledAt: z.string().datetime().optional(),
   notes: z.string().optional(),
+  fleetVehicleId: z.string().optional(), // B2B: book against a saved fleet vehicle
 });
 export type CreateB2bBookingInput = z.infer<typeof createB2bBookingSchema>;
+
+export const createFleetVehicleSchema = z.object({
+  label: z.string().max(100).optional(),
+  year: z.number().int().min(1900).max(2100).optional(),
+  make: z.string().min(1, "Make is required"),
+  model: z.string().min(1, "Model is required"),
+  color: z.string().max(40).optional(),
+  vin: z.string().max(40).optional(),
+  licensePlate: z.string().max(20).optional(),
+  notes: z.string().max(500).optional(),
+});
+export type CreateFleetVehicleInput = z.infer<typeof createFleetVehicleSchema>;
+
+export const createCommissionRuleSchema = z.object({
+  scope: z.enum(["global", "service", "provider", "account"]),
+  scopeId: z.string().optional(), // required for non-global scopes
+  commissionRateBp: z.number().int().min(0).max(10000),
+  priority: z.number().int().min(0).max(1000).optional(),
+  notes: z.string().max(500).optional(),
+}).refine((v) => v.scope === "global" || !!v.scopeId, {
+  message: "scopeId is required for non-global rules",
+  path: ["scopeId"],
+});
+export type CreateCommissionRuleInput = z.infer<typeof createCommissionRuleSchema>;
+
+export const createB2bEstimateSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200),
+  notes: z.string().max(1000).optional(),
+  validUntil: z.string().datetime().optional(),
+  lines: z.array(
+    z.object({
+      serviceId: z.string().min(1),
+      qty: z.number().int().min(1).max(100),
+      fleetVehicleId: z.string().optional(),
+    }),
+  ).min(1, "At least one line is required").max(50),
+});
+export type CreateB2bEstimateInput = z.infer<typeof createB2bEstimateSchema>;
+
+export const convertB2bEstimateSchema = z.object({
+  location: locationSchema,
+  vehicleInfo: vehicleInfoSchema,
+  contactName: z.string().min(2, "Contact name is required"),
+  contactPhone: z.string().min(10, "Phone number is required"),
+  contactEmail: z.email("Valid email is required"),
+  scheduledAt: z.string().datetime().optional(),
+});
+export type ConvertB2bEstimateInput = z.infer<typeof convertB2bEstimateSchema>;
+
+export const bulkB2bBookingSchema = z.object({
+  bookings: z.array(createB2bBookingSchema).min(1, "At least one booking").max(50),
+});
+export type BulkB2bBookingInput = z.infer<typeof bulkB2bBookingSchema>;
+
+export const createRecurringScheduleSchema = z.object({
+  serviceId: z.string().min(1),
+  frequency: z.enum(["daily", "weekly", "monthly"]),
+  intervalCount: z.number().int().min(1).max(52).optional(),
+  startAt: z.string().datetime().optional(),
+  template: z.object({
+    location: locationSchema,
+    vehicleInfo: vehicleInfoSchema,
+    contactName: z.string().min(2, "Contact name is required"),
+    contactPhone: z.string().min(10, "Phone number is required"),
+    contactEmail: z.email("Valid email is required"),
+    fleetVehicleId: z.string().optional(),
+    notes: z.string().max(500).optional(),
+  }),
+});
+export type CreateRecurringScheduleInput = z.infer<typeof createRecurringScheduleSchema>;
+
+export const recordB2bCreditPaymentSchema = z.object({
+  amountCents: z.number().int().min(1, "Amount must be positive"),
+  invoiceId: z.string().optional(),
+  notes: z.string().max(500).optional(),
+});
+export type RecordB2bCreditPaymentInput = z.infer<typeof recordB2bCreditPaymentSchema>;
+
+export const addB2bMemberSchema = z.object({
+  email: z.email("Valid email is required"),
+  role: z.enum(["owner", "manager", "member"]).optional(),
+});
+export type AddB2bMemberInput = z.infer<typeof addB2bMemberSchema>;
+
+export const createPricingRuleSchema = z.object({
+  scope: z.enum(["global", "service"]),
+  scopeId: z.string().optional(),
+  multiplierBp: z.number().int().min(1).max(50000),
+  priority: z.number().int().min(0).max(1000).optional(),
+  notes: z.string().max(500).optional(),
+}).refine((v) => v.scope === "global" || !!v.scopeId, {
+  message: "scopeId (serviceId) required for service scope",
+  path: ["scopeId"],
+});
+export type CreatePricingRuleInput = z.infer<typeof createPricingRuleSchema>;
+
+export const membershipCheckoutSchema = z.object({ planId: z.string().min(1) });
+export type MembershipCheckoutInput = z.infer<typeof membershipCheckoutSchema>;
+
+export const createMembershipPlanSchema = z.object({
+  name: z.string().min(1).max(120),
+  slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/, "lowercase-kebab only"),
+  priceCents: z.number().int().min(0),
+  interval: z.enum(["month", "year"]).optional(),
+  discountBp: z.number().int().min(0).max(10000),
+  priorityDispatch: z.boolean().optional(),
+  stripePriceId: z.string().min(1),
+  active: z.boolean().optional(),
+});
+export type CreateMembershipPlanInput = z.infer<typeof createMembershipPlanSchema>;
+
+export const createBookingQuoteSchema = z.object({
+  lineItems: z.array(
+    z.object({ description: z.string().min(1).max(200), amountCents: z.number().int().min(0) }),
+  ).min(1, "At least one line item").max(30),
+  notes: z.string().max(1000).optional(),
+});
+export type CreateBookingQuoteInput = z.infer<typeof createBookingQuoteSchema>;
+
+export const redeemLoyaltySchema = z.object({
+  bookingId: z.string().min(1),
+  points: z.number().int().min(1),
+});
+export type RedeemLoyaltyInput = z.infer<typeof redeemLoyaltySchema>;
+
+export const createWebhookSubscriptionSchema = z.object({
+  url: z.url("Valid https URL required"),
+  events: z.array(z.string().min(1)).min(1, "Subscribe to at least one event").max(20),
+  secret: z.string().min(16).max(128).optional(),
+});
+export type CreateWebhookSubscriptionInput = z.infer<typeof createWebhookSubscriptionSchema>;
+
+export const createServiceBundleSchema = z.object({
+  name: z.string().min(1).max(120),
+  slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/, "lowercase-kebab only"),
+  description: z.string().max(500).optional(),
+  serviceIds: z.array(z.string().min(1)).min(2, "A bundle needs at least 2 services").max(10),
+  bundlePrice: z.number().int().min(0),
+  savingsAmount: z.number().int().min(0).optional(),
+  active: z.boolean().optional(),
+});
+export type CreateServiceBundleInput = z.infer<typeof createServiceBundleSchema>;
+
+export const setB2bPriceListSchema = z.object({
+  entries: z.array(
+    z.object({
+      serviceId: z.string().min(1),
+      priceCents: z.number().int().min(0),
+    }),
+  ).max(200),
+});
+export type SetB2bPriceListInput = z.infer<typeof setB2bPriceListSchema>;
 
 export const generateB2bInvoiceSchema = z
   .object({
@@ -474,3 +628,23 @@ export const adminDocumentReviewSchema = z.object({
   { message: "Rejection reason required when rejecting" },
 );
 export type AdminDocumentReviewInput = z.infer<typeof adminDocumentReviewSchema>;
+
+// Admin provider lifecycle (restored — used by admin-providers routes)
+export const adminRejectProviderSchema = z.object({
+  reason: z.string().min(1, "Rejection reason is required"),
+});
+export type AdminRejectProviderInput = z.infer<typeof adminRejectProviderSchema>;
+
+export const adminSuspendProviderSchema = z.object({
+  reason: z.string().min(1, "Suspension reason is required"),
+});
+export type AdminSuspendProviderInput = z.infer<typeof adminSuspendProviderSchema>;
+
+export const adminReviewStepSchema = z.object({
+  status: z.enum(["complete", "rejected"]),
+  rejectionReason: z.string().min(1).optional(),
+}).refine(
+  (val) => val.status !== "rejected" || (val.rejectionReason !== undefined && val.rejectionReason.length > 0),
+  { message: "Rejection reason is required when rejecting a step" },
+);
+export type AdminReviewStepInput = z.infer<typeof adminReviewStepSchema>;

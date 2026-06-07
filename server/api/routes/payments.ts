@@ -10,6 +10,8 @@ import { requireAuth } from "@/server/api/middleware/auth";
 import { validatePaymentMethod } from "@/server/api/middleware/trust-tier";
 import { rateLimitStrict } from "@/server/api/middleware/rate-limit";
 import { isFeatureEnabled, FEATURE_FLAGS } from "@/server/api/lib/feature-flags";
+import { computeProviderAmount } from "@/server/api/lib/payout-calculator";
+import { resolveCommissionBp } from "@/server/api/lib/commission";
 
 type AuthEnv = {
   Variables: {
@@ -114,31 +116,32 @@ app.post("/stripe/checkout", async (c) => {
   const stripeCustomerId = await getOrCreateStripeCustomer(user.id);
 
   // Resolve assigned provider's Stripe Connect account (if any)
-  let provider: { id: string; stripeConnectAccountId: string | null; commissionRate: number; commissionType: string; flatFeeAmount: number | null } | undefined;
+  let provider: { id: string; stripeConnectAccountId: string | null; commissionRate: number; commissionType: string; flatFeeAmount: number | null; rateIsNegotiated: boolean } | undefined;
   if (booking.providerId) {
     provider = await db.query.providers.findFirst({
       where: eq(providers.id, booking.providerId),
-      columns: { id: true, stripeConnectAccountId: true, commissionRate: true, commissionType: true, flatFeeAmount: true },
+      columns: { id: true, stripeConnectAccountId: true, commissionRate: true, commissionType: true, flatFeeAmount: true, rateIsNegotiated: true },
     });
   }
 
   const destinationChargesEnabled = await isFeatureEnabled(FEATURE_FLAGS.DESTINATION_CHARGES);
-  const useDestinationCharge = destinationChargesEnabled && !!provider?.stripeConnectAccountId;
+  // Require a resolved service: the application fee is derived from it, and a
+  // destination charge without a fee would transfer 100% to the provider while
+  // the payout still records the platform's cut (B2 invariant break).
+  const useDestinationCharge = destinationChargesEnabled && !!provider?.stripeConnectAccountId && !!service;
 
-  // Calculate application fee for destination charges (platform's cut)
+  // Application fee for destination charges = price − the provider's earned share,
+  // computed by the SAME function that records the payout, so the Stripe transfer
+  // to the provider exactly equals the recorded payout (B2 — no special-rate drift).
   let applicationFeeAmount: number | undefined;
   if (useDestinationCharge && service) {
-    if (provider!.commissionType === "flat_per_job") {
-      // Platform keeps everything minus the flat fee
-      applicationFeeAmount = Math.max(0, booking.estimatedPrice - (provider!.flatFeeAmount || 0));
-    } else if (service.commissionRate > 0) {
-      // Service-level commission: commissionRate = platform's cut in basis points
-      applicationFeeAmount = Math.round(booking.estimatedPrice * service.commissionRate / 10000);
-    } else {
-      // Fallback: provider-level commission (commissionRate = provider's share in BP)
-      const providerShare = Math.round(booking.estimatedPrice * provider!.commissionRate / 10000);
-      applicationFeeAmount = Math.max(0, booking.estimatedPrice - providerShare);
-    }
+    const overrideCommissionBp = await resolveCommissionBp({
+      accountId: booking.tenantId,
+      providerId: provider!.id,
+      serviceId: booking.serviceId,
+    });
+    const providerShare = computeProviderAmount(booking.estimatedPrice, provider!, service, overrideCommissionBp);
+    applicationFeeAmount = Math.max(0, booking.estimatedPrice - providerShare);
   }
 
   // Build line item — use linked Stripe Product if available, otherwise inline product_data
@@ -175,7 +178,11 @@ app.post("/stripe/checkout", async (c) => {
     line_items: [lineItem],
     mode: "payment",
     customer: stripeCustomerId,
-    allow_promotion_codes: true,
+    // Promo codes lower the captured amount but the destination-charge
+    // application_fee is a fixed absolute value — a discount would make the
+    // provider transfer != the recorded payout (and can exceed the charge).
+    // Only offer promo codes on non-destination charges.
+    allow_promotion_codes: !useDestinationCharge,
     success_url: `${baseUrl}/book/confirmation?bookingId=${booking.id}&paid=true`,
     cancel_url: `${baseUrl}/book/confirmation?bookingId=${booking.id}`,
     metadata: sessionMetadata,

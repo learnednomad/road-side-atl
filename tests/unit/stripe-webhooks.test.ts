@@ -8,8 +8,19 @@ vi.mock("@/db", () => ({
   db: {
     query: {
       payments: { findFirst: vi.fn() },
+      bookings: { findFirst: vi.fn() },
+      providerPayouts: { findFirst: vi.fn() },
+      webhookEvents: { findFirst: vi.fn() },
     },
     update: vi.fn(),
+    // Chainable by default so markEventProcessed() (insert→values→onConflictDoNothing)
+    // and clawback inserts (insert→values[→returning]) don't throw.
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn().mockResolvedValue([{ id: "generated" }]),
+        onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
   },
 }));
 
@@ -34,6 +45,10 @@ vi.mock("@/server/api/lib/audit-logger", () => ({
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn((...args: unknown[]) => ({ _op: "eq", args })),
   and: vi.fn((...args: unknown[]) => ({ _op: "and", args })),
+  sql: Object.assign(
+    vi.fn((strings: TemplateStringsArray, ...args: unknown[]) => ({ _op: "sql", strings, args })),
+    { raw: vi.fn((s: string) => ({ _op: "sql.raw", s })) },
+  ),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -46,6 +61,20 @@ vi.mock("@/db/schema", () => ({
     method: "method",
   },
   bookings: { id: "id" },
+  providerPayouts: {
+    id: "id",
+    bookingId: "bookingId",
+    providerId: "providerId",
+    amount: "amount",
+    status: "status",
+    payoutType: "payoutType",
+    payoutMethod: "payoutMethod",
+    originalPayoutId: "originalPayoutId",
+    paymentId: "paymentId",
+    holdReason: "holdReason",
+    heldAt: "heldAt",
+  },
+  webhookEvents: { id: "id", source: "source", processedAt: "processedAt" },
 }));
 
 // ---------------------------------------------------------------------------
@@ -61,6 +90,7 @@ import app from "@/server/api/routes/webhooks";
 // Typed mock references for clarity
 const mockConstructEvent = stripe.webhooks.constructEvent as ReturnType<typeof vi.fn>;
 const mockPaymentsFindFirst = db.query.payments.findFirst as ReturnType<typeof vi.fn>;
+const mockWebhookEventsFindFirst = db.query.webhookEvents.findFirst as ReturnType<typeof vi.fn>;
 const mockDbUpdate = db.update as ReturnType<typeof vi.fn>;
 const mockCreatePayoutIfEligible = createPayoutIfEligible as ReturnType<typeof vi.fn>;
 const mockLogAudit = logAudit as ReturnType<typeof vi.fn>;
@@ -162,6 +192,12 @@ describe("POST /stripe — Stripe Webhook Handler", () => {
     });
     mockConstructEvent.mockReturnValue(event);
     mockPaymentsFindFirst.mockResolvedValue(undefined);
+
+    // Dedup is persisted in the webhook_events table: not found on the first
+    // delivery (processes), found on the second (deduplicated).
+    mockWebhookEventsFindFirst
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ source: "stripe", id: event.id });
 
     const whereFn = vi.fn().mockResolvedValue(undefined);
     const setFn = vi.fn().mockReturnValue({ where: whereFn });
@@ -510,11 +546,19 @@ describe("POST /stripe — Stripe Webhook Handler", () => {
         stripePaymentIntentId: "pi_dispute_lost",
       });
 
-      const { setFn } = setupUpdateChain();
+      // Lost branch updates providerPayouts (held → clawback) first, then payments (refund).
+      const payoutsWhere = vi.fn().mockResolvedValue(undefined);
+      const payoutsSet = vi.fn().mockReturnValue({ where: payoutsWhere });
+      const paymentsWhere = vi.fn().mockResolvedValue(undefined);
+      const paymentsSet = vi.fn().mockReturnValue({ where: paymentsWhere });
+
+      mockDbUpdate
+        .mockReturnValueOnce({ set: payoutsSet })
+        .mockReturnValueOnce({ set: paymentsSet });
 
       const res = await sendWebhook();
       expect(res.status).toBe(200);
-      expect(setFn).toHaveBeenCalledWith(
+      expect(paymentsSet).toHaveBeenCalledWith(
         expect.objectContaining({
           status: "refunded",
           refundAmount: 7500,
@@ -522,7 +566,7 @@ describe("POST /stripe — Stripe Webhook Handler", () => {
         })
       );
       // refundedAt should be a Date
-      const setCall = setFn.mock.calls[0][0];
+      const setCall = paymentsSet.mock.calls[0][0];
       expect(setCall.refundedAt).toBeInstanceOf(Date);
 
       expect(mockLogAudit).toHaveBeenCalledWith(

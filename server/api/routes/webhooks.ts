@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import crypto from "crypto";
 import { db } from "@/db";
-import { payments, bookings, providerPayouts } from "@/db/schema";
+import { payments, bookings, providerPayouts, webhookEvents } from "@/db/schema";
 import { onboardingSteps } from "@/db/schema/onboarding-steps";
 import { providers } from "@/db/schema/providers";
 import { eq, and, sql } from "drizzle-orm";
@@ -14,33 +14,58 @@ import { isValidStepTransition } from "../lib/onboarding-state-machine";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { notifyBackgroundCheckResult, notifyStripeConnectCompleted } from "@/lib/notifications";
 import { checkAllStepsCompleteAndTransition, onStripeConnectStepComplete } from "../lib/all-steps-complete";
+import { stripeExtensionHandlers } from "../lib/webhook-handlers/stripe-extensions";
 
 const app = new Hono();
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-/**
- * In-memory set for event ID deduplication within a single process lifecycle.
- * Stripe retries webhooks on non-2xx responses — this prevents processing the same event twice.
- * For multi-instance deployments, replace with a DB table or Redis set.
- */
-const processedStripeEvents = new Set<string>();
-const processedCheckrEvents = new Set<string>();
-const MAX_PROCESSED_EVENTS = 10000;
+/** True for a Postgres unique-constraint violation (SQLSTATE 23505). */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: string }).code === "23505"
+  );
+}
 
-function markEventProcessed(eventId: string, source: "stripe" | "checkr" = "stripe") {
-  const set = source === "stripe" ? processedStripeEvents : processedCheckrEvents;
-  set.add(eventId);
-  // Prevent unbounded memory growth — evict oldest entries
-  if (set.size > MAX_PROCESSED_EVENTS) {
-    const first = set.values().next().value;
-    if (first) set.delete(first);
+/**
+ * Persistent event-ID deduplication (webhook_events table). Survives restarts
+ * and is shared across instances, unlike the previous in-memory Set. The DB
+ * unique constraints on payments/payouts are the real backstop against
+ * double-processing; this is the first line of defense.
+ *
+ * Both helpers fail open (treat as not-processed / best-effort mark) on a store
+ * error so a transient DB hiccup never drops a webhook — duplicate side effects
+ * are caught by the unique constraints.
+ */
+async function markEventProcessed(
+  eventId: string,
+  source: "stripe" | "checkr" = "stripe",
+  eventType?: string,
+  status: "processed" | "skipped" | "failed" = "processed",
+) {
+  try {
+    await db
+      .insert(webhookEvents)
+      .values({ id: eventId, source, eventType, status })
+      .onConflictDoNothing();
+  } catch (err) {
+    console.error("[Webhook] failed to record processed event:", err);
   }
 }
 
-function isEventProcessed(eventId: string, source: "stripe" | "checkr" = "stripe"): boolean {
-  const set = source === "stripe" ? processedStripeEvents : processedCheckrEvents;
-  return set.has(eventId);
+async function isEventProcessed(eventId: string, source: "stripe" | "checkr" = "stripe"): Promise<boolean> {
+  try {
+    const row = await db.query.webhookEvents.findFirst({
+      where: and(eq(webhookEvents.source, source), eq(webhookEvents.id, eventId)),
+    });
+    return !!row;
+  } catch (err) {
+    console.error("[Webhook] dedup lookup failed — processing anyway:", err);
+    return false;
+  }
 }
 
 /**
@@ -106,10 +131,11 @@ app.post("/stripe", async (c) => {
   }
 
   // Event-level idempotency: skip already-processed events
-  if (isEventProcessed(event.id, "stripe")) {
+  if (await isEventProcessed(event.id, "stripe")) {
     return c.json({ received: true, deduplicated: true });
   }
 
+  let unhandled = false;
   switch (event.type) {
     // ── Payment Confirmed ──────────────────────────────────────
     case "checkout.session.completed": {
@@ -123,7 +149,13 @@ app.post("/stripe", async (c) => {
         const existing = await db.query.payments.findFirst({
           where: and(eq(payments.stripeSessionId, session.id), eq(payments.status, "confirmed")),
         });
-        if (existing) break;
+        if (existing) {
+          // Payment already confirmed (duplicate/retry). Still ensure the payout
+          // exists — createPayoutIfEligible is idempotent — to cover the case
+          // where a prior run confirmed the payment but threw before creating it.
+          await createPayoutIfEligible(bookingId);
+          break;
+        }
 
         // For destination charges, retrieve the PaymentIntent to capture the transfer ID
         let stripeTransferId: string | null = null;
@@ -185,16 +217,66 @@ app.post("/stripe", async (c) => {
       const payment = await findPayment(paymentIntentId, charge.metadata, "charge.refunded");
 
       if (payment && payment.status !== "refunded") {
-        // Determine if full or partial refund
-        const refundedAmount = charge.amount_refunded || 0;
+        // amount_refunded is the cumulative total refunded on the charge.
+        const refundedAmount = charge.amount_refunded || payment.amount;
+        const isFullRefund = refundedAmount >= payment.amount;
+
         await db
           .update(payments)
           .set({
-            status: "refunded",
-            refundAmount: refundedAmount > 0 ? refundedAmount : payment.amount,
+            // L2: distinguish partial from full; always record the cumulative
+            // refunded amount so later increments aren't lost.
+            status: isFullRefund ? "refunded" : "partially_refunded",
+            refundAmount: refundedAmount,
             refundedAt: new Date(),
           })
           .where(eq(payments.id, payment.id));
+
+        // M7: out-of-band (e.g. Stripe dashboard) full refunds must claw back
+        // the provider's payout, mirroring the dispute-lost path. The clawback
+        // unique index guards against duplicates (e.g. refund + dispute.lost).
+        if (isFullRefund) {
+          const paidPayout = await db.query.providerPayouts.findFirst({
+            where: and(
+              eq(providerPayouts.bookingId, payment.bookingId),
+              eq(providerPayouts.status, "paid"),
+              sql`${providerPayouts.payoutType} = 'standard'`,
+            ),
+          });
+
+          if (paidPayout) {
+            try {
+              await db.insert(providerPayouts).values({
+                providerId: paidPayout.providerId,
+                bookingId: payment.bookingId,
+                amount: -paidPayout.amount,
+                status: "pending",
+                payoutType: "clawback",
+                originalPayoutId: paidPayout.id,
+                paymentId: payment.id,
+                notes: `Clawback: charge refunded (${charge.id})`,
+                payoutMethod: paidPayout.payoutMethod,
+              });
+            } catch (err) {
+              // Unique violation = clawback already exists for this payout. Fine.
+              if (!isUniqueViolation(err)) throw err;
+            }
+          }
+
+          // B3: also cancel any not-yet-paid (pending) standard payout so the
+          // provider isn't paid out for a fully-refunded booking. (The paid
+          // case above is handled via clawback.) Mirrors the admin refund path.
+          await db
+            .update(providerPayouts)
+            .set({ status: "held", amount: 0, holdReason: `Full refund (${charge.id})` })
+            .where(
+              and(
+                eq(providerPayouts.bookingId, payment.bookingId),
+                eq(providerPayouts.status, "pending"),
+                sql`${providerPayouts.payoutType} = 'standard'`,
+              ),
+            );
+        }
       }
       break;
     }
@@ -351,17 +433,23 @@ app.post("/stripe", async (c) => {
           });
 
           if (paidPayout) {
-            await db.insert(providerPayouts).values({
-              providerId: paidPayout.providerId,
-              bookingId: payment.bookingId,
-              amount: -paidPayout.amount,
-              status: "pending",
-              payoutType: "clawback",
-              originalPayoutId: paidPayout.id,
-              paymentId: payment.id,
-              notes: `Clawback: dispute lost (${dispute.id})`,
-              payoutMethod: paidPayout.payoutMethod,
-            });
+            try {
+              await db.insert(providerPayouts).values({
+                providerId: paidPayout.providerId,
+                bookingId: payment.bookingId,
+                amount: -paidPayout.amount,
+                status: "pending",
+                payoutType: "clawback",
+                originalPayoutId: paidPayout.id,
+                paymentId: payment.id,
+                notes: `Clawback: dispute lost (${dispute.id})`,
+                payoutMethod: paidPayout.payoutMethod,
+              });
+            } catch (err) {
+              // Clawback already exists for this payout (e.g. a refund event
+              // beat us to it). The unique index guarantees one — that's fine.
+              if (!isUniqueViolation(err)) throw err;
+            }
           }
 
           // Cancel any held payouts
@@ -674,13 +762,22 @@ app.post("/stripe", async (c) => {
       break;
     }
 
-    // ── Catch-all for unhandled events ───────────────────────────
-    default:
-      // Log unhandled events at debug level — don't fail
+    // ── Extension registry / catch-all ──────────────────────────
+    default: {
+      // Events not in the core switch dispatch to the extension registry
+      // (Phase 4c invoice.paid, Phase 5b subscriptions). Truly-unknown events
+      // are recorded as "skipped" rather than silently dropped.
+      const handler = stripeExtensionHandlers[event.type];
+      if (handler) {
+        await handler(event);
+      } else {
+        unhandled = true;
+      }
       break;
+    }
   }
 
-  markEventProcessed(event.id, "stripe");
+  await markEventProcessed(event.id, "stripe", event.type, unhandled ? "skipped" : "processed");
   return c.json({ received: true });
 });
 
@@ -721,10 +818,10 @@ app.post("/checkr", async (c) => {
   }
 
   // Event-level idempotency
-  if (isEventProcessed(event.id, "checkr")) {
+  if (await isEventProcessed(event.id, "checkr")) {
     return c.json({ ok: true }, 200);
   }
-  markEventProcessed(event.id, "checkr");
+  await markEventProcessed(event.id, "checkr");
 
   if (event.type === "report.completed") {
     const reportData = event.data.object;

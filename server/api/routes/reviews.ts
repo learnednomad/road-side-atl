@@ -13,6 +13,19 @@ type AuthEnv = {
 
 const app = new Hono<AuthEnv>();
 
+/**
+ * Mask a reviewer's name for public display: "Jasmine Carter" → "Jasmine C."
+ * The public reviews list must not leak customers' full account names (L4).
+ */
+function maskReviewerName(name: string | null): string {
+  if (!name) return "Anonymous";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "Anonymous";
+  const first = parts[0];
+  const lastInitial = parts.length > 1 ? `${parts[parts.length - 1][0].toUpperCase()}.` : "";
+  return lastInitial ? `${first} ${lastInitial}` : first;
+}
+
 const createReviewSchema = z.object({
   bookingId: z.string().min(1),
   rating: z.number().int().min(1).max(5),
@@ -46,7 +59,10 @@ app.get("/provider/:providerId", async (c) => {
     .where(eq(reviews.providerId, providerId));
 
   return c.json({
-    reviews: providerReviews,
+    reviews: providerReviews.map((r) => ({
+      ...r,
+      customerName: maskReviewerName(r.customerName),
+    })),
     total: totalCount,
     hasMore: offset + limit < totalCount,
   });

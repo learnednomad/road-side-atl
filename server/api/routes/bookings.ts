@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/db";
-import { bookings, services, payments } from "@/db/schema";
+import { bookings, services, payments, serviceBundles, bookingQuotes } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { requireAuth } from "../middleware/auth";
@@ -10,6 +10,7 @@ import {
   TOWING_PRICE_PER_MILE_CENTS,
 } from "@/lib/constants";
 import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
+import { getActiveMembership } from "@/server/api/lib/memberships";
 import { geocodeAddress } from "@/lib/geocoding";
 import { notifyBookingCreated, notifyStatusChange } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
@@ -51,7 +52,23 @@ app.post("/", async (c) => {
     data.scheduledAt ? new Date(data.scheduledAt) : null,
   );
   let estimatedPrice = pricing.finalPrice;
+  let pricingSource = "retail";
   let towingMiles: number | undefined;
+
+  // Bundle: a discounted package price overrides the per-service estimate.
+  let bundleId: string | undefined;
+  if (data.bundleId) {
+    const bundle = await db.query.serviceBundles.findFirst({
+      where: and(eq(serviceBundles.id, data.bundleId), eq(serviceBundles.active, true)),
+    });
+    if (!bundle) return c.json({ error: "Bundle not found or inactive" }, 400);
+    if (!bundle.serviceIds.includes(data.serviceId)) {
+      return c.json({ error: "Service is not part of this bundle" }, 400);
+    }
+    estimatedPrice = bundle.bundlePrice;
+    pricingSource = "bundle";
+    bundleId = bundle.id;
+  }
 
   // Towing per-mile is ADDITIVE (not multiplied by time-block)
   if (service.slug === "towing" && data.location.estimatedMiles) {
@@ -63,6 +80,15 @@ app.post("/", async (c) => {
   // Get user if logged in
   const session = await auth();
   const userId = session?.user?.id || null;
+
+  // Member discount: an active membership discounts non-bundle bookings.
+  if (userId && pricingSource !== "bundle") {
+    const membership = await getActiveMembership(userId);
+    if (membership && membership.discountBp > 0) {
+      estimatedPrice = Math.round((estimatedPrice * (10000 - membership.discountBp)) / 10000);
+      pricingSource = "member";
+    }
+  }
 
   // Server-side geocoding fallback if no coordinates provided
   const locationData = { ...data.location };
@@ -97,6 +123,16 @@ app.post("/", async (c) => {
       towingMiles,
       notes: data.notes,
       preferredPaymentMethod: data.paymentMethod,
+      bundleId,
+      pricingSnapshot: {
+        basePrice: pricing.basePrice,
+        multiplier: pricing.multiplier,
+        blockName: pricing.blockName ?? null,
+        estimatedPrice,
+        source: pricingSource,
+        estimateMinCents: service.estimateMinCents ?? null,
+        estimateMaxCents: service.estimateMaxCents ?? null,
+      },
     })
     .returning();
 
@@ -305,6 +341,66 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
   }
 
   return c.json(updated);
+});
+
+// GET /:id/quote — latest quote for the user's booking
+app.get("/:id/quote", requireAuth, async (c) => {
+  const user = c.get("user");
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, c.req.param("id")), eq(bookings.userId, user.id)),
+  });
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  const quote = await db.query.bookingQuotes.findFirst({
+    where: eq(bookingQuotes.bookingId, booking.id),
+    orderBy: (q, { desc: d }) => [d(q.createdAt)],
+  });
+  if (!quote) return c.json({ error: "No quote for this booking" }, 404);
+  return c.json(quote);
+});
+
+// POST /:id/quote/approve — customer approves the pending quote → sets finalPrice
+app.post("/:id/quote/approve", requireAuth, async (c) => {
+  const user = c.get("user");
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, c.req.param("id")), eq(bookings.userId, user.id)),
+  });
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  const quote = await db.query.bookingQuotes.findFirst({
+    where: and(eq(bookingQuotes.bookingId, booking.id), eq(bookingQuotes.status, "sent")),
+    orderBy: (q, { desc: d }) => [d(q.createdAt)],
+  });
+  if (!quote) return c.json({ error: "No pending quote" }, 404);
+
+  // Claim the quote (approve only if still sent) so concurrent approves can't double-apply.
+  const [approved] = await db
+    .update(bookingQuotes)
+    .set({ status: "approved", approvedAt: new Date() })
+    .where(and(eq(bookingQuotes.id, quote.id), eq(bookingQuotes.status, "sent")))
+    .returning();
+  if (!approved) return c.json({ error: "Quote already actioned" }, 409);
+
+  const [updated] = await db
+    .update(bookings)
+    .set({ finalPrice: quote.totalCents, updatedAt: new Date() })
+    .where(eq(bookings.id, booking.id))
+    .returning();
+  return c.json({ quote: approved, booking: updated });
+});
+
+// POST /:id/quote/decline — customer declines the pending quote
+app.post("/:id/quote/decline", requireAuth, async (c) => {
+  const user = c.get("user");
+  const booking = await db.query.bookings.findFirst({
+    where: and(eq(bookings.id, c.req.param("id")), eq(bookings.userId, user.id)),
+  });
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  const [declined] = await db
+    .update(bookingQuotes)
+    .set({ status: "declined" })
+    .where(and(eq(bookingQuotes.bookingId, booking.id), eq(bookingQuotes.status, "sent")))
+    .returning();
+  if (!declined) return c.json({ error: "No pending quote" }, 404);
+  return c.json({ success: true });
 });
 
 export default app;

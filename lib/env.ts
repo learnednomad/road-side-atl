@@ -22,6 +22,9 @@ const envSchema = z.object({
   AUTH_GOOGLE_ID: z.string().optional(),
   AUTH_GOOGLE_SECRET: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
+  SLACK_OPS_WEBHOOK_URL: z.string().optional(), // Slack Incoming Webhook for ops alerts (optional)
+  SLACK_SIGNING_SECRET: z.string().optional(), // Slack app signing secret for the slash-command bot
+  SLACK_ADMIN_USER_IDS: z.string().optional(), // comma-separated Slack user ids allowed to use the bot
 
   // Encryption
   ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i, "ENCRYPTION_KEY must be 64 hex characters (32 bytes)").optional(),
@@ -71,12 +74,14 @@ function validateEnv() {
     if (process.env.AUTH_GOOGLE_SECRET?.includes("your-")) placeholders.push("AUTH_GOOGLE_SECRET");
 
     if (placeholders.length > 0) {
-      console.warn("========================================");
-      console.warn("WARNING: Placeholder values detected in production:");
+      console.error("========================================");
+      console.error("FATAL: Placeholder secrets detected in production:");
       for (const key of placeholders) {
-        console.warn(`  ${key} appears to be a placeholder`);
+        console.error(`  ${key} appears to be a placeholder`);
       }
-      console.warn("========================================");
+      console.error("Set real values before deploying. Refusing to start (fail-closed).");
+      console.error("========================================");
+      process.exit(1);
     }
   }
 

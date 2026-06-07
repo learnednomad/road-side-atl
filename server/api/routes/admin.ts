@@ -25,6 +25,8 @@ import type { AuditAction } from "../lib/audit-logger";
 import { clearDelayNotification } from "../lib/delay-tracker";
 import { logger } from "@/lib/logger";
 import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
+import { safeUserColumns } from "../lib/safe-columns";
+import { escapeLike } from "../lib/sql-escape";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
 import { BOOKING_STATUSES, SERVICE_CATEGORIES } from "@/lib/constants";
 import type { BookingStatus, ServiceCategory } from "@/lib/constants";
@@ -587,6 +589,15 @@ app.post("/bookings/:id/confirm-payment", async (c) => {
 
   const amount = parsed.data.amount || booking.estimatedPrice;
 
+  // Idempotency (L1): if a confirmed payment already exists, don't insert a
+  // duplicate (which would also double-increment the customer's trust tier).
+  const alreadyConfirmed = await db.query.payments.findFirst({
+    where: and(eq(payments.bookingId, bookingId), eq(payments.status, "confirmed")),
+  });
+  if (alreadyConfirmed) {
+    return c.json({ error: "Payment already confirmed for this booking", payment: alreadyConfirmed }, 409);
+  }
+
   const [payment] = await db
     .insert(payments)
     .values({
@@ -985,10 +996,11 @@ app.get("/customers", async (c) => {
 
   const conditions = [eq(users.role, "customer")];
   if (search) {
+    const safe = escapeLike(search);
     conditions.push(
       or(
-        ilike(users.name, `%${search}%`),
-        ilike(users.email, `%${search}%`)
+        ilike(users.name, `%${safe}%`),
+        ilike(users.email, `%${safe}%`)
       )!
     );
   }
@@ -1000,7 +1012,8 @@ app.get("/customers", async (c) => {
 
   const customers = await db
     .select({
-      user: users,
+      // Explicit safe columns — never ship password hashes / taxId / Stripe ids (M4).
+      user: safeUserColumns,
       bookingCount: count(bookings.id),
       totalSpent: sql<number>`coalesce(sum(${payments.amount}), 0)`,
     })
