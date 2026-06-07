@@ -99,6 +99,13 @@
       "when": 1780846128671,
       "tag": "0013_outbound_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1780846610197,
+      "tag": "0014_loyalty",
+      "breakpoints": true
     }
   ]
 }

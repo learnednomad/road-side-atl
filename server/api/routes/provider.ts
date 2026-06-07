@@ -10,6 +10,7 @@ import { updateBookingStatusSchema } from "@/lib/validators";
 import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
 import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { dispatchBooking } from "../lib/dispatch-router";
+import { awardLoyaltyForBooking } from "../lib/loyalty";
 import { geocodeAddress } from "@/lib/geocoding";
 import { generateReferralCode, creditReferralOnFirstBooking, creditProviderReferralOnFirstJob } from "../lib/referral-credits";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
@@ -281,6 +282,8 @@ app.patch("/jobs/:id/status", async (c) => {
     });
 
     if (confirmedPayment) {
+      // Award loyalty points for completed spend (idempotent, fail-open).
+      void awardLoyaltyForBooking(booking.userId, booking.id, confirmedPayment.amount);
       (async () => {
         const bookingUser = await db.query.users.findFirst({
           where: eq(users.id, booking.userId!),
