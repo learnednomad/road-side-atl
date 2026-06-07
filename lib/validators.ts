@@ -464,6 +464,13 @@ export const addB2bMemberSchema = z.object({
 });
 export type AddB2bMemberInput = z.infer<typeof addB2bMemberSchema>;
 
+export const createWebhookSubscriptionSchema = z.object({
+  url: z.url("Valid https URL required"),
+  events: z.array(z.string().min(1)).min(1, "Subscribe to at least one event").max(20),
+  secret: z.string().min(16).max(128).optional(),
+});
+export type CreateWebhookSubscriptionInput = z.infer<typeof createWebhookSubscriptionSchema>;
+
 export const createServiceBundleSchema = z.object({
   name: z.string().min(1).max(120),
   slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/, "lowercase-kebab only"),
