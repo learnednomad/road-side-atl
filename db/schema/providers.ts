@@ -41,6 +41,9 @@ export const providers = pgTable("providers", {
     .notNull()
     .default("percentage"),
   flatFeeAmount: integer("flatFeeAmount"), // cents, for flat_per_job type
+  // True = commissionRate is a deliberate negotiated arrangement that overrides
+  // the service-level cut (replaces the old "rate != 7000" magic sentinel).
+  rateIsNegotiated: boolean("rateIsNegotiated").default(false).notNull(),
   status: providerStatusEnum("status").notNull().default("pending"),
   latitude: real("latitude"),
   longitude: real("longitude"),

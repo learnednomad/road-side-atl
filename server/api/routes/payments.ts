@@ -115,11 +115,11 @@ app.post("/stripe/checkout", async (c) => {
   const stripeCustomerId = await getOrCreateStripeCustomer(user.id);
 
   // Resolve assigned provider's Stripe Connect account (if any)
-  let provider: { id: string; stripeConnectAccountId: string | null; commissionRate: number; commissionType: string; flatFeeAmount: number | null } | undefined;
+  let provider: { id: string; stripeConnectAccountId: string | null; commissionRate: number; commissionType: string; flatFeeAmount: number | null; rateIsNegotiated: boolean } | undefined;
   if (booking.providerId) {
     provider = await db.query.providers.findFirst({
       where: eq(providers.id, booking.providerId),
-      columns: { id: true, stripeConnectAccountId: true, commissionRate: true, commissionType: true, flatFeeAmount: true },
+      columns: { id: true, stripeConnectAccountId: true, commissionRate: true, commissionType: true, flatFeeAmount: true, rateIsNegotiated: true },
     });
   }
 
