@@ -83,6 +83,8 @@ export type AuditAction =
   | "onboarding.reinstated"
   | "onboarding.step_completed"
   | "onboarding.step_rejected"
+  | "document.approved"
+  | "document.rejected"
   | "onboarding.migration_bypass"
   | "onboarding.fcra_consent"
   | "onboarding.step_started"

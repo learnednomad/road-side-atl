@@ -620,7 +620,9 @@ describe("POST /stripe/checkout", () => {
       // Verify the values passed to .values()
       expect(mockValues).toHaveBeenCalledOnce();
       const insertedValues = mockValues.mock.calls[0][0];
-      expect(insertedValues).toEqual({
+      // toMatchObject: the record also carries chargeType / applicationFeeAmount /
+      // stripeConnectAccountId from the destination-charge support added later.
+      expect(insertedValues).toMatchObject({
         bookingId: VALID_UUID,
         amount: 5000,
         method: "stripe",

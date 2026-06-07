@@ -8,12 +8,14 @@ import { onboardingSteps } from "@/db/schema/onboarding-steps";
 import { eq, desc, asc, sql, count, and, or, inArray, ilike } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import { rateLimitStrict } from "../middleware/rate-limit";
-import { createProviderSchema, updateProviderSchema, betaInviteSchema, adminRejectProviderSchema, adminSuspendProviderSchema, adminReviewStepSchema } from "@/lib/validators";
+import { createProviderSchema, updateProviderSchema, betaInviteSchema, adminRejectProviderSchema, adminSuspendProviderSchema, adminReviewStepSchema, adminDocumentReviewSchema } from "@/lib/validators";
 import { geocodeAddress } from "@/lib/geocoding";
 import { isValidProviderTransition, isValidStepTransition } from "../lib/onboarding-state-machine";
-import { broadcastToUser } from "@/server/websocket/broadcast";
-import { notifyProviderRejected } from "@/lib/notifications";
+import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
+import { notifyProviderRejected, notifyDocumentReviewed, notifyAdminProviderReadyForReview } from "@/lib/notifications";
 import { sendEmail } from "@/lib/notifications/email";
+import { getPresignedUrl } from "@/lib/s3";
+import { providerDocuments } from "@/db/schema/provider-documents";
 import {
   createProviderInviteToken,
   sendProviderInviteEmail,
@@ -22,7 +24,7 @@ import {
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { encrypt, decrypt } from "../lib/encryption";
 import { generateCSV } from "@/lib/csv";
-import { PROVIDER_STATUSES, IRS_1099_THRESHOLD_CENTS, CHECKR_DASHBOARD_BASE_URL } from "@/lib/constants";
+import { PROVIDER_STATUSES, IRS_1099_THRESHOLD_CENTS, CHECKR_DASHBOARD_BASE_URL, PRESIGNED_DOWNLOAD_EXPIRY_ADMIN } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import type { ProviderStatus } from "@/lib/constants";
 
@@ -1056,6 +1058,194 @@ app.patch("/:id/steps/:stepId", async (c) => {
           ipAddress,
           userAgent,
         });
+      }
+    }
+  }
+
+  return c.json(updated, 200);
+});
+
+
+// ── Provider document review (restored: list + approve/reject documents) ──
+app.get("/:id/documents", async (c) => {
+  const { id } = c.req.param();
+
+  const provider = await db.query.providers.findFirst({
+    where: eq(providers.id, id),
+  });
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const docs = await db.query.providerDocuments.findMany({
+    where: eq(providerDocuments.providerId, id),
+    orderBy: [desc(providerDocuments.createdAt)],
+  });
+
+  // Generate presigned download URLs for each document
+  const docsWithUrls = await Promise.all(
+    docs.map(async (doc) => ({
+      ...doc,
+      downloadUrl: await getPresignedUrl(doc.s3Key, PRESIGNED_DOWNLOAD_EXPIRY_ADMIN),
+    }))
+  );
+
+  // Group by document type
+  const grouped = docsWithUrls.reduce((acc, doc) => {
+    const type = doc.documentType;
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(doc);
+    return acc;
+  }, {} as Record<string, typeof docsWithUrls>);
+
+  return c.json({ documents: grouped }, 200);
+});
+
+// PATCH /:id/documents/:documentId — admin approve or reject a document
+app.patch("/:id/documents/:documentId", async (c) => {
+  const { id, documentId } = c.req.param();
+  const user = c.get("user");
+  const body = await c.req.json();
+  const parsed = adminDocumentReviewSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "Invalid input", details: parsed.error.issues }, 400);
+
+  const doc = await db.query.providerDocuments.findFirst({
+    where: and(eq(providerDocuments.id, documentId), eq(providerDocuments.providerId, id)),
+  });
+  if (!doc) return c.json({ error: "Document not found" }, 404);
+  if (doc.status !== "pending_review") {
+    return c.json({ error: `Cannot review document with status: ${doc.status}` }, 400);
+  }
+
+  const updateData: Record<string, unknown> = {
+    status: parsed.data.status,
+    reviewedBy: user.id,
+    reviewedAt: new Date(),
+    updatedAt: new Date(),
+  };
+  if (parsed.data.status === "rejected") {
+    updateData.rejectionReason = parsed.data.rejectionReason;
+  }
+  if (parsed.data.status === "approved") {
+    updateData.rejectionReason = null;
+  }
+
+  // TOCTOU guard: only update if still pending_review (prevents concurrent double-review)
+  const [updated] = await db.update(providerDocuments)
+    .set(updateData)
+    .where(and(eq(providerDocuments.id, documentId), eq(providerDocuments.status, "pending_review")))
+    .returning();
+
+  if (!updated) {
+    return c.json({ error: "Document was already reviewed" }, 409);
+  }
+
+  const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
+  const auditAction = parsed.data.status === "approved" ? "document.approved" : "document.rejected";
+  logAudit({
+    action: auditAction,
+    userId: user.id,
+    resourceType: "provider_document",
+    resourceId: documentId,
+    details: {
+      providerId: id,
+      documentType: doc.documentType,
+      ...(parsed.data.rejectionReason && { reason: parsed.data.rejectionReason }),
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  // Broadcast WebSocket event to provider
+  const provider = await db.query.providers.findFirst({ where: eq(providers.id, id) });
+  if (provider?.userId) {
+    broadcastToUser(provider.userId, {
+      type: "onboarding:document_reviewed",
+      data: {
+        providerId: id,
+        documentType: doc.documentType,
+        status: parsed.data.status,
+        ...(parsed.data.rejectionReason && { rejectionReason: parsed.data.rejectionReason }),
+      },
+    });
+  }
+
+  // Fire-and-forget notification
+  notifyDocumentReviewed(provider?.userId ?? undefined, doc.documentType, parsed.data.status, parsed.data.rejectionReason ?? undefined)
+    .catch((err) => { console.error("[Notifications] Failed:", err); });
+
+  // Auto-complete check: if all docs for this step are now approved
+  if (parsed.data.status === "approved") {
+    const stepDocs = await db.query.providerDocuments.findMany({
+      where: and(
+        eq(providerDocuments.onboardingStepId, doc.onboardingStepId),
+        eq(providerDocuments.providerId, id),
+      ),
+    });
+    const allApproved = stepDocs.every((d) =>
+      d.id === documentId ? true : d.status === "approved"
+    );
+    if (allApproved) {
+      const step = await db.query.onboardingSteps.findFirst({
+        where: eq(onboardingSteps.id, doc.onboardingStepId),
+      });
+      if (step && isValidStepTransition(step.status, "complete")) {
+        await db.update(onboardingSteps).set({
+          status: "complete",
+          completedAt: new Date(),
+          reviewedBy: user.id,
+          reviewedAt: new Date(),
+          updatedAt: new Date(),
+        }).where(eq(onboardingSteps.id, doc.onboardingStepId));
+
+        logAudit({
+          action: "onboarding.step_completed",
+          userId: user.id,
+          resourceType: "onboarding_step",
+          resourceId: doc.onboardingStepId,
+          details: { providerId: id, stepType: step.stepType, trigger: "all_documents_approved" },
+          ipAddress,
+          userAgent,
+        });
+
+        // Run all-steps-complete auto-transition check
+        if (provider?.status === "onboarding") {
+          const allSteps = await db.query.onboardingSteps.findMany({
+            where: eq(onboardingSteps.providerId, id),
+          });
+          const allComplete = allSteps.every((s) =>
+            s.id === doc.onboardingStepId ? true : s.status === "complete"
+          );
+          if (allComplete) {
+            const [transitioned] = await db.update(providers).set({
+              status: "pending_review",
+              updatedAt: new Date(),
+            }).where(and(eq(providers.id, id), eq(providers.status, "onboarding"))).returning();
+
+            if (transitioned) {
+              broadcastToAdmins({
+                type: "onboarding:ready_for_review",
+                data: { providerId: id, providerName: provider.name },
+              });
+
+              notifyAdminProviderReadyForReview(id, provider.name || "").catch((err) => {
+                console.error("[Notifications] Failed:", err);
+              });
+
+              logAudit({
+                action: "onboarding.status_changed",
+                userId: user.id,
+                resourceType: "provider",
+                resourceId: id,
+                details: {
+                  previousStatus: "onboarding",
+                  newStatus: "pending_review",
+                  trigger: "all_steps_complete",
+                },
+              ipAddress,
+              userAgent,
+            });
+            }
+          }
+        }
       }
     }
   }
