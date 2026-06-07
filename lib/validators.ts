@@ -457,6 +457,12 @@ export const recordB2bCreditPaymentSchema = z.object({
 });
 export type RecordB2bCreditPaymentInput = z.infer<typeof recordB2bCreditPaymentSchema>;
 
+export const addB2bMemberSchema = z.object({
+  email: z.email("Valid email is required"),
+  role: z.enum(["owner", "manager", "member"]).optional(),
+});
+export type AddB2bMemberInput = z.infer<typeof addB2bMemberSchema>;
+
 export const setB2bPriceListSchema = z.object({
   entries: z.array(
     z.object({
