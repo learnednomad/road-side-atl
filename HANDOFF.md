@@ -110,19 +110,30 @@ These stop active exposure immediately and are the owner's to perform:
 
 ---
 
-## 3a. 🚨 DEPLOY BLOCKER — migration journal drift (verify the new DB objects exist)
+## 3a. ✅ Migrations reconciled — cutover via `DB_ADOPT_BASELINE`
 
-An independent review of all six batches flagged this as the top risk. **The Drizzle migration journal (`db/migrations/meta/_journal.json`) stops at idx 19**, but SQL files `0020`–`0031` exist and are **not registered**. Consequences:
+The earlier journal drift is **resolved** (#46): history is squashed to a single
+`0000_baseline.sql` (+ `0001_service_estimate_ranges` from #42), verified
+end-to-end on a real Postgres. A fresh DB just runs `drizzle-kit migrate`. An
+existing (push-provisioned) prod DB is adopted by the entrypoint when
+`DB_ADOPT_BASELINE=true`: it `push`es the full schema, then `db/baseline-adopt.cjs`
+marks **all** current migrations applied so the follow-up `migrate` is a clean
+no-op. (A pre-release sweep caught — and we fixed — that the adopt step must mark
+*every* journal entry, not just the baseline, or `migrate` would replay `0001`'s
+`ADD COLUMN` and crash the container.)
 
-- `docker-entrypoint.sh`'s normal path runs `drizzle-kit migrate`, which only applies *journaled* migrations → it will **skip** `0030_rate_limits.sql` and `0031_money_invariants.sql`. And Batch A made a failed `migrate` **fatal**, while the journal drift means migrate already fails at `0000` (`type "user_role" already exists`) — so the container **won't boot via the migrate path** until the journal is reconciled.
-- This means prod must apply schema via **`drizzle-kit push`** (what the team already does for 0020–0029) **or** the journal must be reconciled. Either way: the new tables/indexes/enum (`rate_limits`, `webhook_events`, the three partial unique indexes, the `partially_refunded` enum value) only exist if `push` runs or the journal is fixed.
-- The app **fails open** if these are missing (no crash — rate limiting and money-invariant backstops are simply inert, logged on use). So after deploying, **verify the objects exist**:
-  ```sql
-  \d rate_limits        \d webhook_events
-  select indexname from pg_indexes where indexname like 'uniq_payout%' or indexname='uniq_payments_stripe_session';
-  select 'partially_refunded'::payment_status;  -- must not error
-  ```
-- **Action:** reconcile the journal (the H5 task) **or** run `drizzle-kit push` against prod as part of this deploy, then run the checks above. Until then, none of the DB-backed protections (H7 limiting, M6 invariants) are actually active.
+**Before the cutover:** follow `docs/prod-cutover-runbook.md` and run
+`npm run db:preflight` (catches data that would fail the new unique indexes).
+**After deploying, verify:**
+```sql
+\d rate_limits        \d webhook_events
+select indexname from pg_indexes where indexname like 'uniq_payout%' or indexname='uniq_payments_stripe_session';
+select 'partially_refunded'::payment_status;  -- must not error
+```
+**Caveat:** adoption marks `0001` applied, so its estimate-range *backfill* does
+not run on pre-existing prod service rows (they keep NULL ranges until updated);
+the new mechanic services (#42) come via seed, not migration, so introduce them
+to prod separately if needed.
 
 ---
 
