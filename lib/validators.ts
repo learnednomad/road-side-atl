@@ -464,6 +464,21 @@ export const addB2bMemberSchema = z.object({
 });
 export type AddB2bMemberInput = z.infer<typeof addB2bMemberSchema>;
 
+export const membershipCheckoutSchema = z.object({ planId: z.string().min(1) });
+export type MembershipCheckoutInput = z.infer<typeof membershipCheckoutSchema>;
+
+export const createMembershipPlanSchema = z.object({
+  name: z.string().min(1).max(120),
+  slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/, "lowercase-kebab only"),
+  priceCents: z.number().int().min(0),
+  interval: z.enum(["month", "year"]).optional(),
+  discountBp: z.number().int().min(0).max(10000),
+  priorityDispatch: z.boolean().optional(),
+  stripePriceId: z.string().min(1),
+  active: z.boolean().optional(),
+});
+export type CreateMembershipPlanInput = z.infer<typeof createMembershipPlanSchema>;
+
 export const createBookingQuoteSchema = z.object({
   lineItems: z.array(
     z.object({ description: z.string().min(1).max(200), amountCents: z.number().int().min(0) }),

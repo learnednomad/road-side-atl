@@ -12,10 +12,13 @@
  */
 import type Stripe from "stripe";
 import { handleInvoicePaid } from "./invoice-paid";
+import { handleSubscriptionUpsert, handleSubscriptionDeleted } from "./subscription";
 
 export type StripeWebhookHandler = (event: Stripe.Event) => Promise<void>;
 
 export const stripeExtensionHandlers: Record<string, StripeWebhookHandler> = {
   "invoice.paid": handleInvoicePaid, // Phase 4c — B2B NET credit paydown
-  // Phase 5b will register: "customer.subscription.updated": ...
+  "customer.subscription.created": handleSubscriptionUpsert, // Phase 5b — memberships
+  "customer.subscription.updated": handleSubscriptionUpsert,
+  "customer.subscription.deleted": handleSubscriptionDeleted,
 };
