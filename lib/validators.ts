@@ -404,6 +404,30 @@ export const createCommissionRuleSchema = z.object({
 });
 export type CreateCommissionRuleInput = z.infer<typeof createCommissionRuleSchema>;
 
+export const createB2bEstimateSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200),
+  notes: z.string().max(1000).optional(),
+  validUntil: z.string().datetime().optional(),
+  lines: z.array(
+    z.object({
+      serviceId: z.string().min(1),
+      qty: z.number().int().min(1).max(100),
+      fleetVehicleId: z.string().optional(),
+    }),
+  ).min(1, "At least one line is required").max(50),
+});
+export type CreateB2bEstimateInput = z.infer<typeof createB2bEstimateSchema>;
+
+export const convertB2bEstimateSchema = z.object({
+  location: locationSchema,
+  vehicleInfo: vehicleInfoSchema,
+  contactName: z.string().min(2, "Contact name is required"),
+  contactPhone: z.string().min(10, "Phone number is required"),
+  contactEmail: z.email("Valid email is required"),
+  scheduledAt: z.string().datetime().optional(),
+});
+export type ConvertB2bEstimateInput = z.infer<typeof convertB2bEstimateSchema>;
+
 export const setB2bPriceListSchema = z.object({
   entries: z.array(
     z.object({
