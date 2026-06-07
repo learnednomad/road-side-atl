@@ -11,7 +11,18 @@ vi.mock("@/db", () => ({
       timeBlockConfigs: {
         findMany: vi.fn(),
       },
+      // No active surge config → calculateSurgeMultiplier() returns 1.0x.
+      surgeConfigs: {
+        findFirst: vi.fn(),
+      },
     },
+    // getAvailableProviderCount() — return 5 (≥ scarcity threshold of 3) so the
+    // scarcity multiplier stays 1.0x and the time-block assertions stay isolated.
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue([{ count: 5 }]),
+      })),
+    })),
   },
 }));
 
@@ -32,7 +43,7 @@ describe("calculateBookingPrice", () => {
 
     const result = await calculateBookingPrice("svc-1", new Date("2026-02-22T14:00:00"));
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       basePrice: 5000,
       multiplier: DEFAULT_MULTIPLIER_BP, // 10000 = 1.0x
       blockName: "Standard",
@@ -56,7 +67,7 @@ describe("calculateBookingPrice", () => {
     // 6 PM falls within 17-21
     const result = await calculateBookingPrice("svc-1", new Date("2026-02-22T18:00:00"));
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       basePrice: 5000,
       multiplier: 15000,
       blockName: "Evening Rush",

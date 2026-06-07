@@ -17,6 +17,7 @@ function isUniqueViolation(err: unknown): boolean {
 }
 import { getStripe } from "@/lib/stripe";
 import { createInvoiceForBooking } from "./invoice-generator";
+import { logAudit } from "./audit-logger";
 import { logger } from "@/lib/logger";
 
 /**
@@ -266,21 +267,35 @@ async function createStripeConnectPayout(
       amount: providerAmount,
       providerId: provider.id,
     });
+    logAudit({
+      action: "payout.stripe_connect_transfer",
+      resourceType: "payout",
+      resourceId: payout.id,
+      details: { transferId: transfer.id, amount: providerAmount, providerId: provider.id, bookingId },
+    });
   } catch (err) {
     // Transfer failed — fall back to manual batch
+    const stripeError = err instanceof Error ? err.message : String(err);
     logger.error("[Payout] Stripe Connect transfer failed, falling back to manual_batch", {
       payoutId: payout.id,
       providerId: provider.id,
-      error: err instanceof Error ? err.message : String(err),
+      error: stripeError,
     });
 
     await db
       .update(providerPayouts)
       .set({
         payoutMethod: "manual_batch",
-        metadata: { transferError: err instanceof Error ? err.message : String(err) },
+        metadata: { stripeError },
       })
       .where(eq(providerPayouts.id, payout.id));
+
+    logAudit({
+      action: "payout.stripe_connect_failed",
+      resourceType: "payout",
+      resourceId: payout.id,
+      details: { providerId: provider.id, bookingId, stripeError },
+    });
   }
 
   createInvoiceForBooking(bookingId).catch((err) => {
@@ -348,11 +363,24 @@ export async function migratePendingPayoutsToConnect(
         .where(eq(providerPayouts.id, payout.id));
 
       migrated++;
+      logAudit({
+        action: "payout.auto_migrated",
+        resourceType: "payout",
+        resourceId: payout.id,
+        details: { transferId: transfer.id, amount: payout.amount, providerId },
+      });
     } catch (err) {
+      const stripeError = err instanceof Error ? err.message : String(err);
       logger.error("[Payout] Migration transfer failed", {
         payoutId: payout.id,
         providerId,
-        error: err instanceof Error ? err.message : String(err),
+        error: stripeError,
+      });
+      logAudit({
+        action: "payout.stripe_connect_failed",
+        resourceType: "payout",
+        resourceId: payout.id,
+        details: { providerId, bookingId: payout.bookingId, stripeError, context: "migration" },
       });
       errors++;
     }

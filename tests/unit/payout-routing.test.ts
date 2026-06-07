@@ -55,8 +55,9 @@ let updateChain = createUpdateChain();
 let selectWhereResult: unknown[] = [];
 const createSelectChain = () => {
   const where = vi.fn().mockImplementation(() => Promise.resolve(selectWhereResult));
-  const fromFn = vi.fn().mockReturnValue({ where });
-  return { from: fromFn, where };
+  const innerJoin = vi.fn().mockReturnValue({ where, innerJoin: vi.fn().mockReturnValue({ where }) });
+  const fromFn = vi.fn().mockReturnValue({ where, innerJoin });
+  return { from: fromFn, where, innerJoin };
 };
 
 let selectChain = createSelectChain();
@@ -67,7 +68,7 @@ vi.mock("@/db", () => ({
       bookings: { findFirst: vi.fn() },
       payments: { findFirst: vi.fn() },
       providers: { findFirst: vi.fn() },
-      providerPayouts: { findFirst: vi.fn() },
+      providerPayouts: { findFirst: vi.fn(), findMany: vi.fn() },
       services: { findFirst: vi.fn() },
       onboardingSteps: { findFirst: vi.fn(), findMany: vi.fn() },
     },
@@ -121,6 +122,11 @@ vi.mock("drizzle-orm", async () => {
 vi.mock("@/server/api/lib/invoice-generator", () => ({
   createInvoiceForBooking: vi.fn().mockResolvedValue(undefined),
 }));
+
+vi.mock("@/server/api/lib/feature-flags", async () => {
+  const actual = await vi.importActual("@/server/api/lib/feature-flags");
+  return { ...actual, isFeatureEnabled: vi.fn().mockResolvedValue(true) };
+});
 
 vi.mock("@/server/api/lib/onboarding-state-machine", () => ({
   isValidStepTransition: vi.fn().mockReturnValue(true),
@@ -216,14 +222,15 @@ describe("Payout Routing", () => {
           destination: "acct_test123",
           transfer_group: "booking-1",
         }),
+        expect.objectContaining({ idempotencyKey: expect.any(String) }),
       );
 
-      // Should update payout to paid + stripe_connect
+      // Payout is inserted as stripe_connect, then updated to paid on success.
+      expect(insertChain.values).toHaveBeenCalledWith(
+        expect.objectContaining({ payoutMethod: "stripe_connect" }),
+      );
       expect(updateChain.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: "paid",
-          payoutMethod: "stripe_connect",
-        }),
+        expect.objectContaining({ status: "paid" }),
       );
 
       expect(logAudit).toHaveBeenCalledWith(
@@ -245,7 +252,8 @@ describe("Payout Routing", () => {
       await createPayoutIfEligible("booking-1");
 
       expect(mockStripe.transfers.create).not.toHaveBeenCalled();
-      expect(updateChain.set).toHaveBeenCalledWith(
+      // Non-Connect provider → manual_batch payout is inserted (no update).
+      expect(insertChain.values).toHaveBeenCalledWith(
         expect.objectContaining({ payoutMethod: "manual_batch" }),
       );
     });
@@ -292,6 +300,7 @@ describe("Payout Routing", () => {
 
       expect(mockStripe.transfers.create).toHaveBeenCalledWith(
         expect.objectContaining({ transfer_group: "booking-1" }),
+        expect.objectContaining({ idempotencyKey: expect.any(String) }),
       );
     });
   });
@@ -299,10 +308,10 @@ describe("Payout Routing", () => {
   describe("migratePendingPayoutsToConnect", () => {
     it("migrates pending manual payouts to Stripe Connect", async () => {
       (db.query.providers.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(mockProvider);
-      selectWhereResult = [
+      (db.query.providerPayouts.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
         { id: "payout-1", amount: 5000, bookingId: "booking-1", providerId: "provider-1", status: "pending", payoutMethod: "manual_batch" },
         { id: "payout-2", amount: 3000, bookingId: "booking-2", providerId: "provider-1", status: "pending", payoutMethod: "manual_batch" },
-      ];
+      ]);
 
       // Claim update returns the payout (2 claims), then paid updates (2 paid updates)
       mockUpdateReturnValues.push(
@@ -328,9 +337,9 @@ describe("Payout Routing", () => {
 
     it("leaves payouts in manual queue when Stripe fails", async () => {
       (db.query.providers.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(mockProvider);
-      selectWhereResult = [
+      (db.query.providerPayouts.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
         { id: "payout-1", amount: 5000, bookingId: "booking-1", providerId: "provider-1", status: "pending", payoutMethod: "manual_batch" },
-      ];
+      ]);
 
       // Claim succeeds, but Stripe transfer fails
       mockUpdateReturnValues.push([{ id: "payout-1" }]);
@@ -366,11 +375,7 @@ describe("Deadline Enforcement Reconciliation", () => {
     selectWhereResult = [];
     selectChain = createSelectChain();
     (db.update as ReturnType<typeof vi.fn>).mockImplementation(() => ({ set: updateChain.set }));
-    (db.select as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      const where = vi.fn().mockImplementation(() => Promise.resolve(selectWhereResult));
-      const fromFn = vi.fn().mockReturnValue({ where });
-      return { from: fromFn, where };
-    });
+    (db.select as ReturnType<typeof vi.fn>).mockImplementation(() => selectChain);
   });
 
   it("suspends non-compliant active providers after grace period", async () => {
@@ -387,8 +392,12 @@ describe("Deadline Enforcement Reconciliation", () => {
       };
     });
 
+    // The SUT selects { step, provider } via an innerJoin.
     selectWhereResult = [
-      { id: "provider-1", name: "Test", status: "active", stripeConnectAccountId: null, userId: "user-1" },
+      {
+        step: { id: "step-1", createdAt: new Date(Date.now() - 70 * 24 * 60 * 60 * 1000) },
+        provider: { id: "provider-1", name: "Test", status: "active", stripeConnectAccountId: null, userId: "user-1" },
+      },
     ];
     mockUpdateReturnValues.push([{ id: "provider-1" }]);
 
@@ -413,7 +422,7 @@ describe("Deadline Enforcement Reconciliation", () => {
     const { enforceStripeConnectDeadline } = await import("@/server/api/lib/reconciliation");
     const result = await enforceStripeConnectDeadline();
 
-    expect(result).toEqual({ checked: 0, suspended: 0, errors: 0 });
+    expect(result).toEqual({ enforced: 0, checked: 0, suspended: 0 });
   });
 });
 

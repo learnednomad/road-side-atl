@@ -22,8 +22,9 @@ const createSelectChain = () => {
   const where = vi.fn().mockImplementation(() =>
     Promise.resolve(mockSelectReturnValues.shift() || []),
   );
-  const from = vi.fn().mockReturnValue({ where });
-  return { from, where };
+  const innerJoin = vi.fn().mockReturnValue({ where, innerJoin: vi.fn().mockReturnValue({ where }) });
+  const from = vi.fn().mockReturnValue({ where, innerJoin });
+  return { from, where, innerJoin };
 };
 
 let updateChain = createUpdateChain();
@@ -87,13 +88,14 @@ const mockStripe = {
   webhooks: { constructEvent: vi.fn() },
 };
 
-vi.mock("@/lib/stripe", () => ({
-  stripe: new Proxy({}, {
+vi.mock("@/lib/stripe", () => {
+  const stripeProxy = new Proxy({}, {
     get(_, prop) {
       return (mockStripe as Record<string, unknown>)[prop as string];
     },
-  }),
-}));
+  });
+  return { stripe: stripeProxy, getStripe: () => stripeProxy };
+});
 
 vi.mock("@/server/api/lib/payout-calculator", () => ({
   createPayoutIfEligible: vi.fn().mockResolvedValue(undefined),
@@ -580,17 +582,11 @@ describe("reconcileStripeConnectStatuses", () => {
   });
 
   it("finds stale accounts and transitions enabled ones to complete", async () => {
-    const staleStep = {
-      id: "step-stale",
-      providerId: "provider-1",
-      stepType: "stripe_connect",
-      status: "in_progress",
-      metadata: { stripeConnectAccountId: "acct_stale" },
-      updatedAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
-    };
-
-    // db.select().from().where() returns stale steps
-    mockSelectReturnValues.push([staleStep]);
+    // The reconcile query joins steps to providers: { step, provider }.
+    mockSelectReturnValues.push([{
+      step: { id: "step-stale", stepType: "stripe_connect", status: "in_progress", updatedAt: new Date(Date.now() - 5 * 60 * 60 * 1000) },
+      provider: { id: "provider-1", stripeConnectAccountId: "acct_stale", name: "Test", status: "onboarding" },
+    }]);
     mockStripe.accounts.retrieve.mockResolvedValue({ charges_enabled: true, details_submitted: true });
 
     (db.query.providers.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(mockProvider);
@@ -609,11 +605,8 @@ describe("reconcileStripeConnectStatuses", () => {
 
   it("skips accounts where charges_enabled is still false", async () => {
     mockSelectReturnValues.push([{
-      id: "step-pending",
-      providerId: "provider-1",
-      status: "in_progress",
-      metadata: { stripeConnectAccountId: "acct_not_ready" },
-      updatedAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
+      step: { id: "step-pending", status: "in_progress", updatedAt: new Date(Date.now() - 5 * 60 * 60 * 1000) },
+      provider: { id: "provider-1", stripeConnectAccountId: "acct_not_ready", name: "Test", status: "onboarding" },
     }]);
     mockStripe.accounts.retrieve.mockResolvedValue({ charges_enabled: false });
 
@@ -634,12 +627,11 @@ describe("checkStripeConnectAbandonment", () => {
   });
 
   it("sends first reminder after 24 hours", async () => {
+    // Abandonment query joins steps to providers: { step, providerId }.
+    // First reminder fires at the 48h threshold (no prior reminder recorded).
     mockSelectReturnValues.push([{
-      id: "step-abandoned",
+      step: { id: "step-abandoned", status: "in_progress", metadata: { stripeConnectAccountId: "acct_1" }, updatedAt: new Date(Date.now() - 49 * 60 * 60 * 1000) },
       providerId: "provider-1",
-      status: "in_progress",
-      metadata: { stripeConnectAccountId: "acct_1", remindersSent: 0 },
-      updatedAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
     }]);
 
     const result = await checkStripeConnectAbandonment();
@@ -648,11 +640,8 @@ describe("checkStripeConnectAbandonment", () => {
 
   it("sends second reminder after 72 hours", async () => {
     mockSelectReturnValues.push([{
-      id: "step-old",
+      step: { id: "step-old", status: "in_progress", metadata: { stripeConnectAccountId: "acct_2", remindersSent: 1 }, updatedAt: new Date(Date.now() - 73 * 60 * 60 * 1000) },
       providerId: "provider-1",
-      status: "in_progress",
-      metadata: { stripeConnectAccountId: "acct_2", remindersSent: 1 },
-      updatedAt: new Date(Date.now() - 73 * 60 * 60 * 1000),
     }]);
 
     const result = await checkStripeConnectAbandonment();
@@ -660,12 +649,11 @@ describe("checkStripeConnectAbandonment", () => {
   });
 
   it("does not duplicate reminders when already sent both", async () => {
+    // Both reminders (48h + 168h) already sent — lastReminderHoursElapsed past
+    // the 168h threshold means no further reminder fires.
     mockSelectReturnValues.push([{
-      id: "step-done",
+      step: { id: "step-done", status: "in_progress", metadata: { stripeConnectAccountId: "acct_3", lastReminderHoursElapsed: 168 }, updatedAt: new Date(Date.now() - 200 * 60 * 60 * 1000) },
       providerId: "provider-1",
-      status: "in_progress",
-      metadata: { stripeConnectAccountId: "acct_3", remindersSent: 2 },
-      updatedAt: new Date(Date.now() - 100 * 60 * 60 * 1000),
     }]);
 
     const result = await checkStripeConnectAbandonment();
