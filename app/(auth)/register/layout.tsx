@@ -1,13 +1,11 @@
 import { Metadata } from "next";
-import { buildMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = buildMetadata({
-  title: "Create Account | RoadSide GA",
+export const metadata: Metadata = {
+  title: "Create Account",
   description:
     "Create your free RoadSide GA account to book roadside assistance, track service requests, and manage your vehicles in Atlanta.",
-  path: "/register",
-  noindex: true,
-});
+  robots: { index: false, follow: false },
+};
 
 export default function RegisterLayout({
   children,

@@ -50,7 +50,7 @@ export function TrainingModule({ onBack }: { onBack?: () => void }) {
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
 
   const fetchTraining = useCallback(async () => {
-    const res = await fetch("/api/hono/onboarding/training");
+    const res = await fetch("/api/onboarding/training");
     if (res.ok) {
       setData(await res.json());
     } else {
@@ -64,7 +64,7 @@ export function TrainingModule({ onBack }: { onBack?: () => void }) {
   const handleAcknowledge = async (cardId: string) => {
     setAcknowledging(cardId);
     try {
-      const res = await fetch(`/api/hono/onboarding/training/acknowledge/${cardId}`, {
+      const res = await fetch(`/api/onboarding/training/acknowledge/${cardId}`, {
         method: "POST",
       });
       if (res.ok) {

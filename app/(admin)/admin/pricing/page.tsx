@@ -5,7 +5,7 @@ import { PricingConfigTable } from "@/components/admin/pricing-config-table";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Pricing | Admin | RoadSide GA",
+  title: "Pricing",
 };
 
 export default function AdminPricingPage() {

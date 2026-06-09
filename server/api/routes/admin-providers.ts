@@ -378,6 +378,31 @@ app.put("/:id/tax-id", async (c) => {
   return c.json({ success: true });
 });
 
+// Beta stats — invite counts.
+// MUST stay above GET /:id or Hono matches "/beta-stats" as a provider id.
+app.get("/beta-stats", async (c) => {
+  const [{ count: acceptedInvites }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.inviteType, "beta"),
+      eq(providerInviteTokens.status, "accepted"),
+    ));
+
+  const [{ count: pendingInvites }] = await db
+    .select({ count: count() })
+    .from(providerInviteTokens)
+    .where(and(
+      eq(providerInviteTokens.inviteType, "beta"),
+      eq(providerInviteTokens.status, "pending"),
+    ));
+
+  return c.json({
+    acceptedInvites: Number(acceptedInvites),
+    pendingInvites: Number(pendingInvites),
+  });
+});
+
 // Provider detail + earnings summary
 app.get("/:id", async (c) => {
   const providerId = c.req.param("id");
@@ -703,30 +728,6 @@ app.post("/beta-invite", async (c) => {
     emailSent,
     ...(!emailSent && { warning: "Invite token created but email delivery failed. Check RESEND_API_KEY configuration." }),
   }, 201);
-});
-
-// Beta stats — invite counts
-app.get("/beta-stats", async (c) => {
-  const [{ count: acceptedInvites }] = await db
-    .select({ count: count() })
-    .from(providerInviteTokens)
-    .where(and(
-      eq(providerInviteTokens.inviteType, "beta"),
-      eq(providerInviteTokens.status, "accepted"),
-    ));
-
-  const [{ count: pendingInvites }] = await db
-    .select({ count: count() })
-    .from(providerInviteTokens)
-    .where(and(
-      eq(providerInviteTokens.inviteType, "beta"),
-      eq(providerInviteTokens.status, "pending"),
-    ));
-
-  return c.json({
-    acceptedInvites: Number(acceptedInvites),
-    pendingInvites: Number(pendingInvites),
-  });
 });
 
 

@@ -4,6 +4,7 @@ import { users } from "@/db/schema/users";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { sendEmail } from "@/lib/notifications/email";
+import { provisionProviderOnboarding } from "@/lib/auth/onboarding-provision";
 
 const VERIFICATION_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 const PASSWORD_RESET_EXPIRY = 60 * 60 * 1000; // 1 hour
@@ -45,13 +46,22 @@ export async function verifyEmailToken(token: string): Promise<{ success: boolea
   }
 
   // Mark email as verified
-  await db
+  const [verifiedUser] = await db
     .update(users)
     .set({ emailVerified: new Date(), updatedAt: new Date() })
-    .where(eq(users.email, record.identifier));
+    .where(eq(users.email, record.identifier))
+    .returning({ id: users.id });
 
   // Delete the token
   await db.delete(verificationTokens).where(eq(verificationTokens.token, token));
+
+  // If this is a self-registered provider, kick off their onboarding now that
+  // their email is confirmed (creates step checklist + moves pending→onboarding).
+  if (verifiedUser) {
+    await provisionProviderOnboarding(verifiedUser.id).catch((err) => {
+      console.error("[verification] Failed to provision provider onboarding:", err);
+    });
+  }
 
   return { success: true, email: record.identifier };
 }

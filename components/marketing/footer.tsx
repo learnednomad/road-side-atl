@@ -29,7 +29,7 @@ export function Footer() {
           <div className="grid gap-8 md:grid-cols-4">
             <div>
               <h3 className="mb-4 text-lg font-bold text-white">
-                RoadSide <span className="text-red-400">ATL</span>
+                RoadSide <span className="text-red-400">GA</span>
               </h3>
               <p className="text-sm">
                 Atlanta&apos;s trusted 24/7 roadside assistance provider.

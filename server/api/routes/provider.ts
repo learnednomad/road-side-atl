@@ -405,8 +405,9 @@ app.get("/stats", async (c) => {
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Start of the current week (Monday), matching the /earnings page's "This Week".
   const weekStart = new Date(todayStart);
-  weekStart.setDate(weekStart.getDate() - 7);
+  weekStart.setDate(weekStart.getDate() - ((todayStart.getDay() + 6) % 7));
 
   const [todayJobs] = await db
     .select({ count: count() })
@@ -419,15 +420,16 @@ app.get("/stats", async (c) => {
       )
     );
 
+  // Provider's NET earnings this week (their payout share), matching the
+  // /earnings page's "This Week" — not gross customer revenue.
   const [weekEarnings] = await db
-    .select({ total: sql<number>`coalesce(sum(${payments.amount}), 0)` })
-    .from(payments)
-    .innerJoin(bookings, eq(payments.bookingId, bookings.id))
+    .select({ total: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)` })
+    .from(providerPayouts)
     .where(
       and(
-        eq(bookings.providerId, provider.id),
-        eq(payments.status, "confirmed"),
-        sql`${payments.createdAt} >= ${weekStart.toISOString()}`
+        eq(providerPayouts.providerId, provider.id),
+        eq(providerPayouts.payoutType, "standard"),
+        sql`${providerPayouts.createdAt} >= ${weekStart.toISOString()}`
       )
     );
 

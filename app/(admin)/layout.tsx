@@ -1,5 +1,14 @@
+import type { Metadata } from "next";
 import { AdminSidebar } from "@/components/admin/sidebar";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
+
+export const metadata: Metadata = {
+  title: {
+    default: "Admin",
+    template: "%s | Admin | RoadSide GA",
+  },
+  robots: { index: false, follow: false },
+};
 
 export default function AdminLayout({
   children,

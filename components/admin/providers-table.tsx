@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -214,7 +215,7 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
               <CardContent className="space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-medium">{provider.name}</p>
+                    <Link href={`/admin/providers/${provider.id}`} className="font-medium hover:underline">{provider.name}</Link>
                     <p className="text-sm text-muted-foreground">
                       {provider.email}
                     </p>
@@ -325,7 +326,9 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
             ) : (
               paginated.map((provider) => (
                 <TableRow key={provider.id}>
-                  <TableCell className="font-medium">{provider.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link href={`/admin/providers/${provider.id}`} className="hover:underline">{provider.name}</Link>
+                  </TableCell>
                   <TableCell className="text-sm">{provider.email}</TableCell>
                   <TableCell className="text-sm">{provider.phone}</TableCell>
                   <TableCell className="text-sm">

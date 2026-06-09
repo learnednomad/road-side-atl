@@ -53,9 +53,9 @@ export default async function BookPage() {
       .orderBy(services.name);
   } catch {
     allServices = [
-      { id: "1", name: "Jump Start", slug: "jump-start", basePrice: 7500, pricePerMile: null, category: "roadside" },
+      { id: "1", name: "Jump Start", slug: "jump-start", basePrice: 10000, pricePerMile: null, category: "roadside" },
       { id: "2", name: "Towing (Local)", slug: "towing", basePrice: 12500, pricePerMile: 600, category: "roadside" },
-      { id: "3", name: "Lockout Service", slug: "lockout", basePrice: 7500, pricePerMile: null, category: "roadside" },
+      { id: "3", name: "Lockout Service", slug: "lockout", basePrice: 13500, pricePerMile: null, category: "roadside" },
       { id: "4", name: "Flat Tire Change", slug: "flat-tire", basePrice: 10000, pricePerMile: null, category: "roadside" },
       { id: "5", name: "Fuel Delivery", slug: "fuel-delivery", basePrice: 7500, pricePerMile: null, category: "roadside" },
       { id: "6", name: "Basic Inspection", slug: "basic-inspection", description: "Essential pre-purchase check covering OBD2 scan, visual exterior/interior inspection, fluid levels, tire condition, and battery health.", basePrice: 15000, pricePerMile: null, category: "diagnostics" },
