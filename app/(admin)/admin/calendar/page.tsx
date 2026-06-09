@@ -10,7 +10,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Calendar | Admin | RoadSide GA",
+  title: "Calendar",
 };
 
 const statusColors: Record<string, string> = {

@@ -17,7 +17,13 @@ const app = new Hono<AuthEnv>();
 
 // POST /logo - admin only
 app.post("/logo", requireAdmin, async (c) => {
-  const formData = await c.req.formData();
+  let formData: FormData;
+  try {
+    formData = await c.req.formData();
+  } catch {
+    // Missing/invalid multipart body — respond 400 rather than throwing a 500.
+    return c.json({ error: "Expected multipart/form-data with a file" }, 400);
+  }
   const file = formData.get("file") as File | null;
 
   if (!file) {

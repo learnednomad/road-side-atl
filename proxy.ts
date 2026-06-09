@@ -28,12 +28,16 @@ export const proxy = auth((req) => {
     return NextResponse.next();
   }
 
-  // Redirect /dashboard to role-based home (catches OAuth callbacks)
+  // /dashboard is the customer portal. Admins/providers have their own portals,
+  // so bounce them to their role home (also catches OAuth callbacks landing here);
+  // customers fall through and reach the dashboard.
   if (pathname.startsWith("/dashboard")) {
     if (!isLoggedIn) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
-    return NextResponse.redirect(new URL(getRoleHome(role), req.url));
+    if (role === "admin" || role === "provider") {
+      return NextResponse.redirect(new URL(getRoleHome(role), req.url));
+    }
   }
 
   if (pathname.startsWith("/admin")) {

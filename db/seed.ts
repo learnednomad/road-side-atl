@@ -14,6 +14,8 @@ import {
   dispatchLogs,
   providerPayouts,
   payments,
+  invoices,
+  onboardingSteps,
   bookings,
   providers,
   users,
@@ -46,8 +48,10 @@ async function seed() {
   console.log("Clearing existing data...");
   await db.delete(dispatchLogs);
   await db.delete(providerPayouts);
+  await db.delete(invoices); // FK → users(createdById) has no cascade; clear before users
   await db.delete(payments);
   await db.delete(bookings);
+  await db.delete(onboardingSteps); // FK → providers has no cascade; clear before providers
   await db.delete(providers);
   await db.execute(sql`DELETE FROM accounts`).catch(() => {});
   await db.execute(sql`DELETE FROM sessions`).catch(() => {});

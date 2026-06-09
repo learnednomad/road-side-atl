@@ -40,7 +40,7 @@ export function Navbar() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <nav className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="text-xl font-bold">
-          RoadSide <span className="text-red-600">ATL</span>
+          RoadSide <span className="text-red-600">GA</span>
         </Link>
 
         {/* Desktop nav */}

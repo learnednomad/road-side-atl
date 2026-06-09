@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Error | RoadSide GA",
+  // Bare title — the (auth) layout template appends "| RoadSide GA" once.
+  title: "Error",
 };
 
 export default function AuthErrorPage() {

@@ -10,7 +10,11 @@ import {
   payments,
   providerPayouts,
   dispatchLogs,
+  onboardingSteps,
 } from "./schema";
+import { createId } from "./schema/utils";
+import { ONBOARDING_STEP_TYPES } from "@/lib/constants";
+import { createInvoiceForBooking } from "@/server/api/lib/invoice-generator";
 
 function daysAgo(n: number): Date {
   const d = new Date();
@@ -70,7 +74,7 @@ export async function seedDemo(db: PostgresJsDatabase, refs: BaseRefs) {
     { name: "Terrence Williams", email: "terrence@roadsidega.com", phone: "(404) 555-0102", commissionRate: 6500, commissionType: "percentage" as const, status: "active" as const, specialties: ["roadside"], latitude: 33.838, longitude: -84.362, address: "3340 Peachtree Rd NE, Atlanta, GA 30326", isAvailable: true },
     { name: "DeAndre Smith", email: "deandre@roadsidega.com", phone: "(404) 555-0103", commissionRate: 7000, commissionType: "percentage" as const, status: "active" as const, specialties: ["roadside"], latitude: 33.710, longitude: -84.410, address: "868 Ralph David Abernathy Blvd, Atlanta, GA 30310", isAvailable: false },
     { name: "Carlos Rivera", email: "carlos@roadsidega.com", phone: "(678) 555-0104", commissionRate: 5000, commissionType: "flat_per_job" as const, flatFeeAmount: 5000, status: "active" as const, specialties: ["roadside", "diagnostics"], latitude: 33.876, longitude: -84.460, address: "2841 Greenbriar Pkwy SW, Atlanta, GA 30331", isAvailable: true },
-    { name: "Jamal Osei", email: "jamal@roadsidega.com", phone: "(770) 555-0105", commissionRate: 6500, commissionType: "percentage" as const, status: "pending" as const, specialties: ["roadside"], latitude: 33.652, longitude: -84.449, address: "4275 Jonesboro Rd, Union City, GA 30291", isAvailable: false },
+    { name: "Jamal Osei", email: "jamal@roadsidega.com", phone: "(770) 555-0105", commissionRate: 6500, commissionType: "percentage" as const, status: "onboarding" as const, specialties: ["roadside"], latitude: 33.652, longitude: -84.449, address: "4275 Jonesboro Rd, Union City, GA 30291", isAvailable: false },
   ];
 
   const providerUsers = await db
@@ -90,6 +94,23 @@ export async function seedDemo(db: PostgresJsDatabase, refs: BaseRefs) {
     .returning();
 
   const [provMarcus, provTerrence, provDeAndre, provCarlos] = providerRecords;
+
+  // Onboarding steps for every provider. In prod these are created on email
+  // verification / invite accept. Active providers have all steps complete;
+  // the in-progress (onboarding) provider has them pending so the funnel is
+  // exercisable end-to-end.
+  await db.insert(onboardingSteps).values(
+    providerRecords.flatMap((p) =>
+      ONBOARDING_STEP_TYPES.map((stepType) => ({
+        id: createId(),
+        providerId: p.id,
+        stepType,
+        status: (p.status === "active" ? "complete" : "pending") as
+          | "complete"
+          | "pending",
+      })),
+    ),
+  );
 
   // ── BOOKINGS ──────────────────────────────────────────────
   console.log("Seeding demo bookings...");
@@ -143,6 +164,19 @@ export async function seedDemo(db: PostgresJsDatabase, refs: BaseRefs) {
   await db.insert(payments).values({ bookingId: dispatchedBooking.id, amount: dispatchedBooking.estimatedPrice, method: "zelle", status: "pending", createdAt: dispatchedBooking.createdAt });
 
   console.log(`Seeded ${paymentRecords.length + 2} payments.`);
+
+  // ── CUSTOMER INVOICES ─────────────────────────────────────
+  // In prod, completing a booking + confirming payment auto-generates an invoice
+  // (payout-calculator → createInvoiceForBooking). The seed inserts completed
+  // bookings directly, so generate their invoices here too — otherwise customers
+  // with completed services see an empty /my-invoices.
+  console.log("Seeding demo invoices...");
+  let invoiceCount = 0;
+  for (const b of completedBookings) {
+    const invoice = await createInvoiceForBooking(b.id);
+    if (invoice) invoiceCount++;
+  }
+  console.log(`Seeded ${invoiceCount} invoices.`);
 
   // ── PROVIDER PAYOUTS ──────────────────────────────────────
   console.log("Seeding demo payouts...");
@@ -208,7 +242,7 @@ export async function seedDemo(db: PostgresJsDatabase, refs: BaseRefs) {
   console.log("    terrence@roadsidega.com   / provider123");
   console.log("    deandre@roadsidega.com    / provider123");
   console.log("    carlos@roadsidega.com     / provider123");
-  console.log("    jamal@roadsidega.com      / provider123  (pending approval)");
+  console.log("    jamal@roadsidega.com      / provider123  (onboarding in progress)");
   console.log("\n  CUSTOMERS:");
   console.log("    jasmine.carter@gmail.com   / customer123");
   console.log("    david.okonkwo@gmail.com    / customer123");

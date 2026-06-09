@@ -17,7 +17,7 @@ interface IcAgreementResponse {
     acceptedVersion: string | null;
     acceptedAt: string | null;
     signedName: string | null;
-  };
+  } | null;
 }
 
 export function IcAgreement({ onBack }: { onBack: () => void }) {
@@ -99,6 +99,24 @@ export function IcAgreement({ onBack }: { onBack: () => void }) {
   if (!data) return null;
 
   const { agreement, step } = data;
+
+  // No IC-agreement step on file (e.g. an already-active provider opening this
+  // page directly) — nothing to sign.
+  if (!step) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-4 py-12">
+          <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
+          <h2 className="text-xl font-semibold">No Agreement Required</h2>
+          <p className="text-center text-sm text-muted-foreground max-w-md">
+            There&apos;s no Independent Contractor Agreement pending on your account.
+          </p>
+          <Button variant="outline" onClick={onBack}>Back to onboarding</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const alreadyAccepted = step.status === "complete";
 
   if (alreadyAccepted) {

@@ -4,7 +4,7 @@ import { B2bAccountsTable } from "@/components/admin/b2b-accounts-table";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "B2B Accounts | Admin | RoadSide GA",
+  title: "B2B Accounts",
 };
 
 export default function AdminB2bAccountsPage() {
