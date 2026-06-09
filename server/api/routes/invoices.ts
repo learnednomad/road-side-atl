@@ -244,7 +244,13 @@ app.get("/:id", async (c) => {
     .where(eq(invoiceLineItems.invoiceId, id))
     .orderBy(invoiceLineItems.sortOrder);
 
-  return c.json({ ...invoice, lineItems: items });
+  // Invoices auto-generated from a booking (createInvoiceForBooking) store their
+  // items in the JSON `lineItems` column rather than the invoiceLineItems table,
+  // so fall back to that when the table has no rows — otherwise the detail view
+  // shows a total with an empty line-items body.
+  const lineItems = items.length > 0 ? items : (invoice.lineItems ?? []);
+
+  return c.json({ ...invoice, lineItems });
 });
 
 // PATCH /:id - Update draft invoice
