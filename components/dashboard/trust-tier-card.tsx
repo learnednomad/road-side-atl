@@ -23,7 +23,7 @@ export function TrustTierCard() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/users/me/trust-tier")
+    fetch("/api/users-admin/me/trust-tier")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data) setTierInfo(data);

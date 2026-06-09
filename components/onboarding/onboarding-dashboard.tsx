@@ -123,6 +123,25 @@ export function OnboardingDashboard() {
     );
   }
 
+  // Pending — registered but not yet provisioned for onboarding (e.g. email not
+  // verified). Steps are created when the email is confirmed, so guide the user
+  // there instead of showing an empty "0 of 0 steps" bar.
+  if (provider.status === "pending" || steps.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-4 py-12">
+          <Clock className="h-12 w-12 text-amber-500 dark:text-amber-400" />
+          <h2 className="text-xl font-semibold">Verify Your Email to Get Started</h2>
+          <p className="text-center text-muted-foreground max-w-md">
+            Thanks for applying! Please check your inbox and click the verification
+            link we emailed you. Once your email is confirmed, your onboarding
+            checklist will appear here and you can begin.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // Rejected or suspended — show reason
   if (provider.status === "rejected" || provider.status === "suspended") {
     return (

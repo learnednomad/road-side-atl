@@ -13,7 +13,10 @@ export function AgreementRequiredBanner() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
-        setNeedsSigning(data.step?.status !== "complete");
+        // step:null means no agreement is on file for this provider (e.g. active /
+        // fully-onboarded) — nothing to sign. Only nudge when a step exists and is
+        // not yet complete.
+        setNeedsSigning(!!data.step && data.step.status !== "complete");
       })
       .catch(() => {
         // Silent fail — banner is a nudge, not a hard gate. Server middleware

@@ -28,7 +28,7 @@ import { BookingNotesEditor } from "@/components/admin/booking-notes-editor";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Booking Detail | Admin | RoadSide GA",
+  title: "Booking Detail",
 };
 
 export default async function AdminBookingDetailPage({

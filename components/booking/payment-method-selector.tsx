@@ -34,7 +34,7 @@ export function PaymentMethodSelector({
     const loadTierInfo = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/users/me/trust-tier");
+        const res = await fetch("/api/users-admin/me/trust-tier");
         const data = res.ok ? await res.json() : null;
         if (data) setTierInfo(data);
       } catch {

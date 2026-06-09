@@ -89,7 +89,10 @@ export function InvoiceList({ role }: InvoiceListProps) {
   const [fetchError, setFetchError] = useState(false);
 
   const basePath = role === "admin" ? "/admin" : "/provider";
-  const apiPath = role === "admin" ? "/api/admin/invoices" : "/api/provider/invoices";
+  // Providers create invoices via /api/invoices (rich invoice system with line-item
+  // table, tax, dates) and that endpoint scopes the list to their own createdById,
+  // so the provider list must read from the same system — not /api/provider/invoices.
+  const apiPath = role === "admin" ? "/api/admin/invoices" : "/api/invoices";
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -475,9 +476,12 @@ export function BookingsTable({
                       {new Date(booking.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm font-medium">
+                      <Link
+                        href={`/admin/bookings/${booking.id}`}
+                        className="text-sm font-medium hover:underline"
+                      >
                         {booking.contactName}
-                      </div>
+                      </Link>
                       <div className="text-xs text-muted-foreground">
                         {booking.contactPhone}
                       </div>

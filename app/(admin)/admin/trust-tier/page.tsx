@@ -8,7 +8,7 @@ import { TRUST_TIER_PROMOTION_THRESHOLD } from "@/lib/constants";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Trust Tier | Admin | RoadSide GA",
+  title: "Trust Tier",
 };
 
 const PAGE_SIZE = 20;

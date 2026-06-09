@@ -1507,7 +1507,9 @@ app.get("/ic-agreement", requireProvider, async (c) => {
       eq(onboardingSteps.stepType, "ic_agreement"),
     ),
   });
-  if (!step) return c.json({ error: "IC agreement step not found" }, 404);
+  // No step (e.g. fully-onboarded/active provider) is not an error — return a
+  // clean 200 with step:null so the always-on agreement banner doesn't spew 404s.
+  if (!step) return c.json({ agreement: getIcAgreement(), step: null });
 
   const acceptance = (step.draftData as {
     version?: string;
