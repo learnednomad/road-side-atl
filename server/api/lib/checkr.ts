@@ -56,7 +56,12 @@ export class CheckrApiError extends Error {
 // ── Internal Helpers ─────────────────────────────────────────────
 
 function getApiKey(): string {
-  if (process.env.NODE_ENV === "production") {
+  // Use the live Checkr key only for the production deployment; dev/staging use
+  // the sandbox key. Keyed on APP_ENV, not NODE_ENV — the latter is always
+  // "production" for any built app, which would otherwise force the live key
+  // (and real background-check charges) in dev/staging. Unset APP_ENV defaults
+  // to "production" (fail-safe).
+  if ((process.env.APP_ENV ?? "production") === "production") {
     return process.env.CHECKR_API_KEY!;
   }
   return process.env.CHECKR_API_KEY_SANDBOX || process.env.CHECKR_API_KEY!;

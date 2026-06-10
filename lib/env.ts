@@ -47,6 +47,13 @@ function validateEnv() {
   // Skip validation during build (Next.js imports modules at build time)
   if (process.env.SKIP_ENV_VALIDATION === "1") return;
 
+  // NODE_ENV is always "production" for any built/deployed app (it drives
+  // React/Next optimization, so dev/staging build in production mode too). The
+  // *deployment* environment is APP_ENV — gate the strict, fail-closed production
+  // guards on that so dev/staging, which intentionally run on placeholder
+  // secrets, don't trip them. Unset APP_ENV defaults to "production" (fail-safe).
+  const isProductionDeployment = (process.env.APP_ENV ?? "production") === "production";
+
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
@@ -58,14 +65,14 @@ function validateEnv() {
     }
     console.error("========================================");
 
-    // In production, exit immediately. In dev, warn but continue.
-    if (process.env.NODE_ENV === "production") {
+    // In the production deployment, exit immediately. In dev/staging, warn but continue.
+    if (isProductionDeployment) {
       process.exit(1);
     }
   }
 
-  // Warn about placeholder values in production
-  if (process.env.NODE_ENV === "production") {
+  // Refuse to start the production deployment on placeholder secrets.
+  if (isProductionDeployment) {
     const placeholders: string[] = [];
     if (process.env.STRIPE_SECRET_KEY?.includes("xxx")) placeholders.push("STRIPE_SECRET_KEY");
     if (process.env.STRIPE_WEBHOOK_SECRET?.includes("xxx")) placeholders.push("STRIPE_WEBHOOK_SECRET");
