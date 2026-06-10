@@ -11,7 +11,9 @@ concurrency:
 jobs:
   deploy-production:
     name: Deploy to Production
-    runs-on: ubuntu-latest
+    # Coolify's API is only reachable from the host it runs on (localhost:8000),
+    # so this job runs on the self-hosted runner installed on that host.
+    runs-on: [self-hosted, coolify-host]
     if: "!contains(github.ref, '-')"
     environment: production
     steps:
