@@ -97,6 +97,9 @@ describe("Checkr API Wrapper", () => {
     process.env.CHECKR_API_KEY = "test-api-key";
     process.env.CHECKR_API_KEY_SANDBOX = "test-sandbox-key";
     (process.env as Record<string, string>).NODE_ENV = "test";
+    // Checkr key selection is keyed on APP_ENV (not NODE_ENV); non-production
+    // deployments use the sandbox key.
+    (process.env as Record<string, string>).APP_ENV = "development";
   });
 
   it("createCandidate sends correct request and returns candidate", async () => {
@@ -241,7 +244,7 @@ describe("Checkr API Wrapper", () => {
   });
 
   it("uses sandbox key in non-production environment", async () => {
-    (process.env as Record<string, string>).NODE_ENV = "test";
+    (process.env as Record<string, string>).APP_ENV = "development";
     process.env.CHECKR_API_KEY = "prod-key";
     process.env.CHECKR_API_KEY_SANDBOX = "sandbox-key";
 
@@ -258,6 +261,29 @@ describe("Checkr API Wrapper", () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           "Authorization": "Bearer sandbox-key",
+        }),
+      }),
+    );
+  });
+
+  it("uses live key in the production deployment (APP_ENV=production)", async () => {
+    (process.env as Record<string, string>).APP_ENV = "production";
+    process.env.CHECKR_API_KEY = "prod-key";
+    process.env.CHECKR_API_KEY_SANDBOX = "sandbox-key";
+
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: "rpt_123", status: "clear" }),
+    } as unknown as Response);
+
+    const { getReport } = await import("@/server/api/lib/checkr");
+    await getReport("rpt_123");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "Authorization": "Bearer prod-key",
         }),
       }),
     );
