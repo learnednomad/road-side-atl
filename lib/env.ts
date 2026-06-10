@@ -52,7 +52,10 @@ function validateEnv() {
   // *deployment* environment is APP_ENV — gate the strict, fail-closed production
   // guards on that so dev/staging, which intentionally run on placeholder
   // secrets, don't trip them. Unset APP_ENV defaults to "production" (fail-safe).
-  const isProductionDeployment = (process.env.APP_ENV ?? "production") === "production";
+  // Test runs (NODE_ENV=test) are never a deployment, so they never fail-close.
+  const isProductionDeployment =
+    process.env.NODE_ENV !== "test" &&
+    (process.env.APP_ENV ?? "production") === "production";
 
   const result = envSchema.safeParse(process.env);
 
