@@ -17,8 +17,11 @@ jobs:
     steps:
       - name: Trigger Coolify deployment
         run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "${{ secrets.COOLIFY_API_URL }}/api/v1/applications/${{ secrets.COOLIFY_APP_UUID }}/restart" \
+          # Use the /deploy endpoint (rebuilds from the tracked branch) — NOT
+          # /restart, which only bounces the existing (stale) container image and
+          # never picks up the newly-tagged code.
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
+            "${{ secrets.COOLIFY_API_URL }}/api/v1/deploy?uuid=${{ secrets.COOLIFY_APP_UUID }}&force=false" \
             -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
             -H "Content-Type: application/json")
 
