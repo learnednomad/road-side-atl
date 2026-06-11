@@ -164,6 +164,42 @@ app.put("/default", async (c) => {
 
 const IDENTITY_THRESHOLD_CENTS = 50000; // $500
 
+/**
+ * Create a Stripe Identity VerificationSession for a customer and store its id
+ * on the user row. Shared by the explicit /identity/start route and the
+ * high-value checkout gate so both create sessions identically.
+ */
+export async function createCustomerIdentitySession(
+  userId: string,
+): Promise<{ url: string | null; sessionId: string }> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
+  const session = await getStripe().identity.verificationSessions.create({
+    type: "document",
+    metadata: {
+      userId,
+      purpose: "high_value_transaction",
+    },
+    return_url: `${appUrl}/book/confirmation?identity=complete`,
+  });
+  await db
+    .update(users)
+    .set({ stripeIdentitySessionId: session.id, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+  return { url: session.url, sessionId: session.id };
+}
+
+/**
+ * Whether the user has already cleared identity verification (persisted flag,
+ * set by the webhook or a status poll). Avoids re-hitting Stripe on every gate.
+ */
+export async function isUserIdentityVerified(userId: string): Promise<boolean> {
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { identityVerified: true },
+  });
+  return dbUser?.identityVerified ?? false;
+}
+
 // POST /payment-methods/identity/start — create VerificationSession for customer
 app.post("/identity/start", async (c) => {
   const user = c.get("user");
@@ -174,23 +210,13 @@ app.post("/identity/start", async (c) => {
 
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, user.id),
-    columns: { id: true, name: true, email: true },
+    columns: { id: true },
   });
   if (!dbUser) return c.json({ error: "User not found" }, 404);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
-
   try {
-    const session = await getStripe().identity.verificationSessions.create({
-      type: "document",
-      metadata: {
-        userId: user.id,
-        purpose: "high_value_transaction",
-      },
-      return_url: `${appUrl}/book/confirmation?identity=complete`,
-    });
-
-    return c.json({ url: session.url, sessionId: session.id });
+    const session = await createCustomerIdentitySession(user.id);
+    return c.json({ url: session.url, sessionId: session.sessionId });
   } catch (err) {
     logger.error("[CustomerIdentity] Failed to create verification session:", { error: err instanceof Error ? err.message : String(err) });
     return c.json({ error: "Unable to start identity verification" }, 503);
@@ -214,10 +240,17 @@ app.get("/identity/status", async (c) => {
       return c.json({ error: "Not found" }, 404);
     }
 
-    return c.json({
-      status: session.status,
-      verified: session.status === "verified",
-    });
+    const verified = session.status === "verified";
+    // Persist on poll too — covers the return_url redirect path even if the
+    // webhook is delayed, so the checkout gate clears promptly.
+    if (verified) {
+      await db
+        .update(users)
+        .set({ identityVerified: true, identityVerifiedAt: new Date(), stripeIdentitySessionId: session.id, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+    }
+
+    return c.json({ status: session.status, verified });
   } catch {
     return c.json({ error: "Session not found" }, 404);
   }

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import crypto from "crypto";
 import { db } from "@/db";
-import { payments, bookings, providerPayouts, webhookEvents } from "@/db/schema";
+import { payments, bookings, providerPayouts, webhookEvents, users } from "@/db/schema";
 import { onboardingSteps } from "@/db/schema/onboarding-steps";
 import { providers } from "@/db/schema/providers";
 import { eq, and, sql } from "drizzle-orm";
@@ -696,8 +696,10 @@ app.post("/stripe", async (c) => {
       };
       const stepId = session.metadata?.stepId;
       const providerId = session.metadata?.providerId;
+      const userId = session.metadata?.userId;
 
       if (stepId && providerId) {
+        // Provider onboarding identity step.
         const step = await db.query.onboardingSteps.findFirst({
           where: eq(onboardingSteps.id, stepId),
         });
@@ -729,6 +731,25 @@ app.post("/stripe", async (c) => {
 
           await checkAllStepsCompleteAndTransition(providerId, stepId, "identity_webhook");
         }
+      } else if (userId) {
+        // Customer identity verification (high-value booking gate). Persist the
+        // verified flag so the checkout gate clears without re-hitting Stripe.
+        await db
+          .update(users)
+          .set({
+            identityVerified: true,
+            identityVerifiedAt: new Date(),
+            stripeIdentitySessionId: session.id,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userId));
+
+        logAudit({
+          action: "customer.identity_verified",
+          resourceType: "user",
+          resourceId: userId,
+          details: { sessionId: session.id, purpose: session.metadata?.purpose },
+        });
       }
       break;
     }
@@ -758,6 +779,65 @@ app.post("/stripe", async (c) => {
             updatedAt: new Date(),
           })
           .where(eq(onboardingSteps.id, stepId));
+      }
+      break;
+    }
+
+    case "identity.verification_session.processing" as string: {
+      // Document submitted, Stripe is reviewing. Record the transient state on
+      // the provider onboarding step; customer sessions need no action (the
+      // checkout gate stays closed until verified).
+      const session = event.data.object as unknown as {
+        id: string;
+        metadata?: Record<string, string>;
+      };
+      const stepId = session.metadata?.stepId;
+      if (stepId) {
+        const existingStep = await db.query.onboardingSteps.findFirst({
+          where: eq(onboardingSteps.id, stepId),
+        });
+        if (existingStep) {
+          const existingMeta = (existingStep.metadata || {}) as Record<string, unknown>;
+          await db
+            .update(onboardingSteps)
+            .set({
+              metadata: { ...existingMeta, identityStatus: "processing" },
+              updatedAt: new Date(),
+            })
+            .where(eq(onboardingSteps.id, stepId));
+        }
+      }
+      break;
+    }
+
+    case "identity.verification_session.canceled" as string: {
+      // Verification abandoned/canceled. Record it on the provider step so the
+      // UI can prompt a restart; clear the stale session id on customer users.
+      const session = event.data.object as unknown as {
+        id: string;
+        metadata?: Record<string, string>;
+      };
+      const stepId = session.metadata?.stepId;
+      const userId = session.metadata?.userId;
+      if (stepId) {
+        const existingStep = await db.query.onboardingSteps.findFirst({
+          where: eq(onboardingSteps.id, stepId),
+        });
+        if (existingStep) {
+          const existingMeta = (existingStep.metadata || {}) as Record<string, unknown>;
+          await db
+            .update(onboardingSteps)
+            .set({
+              metadata: { ...existingMeta, identityStatus: "canceled", lastError: "canceled" },
+              updatedAt: new Date(),
+            })
+            .where(eq(onboardingSteps.id, stepId));
+        }
+      } else if (userId) {
+        await db
+          .update(users)
+          .set({ stripeIdentitySessionId: null, updatedAt: new Date() })
+          .where(and(eq(users.id, userId), eq(users.stripeIdentitySessionId, session.id)));
       }
       break;
     }

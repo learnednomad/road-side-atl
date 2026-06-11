@@ -107,7 +107,8 @@ export type AuditAction =
   | "reconciliation.stripe_connect_status_sync"
   | "reconciliation.stripe_connect_abandonment_reminder"
   | "reconciliation.stripe_connect_deadline_suspend"
-  | "reconciliation.migration_deadline_suspend";
+  | "reconciliation.migration_deadline_suspend"
+  | "customer.identity_verified";
 
 export interface AuditLogEntry {
   action: AuditAction;
