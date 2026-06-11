@@ -46,10 +46,17 @@ app.post("/", async (c) => {
     return c.json({ error: "Mechanic services require a scheduled date" }, 400);
   }
 
-  // Calculate price via centralized pricing engine
+  // Calculate price via centralized pricing engine. Pass location when the
+  // client supplied coordinates so zone/weather pricing can apply (both
+  // flag-gated; no effect until enabled).
+  const hasCoords =
+    typeof data.location.latitude === "number" && typeof data.location.longitude === "number";
   const pricing = await calculateBookingPrice(
     data.serviceId,
     data.scheduledAt ? new Date(data.scheduledAt) : null,
+    hasCoords
+      ? { location: { latitude: data.location.latitude, longitude: data.location.longitude } }
+      : undefined,
   );
   let estimatedPrice = pricing.finalPrice;
   let pricingSource = "retail";
