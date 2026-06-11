@@ -476,6 +476,26 @@ export const createPricingRuleSchema = z.object({
 });
 export type CreatePricingRuleInput = z.infer<typeof createPricingRuleSchema>;
 
+const zonePolygonSchema = z
+  .array(z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }))
+  .min(3, "A zone polygon needs at least 3 points");
+
+export const createPricingZoneSchema = z.object({
+  name: z.string().min(1).max(120),
+  polygon: zonePolygonSchema,
+  baseMultiplierBp: z.number().int().min(1).max(50000),
+  active: z.boolean().optional(),
+});
+export type CreatePricingZoneInput = z.infer<typeof createPricingZoneSchema>;
+
+export const updatePricingZoneSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  polygon: zonePolygonSchema.optional(),
+  baseMultiplierBp: z.number().int().min(1).max(50000).optional(),
+  active: z.boolean().optional(),
+}).refine((v) => Object.keys(v).length > 0, { message: "No fields to update" });
+export type UpdatePricingZoneInput = z.infer<typeof updatePricingZoneSchema>;
+
 export const membershipCheckoutSchema = z.object({ planId: z.string().min(1) });
 export type MembershipCheckoutInput = z.infer<typeof membershipCheckoutSchema>;
 

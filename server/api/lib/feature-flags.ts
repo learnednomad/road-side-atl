@@ -34,6 +34,10 @@ export const FEATURE_FLAGS = {
   SURGE_PRICING: "feature:surge_pricing",
   /** Enable the configurable pricing-rules matrix (service/global multipliers) */
   PRICING_MATRIX: "feature:pricing_matrix",
+  /** Enable geographic zone pricing (per-zone multiplier by booking location) */
+  ZONE_PRICING: "feature:zone_pricing",
+  /** Enable weather-based pricing (OpenWeatherMap multiplier by booking location) */
+  WEATHER_PRICING: "feature:weather_pricing",
   /** Enable interactive (mutating) Slack actions — gated, off until trusted */
   SLACK_INTERACTIVE: "feature:slack_interactive",
   /** Enable Stripe Identity verification for providers */
@@ -57,6 +61,8 @@ const FLAG_DEFAULTS: Record<FeatureFlagKey, boolean> = {
   [FEATURE_FLAGS.DESTINATION_CHARGES]: true,
   [FEATURE_FLAGS.SURGE_PRICING]: false,
   [FEATURE_FLAGS.PRICING_MATRIX]: false,
+  [FEATURE_FLAGS.ZONE_PRICING]: false,
+  [FEATURE_FLAGS.WEATHER_PRICING]: false,
   [FEATURE_FLAGS.SLACK_INTERACTIVE]: false,
   [FEATURE_FLAGS.STRIPE_IDENTITY]: false,
   [FEATURE_FLAGS.INSTANT_PAYOUTS]: false,
