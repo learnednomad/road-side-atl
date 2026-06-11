@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, integer, boolean } from "drizzle-orm/pg-core";
 import { createId } from "./utils";
 
 export const userRoleEnum = pgEnum("user_role", ["customer", "admin", "provider"]);
@@ -22,6 +22,10 @@ export const users = pgTable("users", {
   taxId: text("taxId"),
   stripeCustomerId: text("stripeCustomerId"),
   defaultPaymentMethodId: text("defaultPaymentMethodId"),
+  // Stripe Identity (customer document verification for high-value bookings).
+  identityVerified: boolean("identityVerified").default(false).notNull(),
+  identityVerifiedAt: timestamp("identityVerifiedAt", { mode: "date" }),
+  stripeIdentitySessionId: text("stripeIdentitySessionId"),
   trustTierUpdatedAt: timestamp("trustTierUpdatedAt", { mode: "date" }),
   trustTierReason: text("trustTierReason"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
