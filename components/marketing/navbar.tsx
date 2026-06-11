@@ -36,29 +36,32 @@ export function Navbar() {
 
   return (
     <>
-      <div className="h-1 bg-red-600" />
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 bg-[#faf9f6]/95 backdrop-blur supports-[backdrop-filter]:bg-[#faf9f6]/80">
         <nav className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="text-xl font-bold">
           RoadSide <span className="text-red-600">GA</span>
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden items-center gap-6 lg:flex">
-          {navLinks.map((link) => {
-            const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`text-sm font-medium transition-colors hover:text-red-600 ${
-                  isActive ? "text-red-600" : "text-muted-foreground"
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
+        <div className="hidden items-center gap-4 lg:flex">
+          <div className="flex items-center rounded-full bg-neutral-200/50 p-1">
+            {navLinks.map((link) => {
+              const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-white text-neutral-950 shadow-sm"
+                      : "text-neutral-600 hover:text-neutral-950"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
           <Button asChild variant="outline" size="sm">
             <a href={`tel:${BUSINESS.phone}`}>
               <Phone className="mr-2 h-4 w-4" />
@@ -106,7 +109,11 @@ export function Navbar() {
                   Sign In
                 </Link>
               </Button>
-              <Button asChild size="sm">
+              <Button
+                asChild
+                size="sm"
+                className="rounded-full bg-neutral-950 px-5 text-white hover:bg-neutral-800"
+              >
                 <Link href="/book">Get Help Now</Link>
               </Button>
             </>
