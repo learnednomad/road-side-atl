@@ -12,7 +12,7 @@ jobs:
     name: Validate Tag
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -38,7 +38,7 @@ jobs:
     needs: [validate-tag]
     if: "!contains(github.ref, '-')"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Generate release notes
@@ -68,7 +68,7 @@ jobs:
     needs: [validate-tag]
     if: "contains(github.ref, '-')"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Create pre-release
