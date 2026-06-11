@@ -63,12 +63,52 @@ jobs:
 
   deploy-staging:
     name: Deploy to Staging (Pre-release)
-    runs-on: ubuntu-latest
+    # Same constraint as production: Coolify's API is only reachable from its
+    # own host, so this runs on the self-hosted runner there.
+    runs-on: [self-hosted, coolify-host]
     if: "contains(github.ref, '-')"
     environment: staging
     steps:
-      - name: Log pre-release tag
+      - name: Trigger Coolify staging deployment
         run: |
-          echo "Pre-release tag ${{ github.ref_name }} detected."
-          echo "Staging deployment requires a separate Coolify application."
-          echo "Configure COOLIFY_STAGING_APP_UUID secret when staging is set up."
+          # /deploy rebuilds the staging app from its tracked branch
+          # (development). Note: Coolify builds the branch HEAD, not the tag
+          # commit — cut rc tags from the development HEAD you intend to ship.
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
+            "${{ secrets.COOLIFY_API_URL }}/api/v1/deploy?uuid=${{ secrets.COOLIFY_STAGING_APP_UUID }}&force=false" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
+            -H "Content-Type: application/json")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "Response: $BODY"
+          echo "HTTP Code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::Coolify staging deploy failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "Staging deployment triggered successfully for ${{ github.ref_name }}"
+
+      - name: Verify staging deployment health
+        run: |
+          echo "Waiting 120s for deployment to start..."
+          sleep 120
+
+          for i in $(seq 1 10); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://staging-roadsidega.learnednomad.com/api/health" \
+              --connect-timeout 10 --max-time 15)
+
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "Health check returned $STATUS (attempt $i/10), retrying in 30s..."
+            sleep 30
+          done
+
+          echo "::warning::Staging health check did not return 200 after deployment. Check Coolify logs."
+          exit 1
