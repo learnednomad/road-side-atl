@@ -1,8 +1,9 @@
 import { db } from "@/db";
-import { timeBlockConfigs, services, bookings, surgeConfigs, providers, pricingRules } from "@/db/schema";
-import { eq, sql, gte, and, inArray } from "drizzle-orm";
+import { timeBlockConfigs, services, bookings, surgeConfigs, providers, pricingRules, pricingZones } from "@/db/schema";
+import { eq, sql, gte, and, inArray, isNull } from "drizzle-orm";
 import { DEFAULT_MULTIPLIER_BP } from "@/lib/constants";
 import { isFeatureEnabled, FEATURE_FLAGS } from "./feature-flags";
+import { getWeatherMultiplier } from "./weather-pricing";
 
 export interface PricingBreakdown {
   label: string;
@@ -54,16 +55,65 @@ async function resolvePricingMatrixBp(serviceId: string): Promise<number> {
   return best.multiplierBp;
 }
 
+/**
+ * Ray-casting point-in-polygon test. `polygon` is an ordered ring of
+ * {lat, lng} vertices (lng = x, lat = y); the ring is treated as closed.
+ * Returns true if (lat, lng) is inside. No external dependency.
+ */
+export function pointInPolygon(
+  lat: number,
+  lng: number,
+  polygon: Array<{ lat: number; lng: number }>,
+): boolean {
+  if (!polygon || polygon.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lng, yi = polygon[i].lat;
+    const xj = polygon[j].lng, yj = polygon[j].lat;
+    const intersect =
+      yi > lat !== yj > lat &&
+      lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Resolve the geographic zone multiplier (basis points) for a location: the
+ * first active zone whose polygon contains the point. 10000 (1.0x) when the
+ * point is outside every zone. Only consulted when ZONE_PRICING is on and a
+ * location is supplied.
+ */
+async function resolveZoneMultiplier(
+  lat: number,
+  lng: number,
+): Promise<{ multiplierBp: number; zoneName: string } | null> {
+  const zones = await db.query.pricingZones.findMany({
+    where: eq(pricingZones.active, true),
+  });
+  for (const zone of zones) {
+    if (pointInPolygon(lat, lng, zone.polygon)) {
+      return { multiplierBp: zone.baseMultiplierBp, zoneName: zone.name };
+    }
+  }
+  return null;
+}
+
 export async function calculateBookingPrice(
   serviceId: string,
   scheduledAt?: Date | null,
   ctx?: { location?: { latitude?: number; longitude?: number }; accountId?: string },
 ): Promise<PricingResult> {
-  void ctx; // reserved for zone/account-scoped rules (1a follow-up)
   const service = await db.query.services.findFirst({
     where: eq(services.id, serviceId),
   });
   if (!service) throw new Error("Service not found");
+
+  // Location context (lat/lng) unlocks the zone + weather steps below. Only
+  // present when the caller supplies coordinates; absent for most estimates.
+  const lat = ctx?.location?.latitude;
+  const lng = ctx?.location?.longitude;
+  const hasLocation = typeof lat === "number" && typeof lng === "number";
 
   const pricingDate = scheduledAt ?? new Date();
   const hour = pricingDate.getHours();
@@ -158,10 +208,53 @@ export async function calculateBookingPrice(
     }
   }
 
+  // ── Step 5: Geographic zone multiplier (flag-gated, needs location) ──
+
+  let zoneMultiplierBp = 10000;
+  if (hasLocation && (await isFeatureEnabled(FEATURE_FLAGS.ZONE_PRICING))) {
+    const zone = await resolveZoneMultiplier(lat!, lng!);
+    if (zone && zone.multiplierBp !== 10000) {
+      zoneMultiplierBp = zone.multiplierBp;
+      const preZone = Math.round(
+        (afterTimeBlock * surgeMultiplierBp * scarcityMultiplierBp * matrixMultiplierBp) /
+          (10000 * 10000 * 10000),
+      );
+      const zoneAmount = Math.round((preZone * zoneMultiplierBp) / 10000) - preZone;
+      breakdown.push({
+        label: `${zone.zoneName} zone (${(zoneMultiplierBp / 100).toFixed(0)}%)`,
+        type: "zone",
+        multiplierBp: zoneMultiplierBp,
+        amount: zoneAmount,
+      });
+    }
+  }
+
+  // ── Step 6: Weather multiplier (flag-gated, needs location) ─────
+
+  let weatherMultiplierBp = 10000;
+  if (hasLocation && (await isFeatureEnabled(FEATURE_FLAGS.WEATHER_PRICING))) {
+    const weather = await getWeatherMultiplier(lat!, lng!);
+    if (weather.multiplierBp !== 10000) {
+      weatherMultiplierBp = weather.multiplierBp;
+      const preWeather = Math.round(
+        (afterTimeBlock * surgeMultiplierBp * scarcityMultiplierBp * matrixMultiplierBp * zoneMultiplierBp) /
+          (10000 * 10000 * 10000 * 10000),
+      );
+      const weatherAmount = Math.round((preWeather * weatherMultiplierBp) / 10000) - preWeather;
+      breakdown.push({
+        label: `Weather: ${weather.condition} (${(weatherMultiplierBp / 100).toFixed(0)}%)`,
+        type: "weather",
+        multiplierBp: weatherMultiplierBp,
+        amount: weatherAmount,
+      });
+    }
+  }
+
   // ── Calculate final price ─────────────────────────────────────
 
   let finalPrice = Math.round(
-    (afterTimeBlock * surgeMultiplierBp * scarcityMultiplierBp * matrixMultiplierBp) / (10000 * 10000 * 10000),
+    (afterTimeBlock * surgeMultiplierBp * scarcityMultiplierBp * matrixMultiplierBp * zoneMultiplierBp * weatherMultiplierBp) /
+      (10000 * 10000 * 10000 * 10000 * 10000),
   );
 
   // Guardrail: cap at 3x base price
@@ -199,9 +292,10 @@ export async function calculateBookingPrice(
  * Returns multiplier in basis points (10000 = 1.0x, 15000 = 1.5x).
  */
 async function calculateSurgeMultiplier(): Promise<number> {
-  // Get global surge config (zoneId IS NULL)
+  // Get the global surge config (zoneId IS NULL). Filtering on zoneId matters:
+  // a zone-scoped config must not be picked up and applied platform-wide.
   const config = await db.query.surgeConfigs.findFirst({
-    where: eq(surgeConfigs.active, true),
+    where: and(eq(surgeConfigs.active, true), isNull(surgeConfigs.zoneId)),
   });
 
   if (!config) return 10000; // No config = no surge
