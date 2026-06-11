@@ -12,6 +12,7 @@ import { rateLimitStrict } from "@/server/api/middleware/rate-limit";
 import { isFeatureEnabled, FEATURE_FLAGS } from "@/server/api/lib/feature-flags";
 import { computeProviderAmount } from "@/server/api/lib/payout-calculator";
 import { resolveCommissionBp } from "@/server/api/lib/commission";
+import { requiresCustomerIdentity, createCustomerIdentitySession } from "@/server/api/routes/payment-methods";
 
 type AuthEnv = {
   Variables: {
@@ -74,7 +75,7 @@ app.post("/stripe/checkout", async (c) => {
   // Layer 2: Defense-in-depth — independent trust tier check inside handler
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, user.id),
-    columns: { trustTier: true },
+    columns: { trustTier: true, identityVerified: true },
   });
   if (!dbUser || !isPaymentMethodAllowedForTier("stripe", dbUser.trustTier)) {
     return c.json({ error: "Payment method not allowed for your trust tier" }, 400);
@@ -90,6 +91,21 @@ app.post("/stripe/checkout", async (c) => {
   // Verify booking ownership — allow if guest booking (null userId) or owned by authenticated user
   if (booking.userId && booking.userId !== user.id) {
     return c.json({ error: "Booking not found" }, 404);
+  }
+
+  // High-value identity gate: when CUSTOMER_IDENTITY_VERIFICATION is on and the
+  // amount is at/above the threshold, an unverified customer must complete a
+  // Stripe Identity check before we open a checkout session. The client should
+  // send the user to `identityUrl`, then retry checkout once verified (the
+  // webhook / status poll flips users.identityVerified).
+  if (!dbUser.identityVerified && (await requiresCustomerIdentity(booking.estimatedPrice))) {
+    try {
+      const idSession = await createCustomerIdentitySession(user.id);
+      return c.json({ requiresIdentity: true, identityUrl: idSession.url }, 200);
+    } catch (err) {
+      console.error("[Checkout] Failed to start identity verification:", err);
+      return c.json({ error: "Unable to start identity verification" }, 503);
+    }
   }
 
   // Idempotency: prevent duplicate checkout sessions for same booking

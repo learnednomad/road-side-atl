@@ -127,6 +127,13 @@
       "when": 1780847508955,
       "tag": "0017_pricing_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781147775958,
+      "tag": "0018_customer_identity",
+      "breakpoints": true
     }
   ]
 }
