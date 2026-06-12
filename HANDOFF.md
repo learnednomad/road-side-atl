@@ -26,7 +26,7 @@ Cream `#faf9f6` canvas, ink `neutral-950`, hairline dividers, Geist Mono for pri
 ## 3. Mobile app (`learnednomad/roadside-atl-mobile`)
 
 - **Parity: fully caught up** with web's customer-facing surface (PRs #5–#8): B2B portal, customer identity gate, location-aware pricing estimates (passes geocoded coords; renders zone/weather breakdown lines), memberships, loyalty (screen + redeem-on-booking), service bundles in the book flow, post-inspection quote approve/decline. Intentionally web-only: admin/B2B desktop tooling.
-- **Mobile currently LEADS web** on three features where web has API-only support with **no UI yet**: memberships, loyalty, quote approval. Building the web UIs is an open task (see §5).
+- ~~Mobile leads web on memberships/loyalty/quote approval~~ — **closed** (#107): web UIs shipped at `/account/membership`, `/account/loyalty`, redeem CTA in My Bookings, quote approval on the tracking page. Parity is now symmetric.
 - **CI**: PRs #9/#10 — lint/typecheck/jest on every PR (zero-error baseline: was 578 lint errors, 2 broken test suites; root causes included a pnpm-incompatible jest `transformIgnorePatterns` and a real `ProgressBar` prop bug). Actions on v6.
 - **No deploy workflow** — releases are manual EAS builds (`build:production:*` scripts / `app-release`). A tag-triggered `eas build --wait` workflow was considered and deliberately **not** added: needs `EXPO_TOKEN` secret + consumes EAS build credits per tag. Owner decision pending.
 - Local tree has untracked WIP: `src/features/auth/use-social-login.ts` + `social-login-buttons.tsx` (cause 2 local-only tsc errors; not in CI). 7 legacy screens carry `max-lines-per-function` disables marked refactor-pending.
@@ -43,11 +43,10 @@ Cream `#faf9f6` canvas, ink `neutral-950`, hairline dividers, Geist Mono for pri
 
 ## 5. Near-term roadmap
 
-1. **Web UIs for memberships / loyalty / quote approval** — APIs shipped, mobile screens shipped; web customers can't see them yet. Mobile implementations are the reference (`src/features/memberships|loyalty`, `quote-section.tsx`).
-2. **Design-system leftovers**: `/track/[id]` (untested visually; needs a live booking), `/my-invoices`, `CostExpectations` accordion on `/services` still old-style.
-3. **Feature-flag rollouts** when ready: `ZONE_PRICING`, `WEATHER_PRICING` (needs pricing_zones rows + OpenWeatherMap key), `CUSTOMER_IDENTITY_VERIFICATION` ($500+ checkout gate).
-4. **Mobile EAS deploy workflow** — pending owner decision (§3).
-5. Mobile legacy-screen refactors (max-lines disables) + finishing social-login WIP.
+1. **Design-system leftovers**: `/track/[id]` (untested visually; needs a live booking), `/my-invoices`, `CostExpectations` accordion on `/services` still old-style.
+2. **Feature-flag rollouts** when ready: `ZONE_PRICING`, `WEATHER_PRICING` (needs pricing_zones rows + OpenWeatherMap key), `CUSTOMER_IDENTITY_VERIFICATION` ($500+ checkout gate).
+3. **Mobile EAS deploy workflow** — pending owner decision (§3).
+4. Mobile legacy-screen refactors (max-lines disables) + finishing social-login WIP.
 
 ---
 
@@ -56,4 +55,4 @@ Cream `#faf9f6` canvas, ink `neutral-950`, hairline dividers, Geist Mono for pri
 - Branch flow: feature → `development` → `main` (enforced). Squash-merge PRs to `development`; merge-commit `development → main` release PRs.
 - Tag-then-deploy, annotated tags on the main merge commit: `v*.*.*` → production, `v*.*.*-rc.*` → staging. Coolify builds async (~5–10 min) — until #105 ships in a tag, don't trust the deploy-green checkmark alone; verify the new content is serving.
 - Pre-deploy checklist: `npm test` (492), `npm run build`, eslint 0 errors, `tsc --noEmit`, clean tree.
-- Mobile parity policy: every customer-facing web feature ships with a mobile counterpart (and vice-versa — see §5.1 for the current reverse gap).
+- Mobile parity policy: every customer-facing web feature ships with a mobile counterpart (symmetric as of #107).
