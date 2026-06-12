@@ -90,7 +90,7 @@ export default function ProviderReferralsPage() {
       <div className="flex flex-col items-center gap-4 py-16">
         <AlertCircle className="h-8 w-8 text-destructive" />
         <p className="text-muted-foreground">Failed to load referral data.</p>
-        <Button variant="outline" onClick={fetchData}>
+        <Button variant="outline" className="rounded-full border-neutral-300" onClick={fetchData}>
           <RefreshCw className="mr-2 h-4 w-4" /> Retry
         </Button>
       </div>
@@ -108,7 +108,7 @@ export default function ProviderReferralsPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold tracking-tight text-neutral-950">{totalReferrals}</div>
+            <div className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{totalReferrals}</div>
             <p className="text-xs text-muted-foreground">
               {inviteCount.remaining} of {inviteCount.limit} invites remaining this month
             </p>
@@ -120,7 +120,7 @@ export default function ProviderReferralsPage() {
             <Gift className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold tracking-tight text-neutral-950">$50</div>
+            <div className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">$50</div>
             <p className="text-xs text-muted-foreground">per referred provider&apos;s first completed job</p>
           </CardContent>
         </Card>
@@ -130,7 +130,7 @@ export default function ProviderReferralsPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(balance)}</div>
+            <div className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{formatPrice(balance)}</div>
             <p className="text-xs text-muted-foreground">from referral bonuses</p>
           </CardContent>
         </Card>
@@ -140,8 +140,8 @@ export default function ProviderReferralsPage() {
 
       {referrals.length > 0 && (
         <>
-          <h2 className="text-xl font-semibold">Referral History</h2>
-          <div className="rounded-md border">
+          <h2 className="text-xl font-semibold tracking-tight text-neutral-950">Referral History</h2>
+          <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -160,7 +160,7 @@ export default function ProviderReferralsPage() {
                     <TableCell className="text-sm">
                       {referral.refereeName || "Pending signup"}
                     </TableCell>
-                    <TableCell className="text-sm font-medium">
+                    <TableCell className="font-mono text-sm font-medium">
                       {formatPrice(referral.creditAmount)}
                     </TableCell>
                     <TableCell>
@@ -174,7 +174,7 @@ export default function ProviderReferralsPage() {
             </Table>
           </div>
           {hasMore && (
-            <Button variant="outline" onClick={() => setPage((p) => p + 1)}>
+            <Button variant="outline" className="rounded-full border-neutral-300" onClick={() => setPage((p) => p + 1)}>
               Load More
             </Button>
           )}
