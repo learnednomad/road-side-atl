@@ -65,9 +65,14 @@ export default async function BookPage() {
   }
 
   return (
+    <div className="bg-[#faf9f6]">
     <div className="container mx-auto max-w-2xl px-4 py-16">
-      <h1 className="mb-2 text-3xl font-bold">Book Roadside Assistance in Atlanta</h1>
-      <p className="mb-8 text-muted-foreground">
+      <p className="flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">
+        <span aria-hidden className="h-3 w-0.5 bg-red-600" />
+        Book
+      </p>
+      <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-950 md:text-4xl">Book Roadside Assistance in Atlanta</h1>
+      <p className="mt-3 mb-8 text-neutral-600">
         Select your service and location below. We&apos;ll dispatch a technician to you fast.
       </p>
       <Suspense fallback={null}>
@@ -76,6 +81,7 @@ export default async function BookPage() {
       <Suspense fallback={<div>Loading...</div>}>
         <BookingForm services={allServices} userInfo={userInfo} />
       </Suspense>
+    </div>
     </div>
   );
 }
