@@ -1,165 +1,128 @@
 import Link from "next/link";
-import { Phone, Mail, MapPin } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { BUSINESS } from "@/lib/constants";
+
+const SERVICE_LINKS = [
+  { href: "/services#roadside", label: "Towing in Atlanta" },
+  { href: "/services#roadside", label: "Jump Start Service" },
+  { href: "/services#roadside", label: "Car Lockout Help" },
+  { href: "/services#roadside", label: "Flat Tire Change" },
+  { href: "/services#roadside", label: "Fuel Delivery" },
+  { href: "/services#diagnostics", label: "Car Diagnostics" },
+];
+
+const COMPANY_LINKS = [
+  { href: "/services", label: "All Services" },
+  { href: "/about", label: "About Us" },
+  { href: "/book", label: "Book Now" },
+  { href: "/become-provider", label: "Become a Provider" },
+];
 
 export function Footer() {
   return (
-    <>
-      {/* Red CTA Band */}
-      <section className="bg-red-600 py-8 text-white">
-        <div className="container mx-auto flex flex-col items-center gap-4 px-4 text-center sm:flex-row sm:justify-between sm:text-left">
+    <footer className="bg-neutral-950 text-neutral-400" role="contentinfo">
+      {/* CTA row */}
+      <div className="border-b border-neutral-800">
+        <div className="container mx-auto flex flex-col gap-6 px-4 py-14 sm:flex-row sm:items-center sm:justify-between">
+          <p className="max-w-md text-2xl font-semibold tracking-tight text-white md:text-3xl">
+            Need help right now? We&apos;re on the road 24/7.
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link
+              href="/book"
+              className="inline-flex items-center gap-2 rounded-full bg-red-600 px-7 py-4 font-mono text-sm font-medium uppercase tracking-wider text-white transition-colors hover:bg-red-500"
+            >
+              Book Now
+              <ArrowRight aria-hidden className="h-4 w-4" />
+            </Link>
+            <a
+              href={`tel:${BUSINESS.phone}`}
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-700 px-7 py-4 font-mono text-sm font-medium uppercase tracking-wider text-white transition-colors hover:border-neutral-500"
+            >
+              {BUSINESS.phone}
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Link columns */}
+      <div className="container mx-auto px-4 py-14">
+        <div className="grid gap-10 md:grid-cols-4">
           <div>
-            <p className="text-xl font-bold">Need Help Now?</p>
-            <p className="text-white/80">
-              Our team is available 24/7 across Atlanta
+            <p className="text-lg font-bold text-white">
+              RoadSide <span className="text-red-500">GA</span>
+            </p>
+            <p className="mt-4 text-sm leading-relaxed">
+              Atlanta&apos;s trusted 24/7 roadside assistance provider. Professional,
+              reliable emergency towing, jump starts, lockout service, and more.
             </p>
           </div>
-          <a
-            href={`tel:${BUSINESS.phone}`}
-            className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-lg font-bold text-red-600 transition-opacity hover:opacity-90"
-          >
-            <Phone className="h-5 w-5" />
-            Call {BUSINESS.phone}
-          </a>
+          <div>
+            <p className="font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">
+              Services
+            </p>
+            <ul className="mt-4 space-y-2.5 text-sm">
+              {SERVICE_LINKS.map((link) => (
+                <li key={link.label}>
+                  <Link href={link.href} className="transition-colors hover:text-white">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">
+              Company
+            </p>
+            <ul className="mt-4 space-y-2.5 text-sm">
+              {COMPANY_LINKS.map((link) => (
+                <li key={link.label}>
+                  <Link href={link.href} className="transition-colors hover:text-white">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">
+              Contact
+            </p>
+            <address className="not-italic">
+              <ul className="mt-4 space-y-2.5 text-sm">
+                <li>
+                  <a href={`tel:${BUSINESS.phone}`} className="transition-colors hover:text-white">
+                    {BUSINESS.phone}
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={`mailto:${BUSINESS.email}`}
+                    className="transition-colors hover:text-white"
+                  >
+                    {BUSINESS.email}
+                  </a>
+                </li>
+                <li>{BUSINESS.serviceArea}</li>
+              </ul>
+            </address>
+          </div>
         </div>
-      </section>
+      </div>
 
-      <footer className="bg-gray-900 text-gray-300" role="contentinfo">
-        <div className="container mx-auto px-4 py-12">
-          <div className="grid gap-8 md:grid-cols-4">
-            <div>
-              <h3 className="mb-4 text-lg font-bold text-white">
-                RoadSide <span className="text-red-400">GA</span>
-              </h3>
-              <p className="text-sm">
-                Atlanta&apos;s trusted 24/7 roadside assistance provider.
-                Professional, reliable emergency towing, jump starts, lockout
-                service, and more.
-              </p>
-            </div>
-            <div>
-              <h4 className="mb-4 font-semibold text-white">Our Services</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link
-                    href="/services#roadside"
-                    className="hover:text-red-400"
-                  >
-                    Towing in Atlanta
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/services#roadside"
-                    className="hover:text-red-400"
-                  >
-                    Jump Start Service
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/services#roadside"
-                    className="hover:text-red-400"
-                  >
-                    Car Lockout Help
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/services#roadside"
-                    className="hover:text-red-400"
-                  >
-                    Flat Tire Change
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/services#roadside"
-                    className="hover:text-red-400"
-                  >
-                    Fuel Delivery
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/services#diagnostics"
-                    className="hover:text-red-400"
-                  >
-                    Car Diagnostics
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="mb-4 font-semibold text-white">Quick Links</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/services" className="hover:text-red-400">
-                    All Services
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/about" className="hover:text-red-400">
-                    About Us
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/book" className="hover:text-red-400">
-                    Book Now
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/become-provider" className="hover:text-red-400">
-                    Become a Provider
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="mb-4 font-semibold text-white">Contact</h4>
-              <address className="not-italic">
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <Phone className="h-4 w-4" aria-hidden="true" />
-                    <a
-                      href={`tel:${BUSINESS.phone}`}
-                      className="hover:text-red-400"
-                    >
-                      {BUSINESS.phone}
-                    </a>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Mail className="h-4 w-4" aria-hidden="true" />
-                    <a
-                      href={`mailto:${BUSINESS.email}`}
-                      className="hover:text-red-400"
-                    >
-                      {BUSINESS.email}
-                    </a>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" aria-hidden="true" />
-                    <span>{BUSINESS.serviceArea}</span>
-                  </li>
-                </ul>
-              </address>
-            </div>
-          </div>
-          <div className="mt-8 border-t border-gray-700 pt-8">
-            <div className="text-center text-sm">
-              <p>
-                &copy; {new Date().getFullYear()} {BUSINESS.name}. All rights
-                reserved.
-              </p>
-              <p className="mt-2">
-                24/7 Roadside Assistance serving Atlanta, Buckhead, Midtown,
-                Decatur, Marietta, Sandy Springs, Roswell, Alpharetta & all
-                metro Atlanta.
-              </p>
-            </div>
-          </div>
+      {/* Legal strip */}
+      <div className="border-t border-neutral-800">
+        <div className="container mx-auto flex flex-col gap-2 px-4 py-8 text-xs sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            &copy; {new Date().getFullYear()} {BUSINESS.name}. All rights reserved.
+          </p>
+          <p>
+            24/7 Roadside Assistance serving Atlanta, Buckhead, Midtown, Decatur, Marietta,
+            Sandy Springs, Roswell, Alpharetta &amp; all metro Atlanta.
+          </p>
         </div>
-      </footer>
-    </>
+      </div>
+    </footer>
   );
 }

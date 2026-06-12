@@ -1,9 +1,11 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Clock, MapPin, DollarSign } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { ArrowRight } from "lucide-react";
 import { Hero } from "@/components/marketing/hero";
+import { ScenarioCards } from "@/components/marketing/scenario-cards";
+import { SectionHeading } from "@/components/marketing/section-heading";
+import { PricingCards } from "@/components/marketing/pricing-cards";
+import { TrustSection } from "@/components/marketing/trust-section";
 import { ServiceCard } from "@/components/marketing/service-card";
 import { BUSINESS } from "@/lib/constants";
 import { buildMetadata, SITE_URL } from "@/lib/seo";
@@ -72,20 +74,17 @@ const HOMEPAGE_FAQS = [
 
 const STEPS = [
   {
-    num: 1,
-    icon: Clock,
+    num: "01",
     title: "Book Your Service",
     desc: "Choose your service and tell us where you are. Book online in minutes or call us directly for immediate assistance.",
   },
   {
-    num: 2,
-    icon: MapPin,
+    num: "02",
     title: "We Come to You",
     desc: "Our trained technician is dispatched to your exact location anywhere in the Atlanta metro area — ITP or OTP.",
   },
   {
-    num: 3,
-    icon: DollarSign,
+    num: "03",
     title: "Pay Your Way",
     desc: "Pay with Cash, CashApp, Zelle, or card after service is completed. Transparent pricing, no hidden fees.",
   },
@@ -134,17 +133,21 @@ export default async function HomePage() {
 
       <Hero />
 
+      <ScenarioCards />
+
       {/* Services Grid */}
-      <section className="animate-on-scroll py-16" id="services" aria-labelledby="services-heading">
-        <div className="container mx-auto px-4">
-          <h2 id="services-heading" className="mb-2 text-center text-3xl font-bold">
-            Roadside Assistance Services in Atlanta
-          </h2>
-          <span className="mx-auto mt-2 block h-1 w-20 rounded bg-red-600" />
-          <p className="mb-10 mt-4 text-center text-muted-foreground">
-            Professional 24/7 roadside assistance and vehicle diagnostics across the Atlanta metro area
+      <section className="border-b bg-[#faf9f6]" id="services" aria-labelledby="services-heading">
+        <div className="container mx-auto px-4 py-20">
+          <SectionHeading
+            kicker="Services"
+            title="Roadside Assistance Services in Atlanta"
+            id="services-heading"
+          />
+          <p className="-mt-8 mb-10 max-w-xl text-neutral-600">
+            Professional 24/7 roadside assistance and vehicle diagnostics across the
+            Atlanta metro area
           </p>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {allServices.map((service) => (
               <ServiceCard key={service.slug} {...service} />
             ))}
@@ -152,88 +155,98 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="animate-on-scroll bg-muted/50 py-16" aria-labelledby="how-it-works-heading">
-        <div className="container mx-auto px-4">
-          <h2 id="how-it-works-heading" className="mb-10 text-center text-3xl font-bold">
-            How Our Atlanta Roadside Assistance Works
-          </h2>
-          <div className="relative grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Connector line (desktop only) */}
-            <div className="pointer-events-none absolute left-0 right-0 top-[3.25rem] hidden h-0.5 bg-red-600/20 lg:block" />
+      {/* How It Works — numbered editorial rows */}
+      <section className="border-b bg-[#faf9f6]" aria-labelledby="how-it-works-heading">
+        <div className="container mx-auto px-4 py-20">
+          <SectionHeading
+            kicker="How it works"
+            title="How Our Atlanta Roadside Assistance Works"
+            id="how-it-works-heading"
+          />
+          <div>
             {STEPS.map((step) => (
-              <Card key={step.num} className="card-hover-glow relative">
-                <CardContent className="pt-6 text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-lg font-bold text-white">
-                    {step.num}
-                  </div>
-                  <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-red-600/10">
-                    <step.icon className="h-5 w-5 text-red-600" />
-                  </div>
-                  <h3 className="mb-2 text-lg font-semibold">{step.title}</h3>
-                  <p className="text-sm text-muted-foreground">{step.desc}</p>
-                </CardContent>
-              </Card>
+              <div
+                key={step.num}
+                className="grid gap-3 border-t border-neutral-200 py-8 md:grid-cols-[6rem_1fr_1.2fr] md:gap-8"
+              >
+                <p className="font-mono text-sm text-neutral-400">{step.num}</p>
+                <h3 className="text-xl font-semibold tracking-tight text-neutral-950">
+                  {step.title}
+                </h3>
+                <p className="text-neutral-600">{step.desc}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Service Area - keyword rich for local SEO */}
-      <section className="animate-on-scroll bg-red-600/5 py-16" aria-labelledby="service-area-heading">
-        <div className="container mx-auto px-4 text-center">
-          <h2 id="service-area-heading" className="mb-4 text-3xl font-bold">
-            Roadside Assistance Across All of Atlanta
-          </h2>
-          <p className="mx-auto mb-6 max-w-2xl text-muted-foreground">
-            We cover the entire {BUSINESS.serviceArea}. Our roadside assistance technicians
-            serve Buckhead, Midtown, Downtown Atlanta, Decatur, Marietta, Sandy Springs,
-            Roswell, Alpharetta, Dunwoody, Brookhaven, and all surrounding communities.
-            Stranded on I-285, I-85, I-75, or I-20? We&apos;ll be there fast.
-          </p>
-          <Button asChild size="lg">
-            <Link href="/book">
-              Get Roadside Help Now
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
-          </Button>
-        </div>
-      </section>
+      <PricingCards />
 
-      {/* Become a Provider CTA */}
-      <section className="animate-on-scroll py-16" aria-labelledby="provider-cta-heading">
-        <div className="container mx-auto max-w-3xl px-4 text-center">
-          <h2 id="provider-cta-heading" className="mb-4 text-3xl font-bold">
-            Want to Earn With Us?
-          </h2>
-          <p className="mx-auto mb-8 max-w-xl text-lg text-muted-foreground">
-            Join our team of roadside assistance providers. Set your own hours, earn competitive pay, and help Atlanta drivers when they need it most.
-          </p>
-          <Button asChild size="lg" variant="outline" className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white">
-            <Link href="/become-provider">
-              Apply to Become a Provider
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
-          </Button>
+      <TrustSection />
+
+      {/* Service Area - keyword rich for local SEO */}
+      <section className="border-b bg-[#faf9f6]" aria-labelledby="service-area-heading">
+        <div className="container mx-auto px-4 py-20">
+          <SectionHeading
+            kicker="Coverage"
+            title="Roadside Assistance Across All of Atlanta"
+            id="service-area-heading"
+          />
+          <div className="grid gap-10 md:grid-cols-[1.4fr_1fr] md:gap-16">
+            <p className="-mt-6 max-w-2xl text-lg leading-relaxed text-neutral-600">
+              We cover the entire {BUSINESS.serviceArea}. Our roadside assistance
+              technicians serve Buckhead, Midtown, Downtown Atlanta, Decatur, Marietta,
+              Sandy Springs, Roswell, Alpharetta, Dunwoody, Brookhaven, and all
+              surrounding communities. Stranded on I-285, I-85, I-75, or I-20?
+              We&apos;ll be there fast.
+            </p>
+            <div className="flex flex-col items-start gap-4">
+              <Link
+                href="/book"
+                className="inline-flex items-center gap-2 rounded-full bg-red-600 px-7 py-4 font-mono text-sm font-medium uppercase tracking-wider text-white transition-colors hover:bg-red-700"
+              >
+                Get Help Now
+                <ArrowRight aria-hidden className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/become-provider"
+                className="group inline-flex items-center gap-1.5 text-sm font-medium text-neutral-950"
+              >
+                Want to earn with us? Become a provider
+                <ArrowRight
+                  aria-hidden
+                  className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                />
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* FAQ Section - directly boosts SEO with FAQ schema */}
-      <section className="animate-on-scroll bg-muted/50 py-16" aria-labelledby="faq-heading">
-        <div className="container mx-auto max-w-3xl px-4">
-          <h2 id="faq-heading" className="mb-10 text-center text-3xl font-bold">
-            Frequently Asked Questions About Roadside Assistance in Atlanta
-          </h2>
-          <div className="space-y-4">
+      <section className="bg-[#faf9f6]" aria-labelledby="faq-heading">
+        <div className="container mx-auto px-4 py-20">
+          <SectionHeading
+            kicker="FAQ"
+            title="Frequently Asked Questions About Roadside Assistance in Atlanta"
+            id="faq-heading"
+          />
+          <div className="mx-auto">
             {HOMEPAGE_FAQS.map((faq) => (
               <details
                 key={faq.question}
-                className="group rounded-lg border bg-background p-4 transition-colors marker:text-red-600 hover:border-red-600/20 open:border-red-600/30"
+                className="group border-t border-neutral-200 py-5 open:pb-7"
               >
-                <summary className="cursor-pointer text-lg font-semibold">
+                <summary className="flex cursor-pointer items-center justify-between gap-4 text-lg font-medium text-neutral-950 marker:content-none [&::-webkit-details-marker]:hidden">
                   {faq.question}
+                  <span
+                    aria-hidden
+                    className="font-mono text-xl text-neutral-400 transition-transform group-open:rotate-45"
+                  >
+                    +
+                  </span>
                 </summary>
-                <p className="mt-3 text-muted-foreground">{faq.answer}</p>
+                <p className="mt-4 max-w-3xl text-neutral-600">{faq.answer}</p>
               </details>
             ))}
           </div>

@@ -1,27 +1,6 @@
 import Link from "next/link";
-import {
-  Battery,
-  Truck,
-  KeyRound,
-  CircleDot,
-  Fuel,
-  Wrench,
-} from "lucide-react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ArrowRight } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
-
-const iconMap: Record<string, React.ElementType> = {
-  "jump-start": Battery,
-  towing: Truck,
-  lockout: KeyRound,
-  "flat-tire": CircleDot,
-  "fuel-delivery": Fuel,
-  "basic-inspection": Wrench,
-  "standard-inspection": Wrench,
-  "premium-inspection": Wrench,
-};
 
 interface ServiceCardProps {
   name: string;
@@ -40,48 +19,44 @@ export function ServiceCard({
   pricePerMile,
   category,
 }: ServiceCardProps) {
-  const Icon = iconMap[slug] || Wrench;
   const isDiagnostics = category === "diagnostics";
 
   return (
-    <Card
-      className="card-hover-glow flex flex-col text-center transition-transform hover:-translate-y-1"
+    <Link
+      href={`/book?service=${slug}`}
+      aria-label={`Book ${name} service in Atlanta`}
       id={slug}
+      className="group flex flex-col rounded-2xl border border-neutral-200 bg-white/40 p-6 transition-colors hover:border-neutral-400"
     >
-      <CardHeader className="items-center justify-items-center">
-        <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-red-600/10">
-          <Icon className="h-8 w-8 text-red-600" aria-hidden="true" />
-        </div>
-        {isDiagnostics && (
-          <Badge variant="secondary">Payment Upfront</Badge>
-        )}
-        <CardTitle className="text-lg">
-          <span>{name}</span>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-lg font-semibold tracking-tight text-neutral-950">
+          {name}
           <span className="sr-only"> in Atlanta</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex-1">
-        <p className="mb-3 text-sm text-muted-foreground">{description}</p>
-        <p className="text-2xl font-bold text-red-600">
+        </h3>
+        <p className="shrink-0 font-mono text-lg font-semibold text-neutral-950">
           {formatPrice(basePrice)}
-          {pricePerMile && (
-            <span className="text-sm font-normal text-muted-foreground">
-              {" "}
-              + {formatPrice(pricePerMile)}/mi beyond 10mi
-            </span>
-          )}
         </p>
-      </CardContent>
-      <CardFooter>
-        <Button asChild className="w-full">
-          <Link
-            href={`/book?service=${slug}`}
-            aria-label={`Book ${name} service in Atlanta`}
-          >
-            Book Now
-          </Link>
-        </Button>
-      </CardFooter>
-    </Card>
+      </div>
+      {pricePerMile ? (
+        <p className="font-mono text-xs text-neutral-500">
+          + {formatPrice(pricePerMile)}/mi beyond 10mi
+        </p>
+      ) : null}
+      <p className="mt-3 flex-1 text-sm leading-relaxed text-neutral-600">{description}</p>
+      <div className="mt-5 flex items-center justify-between border-t border-neutral-200/80 pt-4">
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-950">
+          Book now
+          <ArrowRight
+            aria-hidden
+            className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+          />
+        </span>
+        {isDiagnostics && (
+          <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+            Payment upfront
+          </span>
+        )}
+      </div>
+    </Link>
   );
 }
