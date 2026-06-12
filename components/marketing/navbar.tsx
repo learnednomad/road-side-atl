@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList, Home, Wrench, Info, CalendarCheck, ArrowRight, Truck } from "lucide-react";
+import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList, Home, Wrench, Info, CalendarCheck, ArrowRight, Truck, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { BUSINESS } from "@/lib/constants";
@@ -71,12 +71,17 @@ export function Navbar() {
           {isLoggedIn ? (
             <>
               {session?.user?.role === "customer" && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/my-bookings">
-                    <ClipboardList className="mr-2 h-4 w-4" />
-                    My Bookings
-                  </Link>
-                </Button>
+                <>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/my-bookings">
+                      <ClipboardList className="mr-2 h-4 w-4" />
+                      My Bookings
+                    </Link>
+                  </Button>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href="/account/membership">Membership</Link>
+                  </Button>
+                </>
               )}
               {(session?.user?.role === "admin" || session?.user?.role === "provider") && (
                 <Button asChild variant="outline" size="sm">
@@ -170,14 +175,24 @@ export function Navbar() {
                 {isLoggedIn ? (
                   <>
                     {session?.user?.role === "customer" && (
-                      <Link
-                        href="/my-bookings"
-                        onClick={() => setOpen(false)}
-                        className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
-                      >
-                        <ClipboardList className="h-5 w-5 text-muted-foreground" />
-                        My Bookings
-                      </Link>
+                      <>
+                        <Link
+                          href="/my-bookings"
+                          onClick={() => setOpen(false)}
+                          className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                        >
+                          <ClipboardList className="h-5 w-5 text-muted-foreground" />
+                          My Bookings
+                        </Link>
+                        <Link
+                          href="/account/membership"
+                          onClick={() => setOpen(false)}
+                          className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                        >
+                          <Star className="h-5 w-5 text-muted-foreground" />
+                          Membership &amp; Rewards
+                        </Link>
+                      </>
                     )}
                     {(session?.user?.role === "admin" || session?.user?.role === "provider") && (
                       <Link

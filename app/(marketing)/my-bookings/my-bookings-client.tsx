@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { LoyaltyRedeemButton } from "@/components/account/loyalty-redeem-button";
 import { formatPrice } from "@/lib/utils";
 
 interface Booking {
@@ -71,6 +72,7 @@ interface Booking {
 interface MyBookingsClientProps {
   initialBookings: Booking[];
   userId: string;
+  loyaltyBalance: number;
 }
 
 const statusConfig: Record<
@@ -95,9 +97,28 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientProps) {
+export function MyBookingsClient({ initialBookings, userId, loyaltyBalance }: MyBookingsClientProps) {
   const [bookings, setBookings] = useState(initialBookings);
+  const [pointsBalance, setPointsBalance] = useState(loyaltyBalance);
   const { lastEvent, isConnected } = useWebSocket({ userId, role: "customer" });
+
+  // Loyalty redemption reduced the booking's price and the balance.
+  const handleRedeemed = (bookingId: string, discountCents: number) => {
+    setBookings((prev) =>
+      prev.map((b) =>
+        b.booking.id === bookingId
+          ? {
+              ...b,
+              booking: {
+                ...b.booking,
+                estimatedPrice: b.booking.estimatedPrice - discountCents,
+              },
+            }
+          : b
+      )
+    );
+    setPointsBalance((prev) => Math.max(0, prev - discountCents));
+  };
 
   // Handle real-time updates
   useEffect(() => {
@@ -145,6 +166,22 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
         </div>
       )}
 
+      {/* Loyalty balance */}
+      {pointsBalance > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white/60 px-4 py-3">
+          <p className="text-sm text-neutral-700">
+            <span className="font-mono font-semibold">{pointsBalance.toLocaleString("en-US")}</span>
+            {" "}loyalty points available — worth {formatPrice(pointsBalance)} off a pending booking.
+          </p>
+          <Link
+            href="/account/loyalty"
+            className="text-sm font-medium text-neutral-950 underline-offset-4 hover:underline"
+          >
+            View history →
+          </Link>
+        </div>
+      )}
+
       <Tabs defaultValue="active" className="w-full">
         <TabsList>
           <TabsTrigger value="active">
@@ -175,7 +212,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
           ) : (
             <div className="space-y-4">
               {activeBookings.map((item) => (
-                <BookingCard key={item.booking.id} data={item} />
+                <BookingCard key={item.booking.id} data={item} pointsBalance={pointsBalance} onRedeemed={handleRedeemed} />
               ))}
             </div>
           )}
@@ -191,7 +228,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
           ) : (
             <div className="space-y-4">
               {completedBookings.map((item) => (
-                <BookingCard key={item.booking.id} data={item} />
+                <BookingCard key={item.booking.id} data={item} pointsBalance={pointsBalance} onRedeemed={handleRedeemed} />
               ))}
             </div>
           )}
@@ -207,7 +244,7 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
           ) : (
             <div className="space-y-4">
               {cancelledBookings.map((item) => (
-                <BookingCard key={item.booking.id} data={item} />
+                <BookingCard key={item.booking.id} data={item} pointsBalance={pointsBalance} onRedeemed={handleRedeemed} />
               ))}
             </div>
           )}
@@ -217,7 +254,15 @@ export function MyBookingsClient({ initialBookings, userId }: MyBookingsClientPr
   );
 }
 
-function BookingCard({ data }: { data: Booking }) {
+function BookingCard({
+  data,
+  pointsBalance,
+  onRedeemed,
+}: {
+  data: Booking;
+  pointsBalance: number;
+  onRedeemed: (bookingId: string, discountCents: number) => void;
+}) {
   const { booking, service, provider, payments, hasReview } = data;
   const status = statusConfig[booking.status] || statusConfig.pending;
   const StatusIcon = status.icon;
@@ -310,6 +355,14 @@ function BookingCard({ data }: { data: Booking }) {
               <Badge variant="outline" className="text-green-600 border-green-300">
                 Paid
               </Badge>
+            )}
+            {booking.status === "pending" && !isPaid && (
+              <LoyaltyRedeemButton
+                bookingId={booking.id}
+                estimatedPrice={booking.estimatedPrice}
+                balance={pointsBalance}
+                onRedeemed={(discountCents) => onRedeemed(booking.id, discountCents)}
+              />
             )}
             {isActive && (
               <Button asChild size="sm">
