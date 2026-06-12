@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Phone, MapPin, Car, Clock, CheckCircle2, Truck, CircleDot, Star, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { ReviewForm } from "@/components/reviews/review-form";
+import { QuoteApprovalCard } from "@/components/account/quote-approval-card";
 import { BUSINESS } from "@/lib/constants";
 import Image from "next/image";
 
@@ -108,6 +109,14 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
           Reconnecting to live updates...
         </div>
       )}
+
+      {/* Post-inspection quote awaiting the customer's decision (owner-only) */}
+      <QuoteApprovalCard
+        bookingId={booking.id}
+        onApproved={(totalCents) =>
+          setBooking((prev) => ({ ...prev, estimatedPrice: totalCents }))
+        }
+      />
 
       {/* Status Banner */}
       <Card className="mb-6">

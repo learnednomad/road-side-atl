@@ -16,6 +16,7 @@ const COMPANY_LINKS = [
   { href: "/about", label: "About Us" },
   { href: "/book", label: "Book Now" },
   { href: "/become-provider", label: "Become a Provider" },
+  { href: "/account/membership", label: "Membership" },
 ];
 
 export function Footer() {
