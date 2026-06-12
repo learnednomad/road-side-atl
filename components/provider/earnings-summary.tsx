@@ -147,7 +147,7 @@ export function EarningsSummary() {
   if (loading && !summary) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Earnings</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Earnings</h1>
         <div className="grid gap-4 sm:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>
@@ -178,7 +178,7 @@ export function EarningsSummary() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Earnings</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Earnings</h1>
 
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -188,7 +188,7 @@ export function EarningsSummary() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.totalEarned)}</p>
+            <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.totalEarned)}</p>
             <p className="text-xs text-muted-foreground">All time</p>
           </CardContent>
         </Card>
@@ -198,7 +198,7 @@ export function EarningsSummary() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.pendingPayout)}</p>
+            <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.pendingPayout)}</p>
             <p className="text-xs text-muted-foreground">Awaiting payment</p>
           </CardContent>
         </Card>
@@ -208,7 +208,7 @@ export function EarningsSummary() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.paidOut)}</p>
+            <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.paidOut)}</p>
             <p className="text-xs text-muted-foreground">Received</p>
           </CardContent>
         </Card>
@@ -222,7 +222,7 @@ export function EarningsSummary() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.todayEarnings)}</p>
+            <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.todayEarnings)}</p>
             <p className="text-xs text-muted-foreground">
               {summary.todayJobCount} job{summary.todayJobCount !== 1 ? "s" : ""}
             </p>
@@ -234,7 +234,7 @@ export function EarningsSummary() {
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.thisWeekEarnings)}</p>
+            <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.thisWeekEarnings)}</p>
             <p className="text-xs text-muted-foreground">
               {summary.thisWeekJobCount} job{summary.thisWeekJobCount !== 1 ? "s" : ""}
             </p>
@@ -246,7 +246,7 @@ export function EarningsSummary() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.thisMonthEarnings)}</p>
+            <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.thisMonthEarnings)}</p>
             <p className="text-xs text-muted-foreground">
               {summary.completedJobsThisMonth} job{summary.completedJobsThisMonth !== 1 ? "s" : ""}
             </p>

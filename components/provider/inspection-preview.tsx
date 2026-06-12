@@ -45,7 +45,7 @@ export function InspectionPreview({
     <div className="mx-auto max-w-3xl rounded-lg border bg-white p-6 shadow-sm">
       {/* Header */}
       <div className="mb-6 border-b pb-4">
-        <h2 className="text-2xl font-bold text-gray-900">Vehicle Inspection Report</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-neutral-950 text-gray-900">Vehicle Inspection Report</h2>
         <p className="mt-1 text-sm text-gray-500">Booking #{bookingId.slice(0, 8)}</p>
       </div>
 

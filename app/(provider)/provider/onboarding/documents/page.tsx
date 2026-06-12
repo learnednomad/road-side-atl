@@ -189,7 +189,7 @@ function DocumentsContent() {
           </Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">{config.title}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">{config.title}</h1>
         </div>
         {step && (
           <Badge

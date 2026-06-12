@@ -90,7 +90,7 @@ export function ProviderDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Dashboard</h1>
         <LocationTracker />
       </div>
 
@@ -102,7 +102,7 @@ export function ProviderDashboard() {
               <CardTitle className="text-sm text-muted-foreground">Jobs Today</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{stats.todayJobs}</p>
+              <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{stats.todayJobs}</p>
             </CardContent>
           </Card>
           <Card>
@@ -110,7 +110,7 @@ export function ProviderDashboard() {
               <CardTitle className="text-sm text-muted-foreground">Week Earnings</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">${(stats.weekEarnings / 100).toFixed(2)}</p>
+              <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">${(stats.weekEarnings / 100).toFixed(2)}</p>
             </CardContent>
           </Card>
           <Card>
@@ -118,7 +118,7 @@ export function ProviderDashboard() {
               <CardTitle className="text-sm text-muted-foreground">Total Completed</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{stats.totalCompleted}</p>
+              <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{stats.totalCompleted}</p>
             </CardContent>
           </Card>
         </div>

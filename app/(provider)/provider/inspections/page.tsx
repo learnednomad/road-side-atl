@@ -112,7 +112,7 @@ export default function ProviderInspectionsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Inspection Reports</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Inspection Reports</h1>
 
       <div className="rounded-md border">
         <Table>
