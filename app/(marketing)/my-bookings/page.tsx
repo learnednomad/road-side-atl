@@ -92,10 +92,10 @@ export default async function MyBookingsPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-muted/30 py-12">
+    <div className="min-h-screen bg-[#faf9f6] py-12">
       <div className="container mx-auto px-4">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold">My Bookings</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">My Bookings</h1>
           <p className="text-muted-foreground mt-2">
             Track your service requests and view booking history
           </p>

@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { ServiceCard } from "@/components/marketing/service-card";
+import { SectionHeading } from "@/components/marketing/section-heading";
 import { CostExpectations } from "@/components/marketing/cost-expectations";
 import { buildMetadata, SITE_URL } from "@/lib/seo";
 import { BreadcrumbJsonLd } from "@/components/seo/json-ld";
@@ -62,52 +63,50 @@ export default async function ServicesPage() {
   const diagnosticsServices = allServices.filter((s) => s.category === "diagnostics");
 
   return (
-    <div className="container mx-auto px-4 py-16">
-      <BreadcrumbJsonLd
-        items={[
-          { name: "Home", url: SITE_URL },
-          { name: "Services", url: `${SITE_URL}/services` },
-        ]}
-      />
+    <div className="bg-[#faf9f6]">
+      <div className="container mx-auto px-4 py-16">
+        <BreadcrumbJsonLd
+          items={[
+            { name: "Home", url: SITE_URL },
+            { name: "Services", url: `${SITE_URL}/services` },
+          ]}
+        />
 
-      <h1 className="mb-2 text-3xl font-bold">
-        Roadside Assistance & Vehicle Diagnostic Services in Atlanta
-      </h1>
-      <p className="mb-10 text-muted-foreground">
-        Professional 24/7 roadside assistance and comprehensive vehicle diagnostics
-        serving the entire Atlanta metro area. Affordable, fast, and reliable.
-      </p>
+        <p className="flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">
+          <span aria-hidden className="h-3 w-0.5 bg-red-600" />
+          Services
+        </p>
+        <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-neutral-950 md:text-4xl">
+          Roadside Assistance & Vehicle Diagnostic Services in Atlanta
+        </h1>
+        <p className="mt-4 mb-12 max-w-xl text-neutral-600">
+          Professional 24/7 roadside assistance and comprehensive vehicle diagnostics
+          serving the entire Atlanta metro area. Affordable, fast, and reliable.
+        </p>
 
-      <CostExpectations />
+        <CostExpectations />
 
-      <h2
-        className="mb-6 border-l-4 border-red-600 pl-4 text-2xl font-semibold"
-        id="roadside"
-      >
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-red-600" />
-          24/7 Emergency Roadside Assistance in Atlanta
+        <SectionHeading
+          kicker="Emergency"
+          title="24/7 Emergency Roadside Assistance in Atlanta"
+          id="roadside"
+        />
+        <div className="mb-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {roadsideServices.map((service) => (
+            <ServiceCard key={service.slug} {...service} />
+          ))}
         </div>
-      </h2>
-      <div className="mb-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {roadsideServices.map((service) => (
-          <ServiceCard key={service.slug} {...service} />
-        ))}
-      </div>
 
-      <h2
-        className="mb-6 border-l-4 border-red-600 pl-4 text-2xl font-semibold"
-        id="diagnostics"
-      >
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-red-600" />
-          Pre-Purchase Vehicle Diagnostics in Atlanta
+        <SectionHeading
+          kicker="Diagnostics"
+          title="Pre-Purchase Vehicle Diagnostics in Atlanta"
+          id="diagnostics"
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          {diagnosticsServices.map((service) => (
+            <ServiceCard key={service.slug} {...service} />
+          ))}
         </div>
-      </h2>
-      <div className="grid gap-6 sm:grid-cols-2">
-        {diagnosticsServices.map((service) => (
-          <ServiceCard key={service.slug} {...service} />
-        ))}
       </div>
     </div>
   );
