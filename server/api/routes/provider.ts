@@ -421,15 +421,17 @@ app.get("/stats", async (c) => {
     );
 
   // Provider's NET earnings this week (their payout share), matching the
-  // /earnings page's "This Week" — not gross customer revenue.
+  // /earnings page's "This Week" — not gross customer revenue. Bucketed by
+  // job completion time (bookings.updatedAt), same as the earnings page.
   const [weekEarnings] = await db
     .select({ total: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)` })
     .from(providerPayouts)
+    .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
     .where(
       and(
         eq(providerPayouts.providerId, provider.id),
         eq(providerPayouts.payoutType, "standard"),
-        sql`${providerPayouts.createdAt} >= ${weekStart.toISOString()}`
+        sql`${bookings.updatedAt} >= ${weekStart.toISOString()}`
       )
     );
 
@@ -579,6 +581,10 @@ app.get("/earnings/summary", async (c) => {
   const weekStart = new Date(todayStart);
   weekStart.setDate(weekStart.getDate() - ((todayStart.getDay() + 6) % 7));
 
+  // Bucket by when the job was completed (bookings.updatedAt), not when the
+  // payout row was created — payouts can land later (webhook lag, the 4h
+  // reconciliation cron), which would misreport "today"/"this week". This also
+  // keeps these buckets consistent with the dashboard's "Jobs Today".
   const [[monthEarnings], [todayEarnings], [weekEarnings]] = await Promise.all([
     db
       .select({
@@ -586,11 +592,12 @@ app.get("/earnings/summary", async (c) => {
         completedJobs: sql<number>`count(*)`,
       })
       .from(providerPayouts)
+      .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
       .where(
         and(
           eq(providerPayouts.providerId, provider.id),
           eq(providerPayouts.payoutType, "standard"),
-          sql`${providerPayouts.createdAt} >= ${monthStart.toISOString()}`
+          sql`${bookings.updatedAt} >= ${monthStart.toISOString()}`
         )
       ),
     db
@@ -599,11 +606,12 @@ app.get("/earnings/summary", async (c) => {
         jobCount: sql<number>`count(*)`,
       })
       .from(providerPayouts)
+      .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
       .where(
         and(
           eq(providerPayouts.providerId, provider.id),
           eq(providerPayouts.payoutType, "standard"),
-          sql`${providerPayouts.createdAt} >= ${todayStart.toISOString()}`
+          sql`${bookings.updatedAt} >= ${todayStart.toISOString()}`
         )
       ),
     db
@@ -612,11 +620,12 @@ app.get("/earnings/summary", async (c) => {
         jobCount: sql<number>`count(*)`,
       })
       .from(providerPayouts)
+      .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
       .where(
         and(
           eq(providerPayouts.providerId, provider.id),
           eq(providerPayouts.payoutType, "standard"),
-          sql`${providerPayouts.createdAt} >= ${weekStart.toISOString()}`
+          sql`${bookings.updatedAt} >= ${weekStart.toISOString()}`
         )
       ),
   ]);
@@ -751,20 +760,21 @@ app.get("/earnings/daily", async (c) => {
 
   const daily = await db
     .select({
-      date: sql<string>`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`,
+      date: sql<string>`to_char(${bookings.updatedAt}, 'YYYY-MM-DD')`,
       earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
       jobCount: sql<number>`count(*)`,
     })
     .from(providerPayouts)
+    .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
     .where(
       and(
         eq(providerPayouts.providerId, provider.id),
-        sql`${providerPayouts.createdAt} >= ${thirtyDaysAgo.toISOString()}`,
+        sql`${bookings.updatedAt} >= ${thirtyDaysAgo.toISOString()}`,
         eq(providerPayouts.payoutType, "standard"),
       )
     )
-    .groupBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`)
-    .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`);
+    .groupBy(sql`to_char(${bookings.updatedAt}, 'YYYY-MM-DD')`)
+    .orderBy(sql`to_char(${bookings.updatedAt}, 'YYYY-MM-DD')`);
 
   return c.json({
     daily: daily.map((d) => ({
@@ -792,25 +802,26 @@ app.get("/earnings/weekly", async (c) => {
 
   const weekly = await db
     .select({
-      week: sql<string>`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
-      weekStart: sql<string>`to_char(date_trunc('week', ${providerPayouts.createdAt}), 'YYYY-MM-DD')`,
-      weekEnd: sql<string>`to_char(date_trunc('week', ${providerPayouts.createdAt}) + interval '6 days', 'YYYY-MM-DD')`,
+      week: sql<string>`to_char(${bookings.updatedAt}, 'IYYY-IW')`,
+      weekStart: sql<string>`to_char(date_trunc('week', ${bookings.updatedAt}), 'YYYY-MM-DD')`,
+      weekEnd: sql<string>`to_char(date_trunc('week', ${bookings.updatedAt}) + interval '6 days', 'YYYY-MM-DD')`,
       earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
       jobCount: sql<number>`count(*)`,
     })
     .from(providerPayouts)
+    .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
     .where(
       and(
         eq(providerPayouts.providerId, provider.id),
-        sql`${providerPayouts.createdAt} >= ${twelveWeeksAgo.toISOString()}`,
+        sql`${bookings.updatedAt} >= ${twelveWeeksAgo.toISOString()}`,
         eq(providerPayouts.payoutType, "standard"),
       )
     )
     .groupBy(
-      sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
-      sql`date_trunc('week', ${providerPayouts.createdAt})`,
+      sql`to_char(${bookings.updatedAt}, 'IYYY-IW')`,
+      sql`date_trunc('week', ${bookings.updatedAt})`,
     )
-    .orderBy(sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`);
+    .orderBy(sql`to_char(${bookings.updatedAt}, 'IYYY-IW')`);
 
   return c.json({
     weekly: weekly.map((w) => ({
@@ -842,20 +853,21 @@ app.get("/earnings/trends", async (c) => {
 
     const trends = await db
       .select({
-        date: sql<string>`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${bookings.updatedAt}, 'YYYY-MM-DD')`,
         earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
         jobCount: sql<number>`count(*)`,
       })
       .from(providerPayouts)
+      .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
       .where(
         and(
           eq(providerPayouts.providerId, provider.id),
-          sql`${providerPayouts.createdAt} >= ${thirtyDaysAgo.toISOString()}`,
+          sql`${bookings.updatedAt} >= ${thirtyDaysAgo.toISOString()}`,
           eq(providerPayouts.payoutType, "standard"),
         )
       )
-      .groupBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`)
-      .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM-DD')`);
+      .groupBy(sql`to_char(${bookings.updatedAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${bookings.updatedAt}, 'YYYY-MM-DD')`);
 
     return c.json({
       period: "daily",
@@ -873,24 +885,25 @@ app.get("/earnings/trends", async (c) => {
 
     const trends = await db
       .select({
-        week: sql<string>`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
-        weekStart: sql<string>`to_char(date_trunc('week', ${providerPayouts.createdAt}), 'YYYY-MM-DD')`,
+        week: sql<string>`to_char(${bookings.updatedAt}, 'IYYY-IW')`,
+        weekStart: sql<string>`to_char(date_trunc('week', ${bookings.updatedAt}), 'YYYY-MM-DD')`,
         earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
         jobCount: sql<number>`count(*)`,
       })
       .from(providerPayouts)
+      .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
       .where(
         and(
           eq(providerPayouts.providerId, provider.id),
-          sql`${providerPayouts.createdAt} >= ${twelveWeeksAgo.toISOString()}`,
+          sql`${bookings.updatedAt} >= ${twelveWeeksAgo.toISOString()}`,
           eq(providerPayouts.payoutType, "standard"),
         )
       )
       .groupBy(
-        sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`,
-        sql`date_trunc('week', ${providerPayouts.createdAt})`,
+        sql`to_char(${bookings.updatedAt}, 'IYYY-IW')`,
+        sql`date_trunc('week', ${bookings.updatedAt})`,
       )
-      .orderBy(sql`to_char(${providerPayouts.createdAt}, 'IYYY-IW')`);
+      .orderBy(sql`to_char(${bookings.updatedAt}, 'IYYY-IW')`);
 
     return c.json({
       period: "weekly",
@@ -910,20 +923,21 @@ app.get("/earnings/trends", async (c) => {
 
   const trends = await db
     .select({
-      month: sql<string>`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`,
+      month: sql<string>`to_char(${bookings.updatedAt}, 'YYYY-MM')`,
       earnings: sql<number>`coalesce(sum(${providerPayouts.amount}), 0)`,
       jobCount: sql<number>`count(*)`,
     })
     .from(providerPayouts)
+    .innerJoin(bookings, eq(providerPayouts.bookingId, bookings.id))
     .where(
       and(
         eq(providerPayouts.providerId, provider.id),
         eq(providerPayouts.payoutType, "standard"),
-        sql`${providerPayouts.createdAt} >= ${startDate.toISOString()}`
+        sql`${bookings.updatedAt} >= ${startDate.toISOString()}`
       )
     )
-    .groupBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`)
-    .orderBy(sql`to_char(${providerPayouts.createdAt}, 'YYYY-MM')`);
+    .groupBy(sql`to_char(${bookings.updatedAt}, 'YYYY-MM')`)
+    .orderBy(sql`to_char(${bookings.updatedAt}, 'YYYY-MM')`);
 
   return c.json({
     period: "monthly",

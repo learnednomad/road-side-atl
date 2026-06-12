@@ -55,7 +55,7 @@ export function ProfitTrendChart({ data }: ProfitTrendChartProps) {
               type="monotone"
               dataKey="revenue"
               name="Revenue"
-              stroke="hsl(var(--chart-1, 220 70% 50%))"
+              stroke="var(--chart-1, hsl(220 70% 50%))"
               strokeWidth={2}
               dot={false}
             />
@@ -63,7 +63,7 @@ export function ProfitTrendChart({ data }: ProfitTrendChartProps) {
               type="monotone"
               dataKey="payouts"
               name="Payouts"
-              stroke="hsl(var(--chart-2, 160 60% 45%))"
+              stroke="var(--chart-2, hsl(160 60% 45%))"
               strokeWidth={2}
               dot={false}
             />
@@ -71,7 +71,7 @@ export function ProfitTrendChart({ data }: ProfitTrendChartProps) {
               type="monotone"
               dataKey="profit"
               name="Profit"
-              stroke="hsl(var(--chart-3, 30 80% 55%))"
+              stroke="var(--chart-3, hsl(30 80% 55%))"
               strokeWidth={2}
               dot={false}
             />
@@ -129,7 +129,7 @@ export function AgingChart({ data }: AgingChartProps) {
             />
             <Bar
               dataKey="amount"
-              fill="hsl(var(--chart-4, 280 65% 60%))"
+              fill="var(--chart-4, hsl(280 65% 60%))"
               radius={[0, 4, 4, 0]}
             />
           </BarChart>

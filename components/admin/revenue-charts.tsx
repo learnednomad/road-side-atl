@@ -18,11 +18,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const COLORS = [
-  "hsl(var(--chart-1, 220 70% 50%))",
-  "hsl(var(--chart-2, 160 60% 45%))",
-  "hsl(var(--chart-3, 30 80% 55%))",
-  "hsl(var(--chart-4, 280 65% 60%))",
-  "hsl(var(--chart-5, 340 75% 55%))",
+  "var(--chart-1, hsl(220 70% 50%))",
+  "var(--chart-2, hsl(160 60% 45%))",
+  "var(--chart-3, hsl(30 80% 55%))",
+  "var(--chart-4, hsl(280 65% 60%))",
+  "var(--chart-5, hsl(340 75% 55%))",
 ];
 
 interface DailyRevenueChartProps {
@@ -57,7 +57,7 @@ export function DailyRevenueChart({ data, prevData }: DailyRevenueChartProps) {
               type="monotone"
               dataKey="current"
               name="Current Period"
-              stroke="hsl(var(--primary, 220 70% 50%))"
+              stroke="var(--primary, hsl(220 70% 50%))"
               strokeWidth={2}
               dot={false}
             />
@@ -65,7 +65,7 @@ export function DailyRevenueChart({ data, prevData }: DailyRevenueChartProps) {
               type="monotone"
               dataKey="previous"
               name="Previous Period"
-              stroke="hsl(var(--muted-foreground, 220 10% 60%))"
+              stroke="var(--muted-foreground, hsl(220 10% 60%))"
               strokeWidth={1}
               strokeDasharray="5 5"
               dot={false}
@@ -112,7 +112,7 @@ export function ServiceRevenueChart({ data }: ServiceRevenueChartProps) {
             <Tooltip
               formatter={(value) => [`$${Number(value).toFixed(2)}`, "Revenue"]}
             />
-            <Bar dataKey="revenue" fill="hsl(var(--primary, 220 70% 50%))" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="revenue" fill="var(--primary, hsl(220 70% 50%))" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
