@@ -74,12 +74,12 @@ export function Hero() {
           <div className="flex flex-col lg:pl-12">
             <div className="flex flex-1 items-center justify-center py-8 lg:py-16">
               <Image
-                src="/images/hero-engraving.svg"
-                alt="Line illustration of a tow truck on a tree-lined Atlanta street with the city skyline behind it"
-                width={1024}
-                height={768}
+                src="/images/hero-engraving.png"
+                alt="Engraved illustration of a flatbed tow truck carrying a car on a tree-lined Atlanta street, with the city skyline behind it"
+                width={1122}
+                height={1402}
                 priority
-                className="h-auto w-full max-w-xl mix-blend-multiply"
+                className="h-auto w-full max-w-lg mix-blend-multiply"
               />
             </div>
 
