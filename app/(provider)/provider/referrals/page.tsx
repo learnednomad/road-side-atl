@@ -99,7 +99,7 @@ export default function ProviderReferralsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Referrals</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Referrals</h1>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
@@ -108,7 +108,7 @@ export default function ProviderReferralsPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalReferrals}</div>
+            <div className="text-2xl font-semibold tracking-tight text-neutral-950">{totalReferrals}</div>
             <p className="text-xs text-muted-foreground">
               {inviteCount.remaining} of {inviteCount.limit} invites remaining this month
             </p>
@@ -120,7 +120,7 @@ export default function ProviderReferralsPage() {
             <Gift className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$50</div>
+            <div className="text-2xl font-semibold tracking-tight text-neutral-950">$50</div>
             <p className="text-xs text-muted-foreground">per referred provider&apos;s first completed job</p>
           </CardContent>
         </Card>
@@ -130,7 +130,7 @@ export default function ProviderReferralsPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatPrice(balance)}</div>
+            <div className="text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(balance)}</div>
             <p className="text-xs text-muted-foreground">from referral bonuses</p>
           </CardContent>
         </Card>

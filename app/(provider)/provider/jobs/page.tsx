@@ -75,7 +75,7 @@ export default function ProviderJobsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Job History</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Job History</h1>
 
       <div className="flex items-center gap-4">
         <Select value={filter} onValueChange={(v) => { setFilter(v); setPage(1); }}>

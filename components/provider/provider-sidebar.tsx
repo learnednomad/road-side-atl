@@ -72,20 +72,20 @@ export function ProviderSidebar() {
   return (
     <aside
       className={cn(
-        "hidden flex-col border-r bg-muted/30 transition-all duration-300 lg:flex",
+        "hidden flex-col bg-neutral-950 text-neutral-400 transition-all duration-300 lg:flex",
         collapsed ? "w-16" : "w-64"
       )}
     >
-      <div className="flex h-16 items-center justify-between border-b px-3">
+      <div className="flex h-16 items-center justify-between border-b border-neutral-800 px-3">
         {!collapsed && (
-          <Link href="/provider" className="truncate text-lg font-bold">
+          <Link href="/provider" className="truncate text-lg font-bold text-white">
             Provider Portal
           </Link>
         )}
         <button
           onClick={toggle}
           className={cn(
-            "flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground",
+            "flex items-center justify-center rounded-md p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-white",
             collapsed && "mx-auto"
           )}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -130,8 +130,8 @@ export function ProviderSidebar() {
                   "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   collapsed ? "justify-center" : "gap-3",
                   isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-white text-neutral-950"
+                    : "text-neutral-400 hover:bg-neutral-800/60 hover:text-white"
                 )}
               >
                 <link.icon className="h-4 w-4 shrink-0" />
@@ -140,12 +140,12 @@ export function ProviderSidebar() {
             );
           })}
         </div>
-        <div className="space-y-1 border-t pt-4">
+        <div className="space-y-1 border-t border-neutral-800 pt-4">
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
             title={collapsed ? "Sign Out" : undefined}
             className={cn(
-              "flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
+              "flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-neutral-400 hover:bg-neutral-800/60 hover:text-white",
               collapsed ? "justify-center" : "gap-3"
             )}
           >
