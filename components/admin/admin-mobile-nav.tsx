@@ -68,7 +68,7 @@ export function AdminMobileNav() {
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="right" className="w-72">
+        <SheetContent side="right" className="w-screen max-w-xs border-neutral-800 bg-neutral-950 text-neutral-400">
           <SheetTitle className="sr-only">Admin Navigation</SheetTitle>
           <SheetDescription className="sr-only">Navigate admin dashboard pages</SheetDescription>
           <nav className="mt-8 flex flex-1 flex-col justify-between">
@@ -85,8 +85,8 @@ export function AdminMobileNav() {
                     className={cn(
                       "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                       isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        ? "bg-white text-neutral-950"
+                        : "text-neutral-400 hover:bg-neutral-800/60 hover:text-white"
                     )}
                   >
                     <link.icon className="h-4 w-4" />
@@ -95,13 +95,13 @@ export function AdminMobileNav() {
                 );
               })}
             </div>
-            <div className="mt-8 space-y-1 border-t pt-4">
+            <div className="mt-8 space-y-1 border-t border-neutral-800 pt-4">
               <button
                 onClick={() => {
                   setOpen(false);
                   signOut({ callbackUrl: "/" });
                 }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-neutral-400 hover:bg-neutral-800/60 hover:text-white"
               >
                 <LogOut className="h-4 w-4" />
                 Sign Out

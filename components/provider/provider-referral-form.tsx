@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
 export function ProviderReferralForm({ onSuccess }: { onSuccess: () => void }) {
@@ -42,32 +42,50 @@ export function ProviderReferralForm({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Refer a Provider</CardTitle>
-        <CardDescription>Refer another provider and earn a $50 bonus when they complete their first job. An invite email will be sent automatically.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="ref-name">Name</Label>
-            <Input id="ref-name" value={name} onChange={(e) => setName(e.target.value)} required />
+    <Card className="rounded-2xl border-neutral-200 bg-white">
+      <CardContent className="py-6">
+        <div className="grid gap-8 lg:grid-cols-[1fr_1.4fr]">
+          {/* Pitch panel */}
+          <div className="lg:border-r lg:border-neutral-200 lg:pr-8">
+            <h2 className="text-lg font-semibold tracking-tight text-neutral-950">
+              Refer a Provider
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+              Refer another provider and earn a $50 bonus when they complete
+              their first job. An invite email will be sent automatically.
+            </p>
+            <p className="mt-6 font-mono text-3xl font-semibold tracking-tight text-neutral-950">
+              $50
+              <span className="ml-2 align-middle font-sans text-xs font-normal tracking-normal text-neutral-500">
+                per referral
+              </span>
+            </p>
           </div>
-          <div>
-            <Label htmlFor="ref-email">Email</Label>
-            <Input id="ref-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </div>
-          <div>
-            <Label htmlFor="ref-phone">Phone (optional)</Label>
-            <Input id="ref-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          {success && <p className="text-sm text-green-600">Invite email sent! They&apos;ll receive a link to join the team.</p>}
-          <Button type="submit" disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Send Invite
-          </Button>
-        </form>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="ref-name">Name</Label>
+                <Input id="ref-name" value={name} onChange={(e) => setName(e.target.value)} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ref-email">Email</Label>
+                <Input id="ref-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ref-phone">Phone (optional)</Label>
+              <Input id="ref-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            {success && <p className="text-sm text-green-600">Invite email sent! They&apos;ll receive a link to join the team.</p>}
+            <Button type="submit" className="rounded-full px-6" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Send Invite
+            </Button>
+          </form>
+        </div>
       </CardContent>
     </Card>
   );

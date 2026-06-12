@@ -59,17 +59,17 @@ export default function RegisterPage() {
 
   if (registered) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-        <Card className="w-full max-w-sm">
+      <div className="flex min-h-screen items-center justify-center bg-[#faf9f6] px-4">
+        <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
           <CardHeader className="text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
               <CheckCircle2 className="h-6 w-6 text-green-600" />
             </div>
-            <CardTitle>Check Your Email</CardTitle>
+            <CardTitle className="tracking-tight text-neutral-950">Check Your Email</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Mail className="h-8 w-8 text-primary" />
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-neutral-950">
+              <Mail className="h-8 w-8 text-white" />
             </div>
             <p className="text-muted-foreground">
               We&apos;ve sent a verification link to{" "}
@@ -79,7 +79,7 @@ export default function RegisterPage() {
               Click the link in the email to verify your account and start using RoadSide GA.
             </p>
             <div className="pt-2">
-              <Button asChild variant="outline" className="w-full">
+              <Button asChild variant="outline" className="w-full rounded-full border-neutral-300">
                 <Link href="/login">Go to Login</Link>
               </Button>
             </div>
@@ -117,16 +117,16 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-screen items-center justify-center bg-[#faf9f6] px-4">
+      <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Car className="h-6 w-6 text-primary" />
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-950">
+            <Car className="h-6 w-6 text-white" />
           </div>
-          <Link href="/" className="text-xl font-bold">
-            RoadSide GA
+          <Link href="/" className="text-xl font-semibold tracking-tight text-neutral-950">
+            RoadSide <span className="text-red-600">GA</span>
           </Link>
-          <CardTitle>Create Account</CardTitle>
+          <CardTitle className="tracking-tight text-neutral-950">Create Account</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
@@ -186,7 +186,7 @@ export default function RegisterPage() {
             </div>
             <Button
               type="submit"
-              className="w-full"
+              className="w-full rounded-full"
               size="lg"
               disabled={loading}
             >
@@ -197,7 +197,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="text-primary hover:underline">
+            <Link href="/login" className="font-medium text-neutral-950 underline-offset-4 hover:underline">
               Sign in
             </Link>
           </p>

@@ -30,7 +30,7 @@ export function ScenarioPicker({ services }: { services: ServiceLite[] }) {
   );
 
   return (
-    <Card className="mb-6 border-red-200 bg-red-50/40">
+    <Card className="mb-6 rounded-2xl border-neutral-200 bg-white">
       <Accordion type="single" collapsible>
         <AccordionItem value="picker" className="border-0">
           <AccordionTrigger className="px-6 py-4 text-left hover:no-underline">
@@ -55,7 +55,7 @@ export function ScenarioPicker({ services }: { services: ServiceLite[] }) {
                 return (
                   <div
                     key={scenario.key}
-                    className="rounded-md border bg-background p-4"
+                    className="rounded-xl border border-neutral-200 bg-[#faf9f6] p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -79,7 +79,7 @@ export function ScenarioPicker({ services }: { services: ServiceLite[] }) {
                         >
                           <Badge
                             variant="outline"
-                            className="cursor-pointer hover:bg-red-50 hover:border-red-300"
+                            className="cursor-pointer hover:border-neutral-400 hover:bg-neutral-50"
                           >
                             + {svc.name}
                           </Badge>

@@ -144,7 +144,7 @@ export function BookingPriceOverride({
 
         <div className="flex items-center justify-between border-t pt-3">
           <span className="text-sm font-medium">Effective Price</span>
-          <span className="text-sm font-bold">{formatPrice(effectivePrice)}</span>
+          <span className="font-mono text-sm font-semibold">{formatPrice(effectivePrice)}</span>
         </div>
 
         <div className="flex gap-2">

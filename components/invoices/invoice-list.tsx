@@ -201,7 +201,7 @@ export function InvoiceList({ role }: InvoiceListProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-3xl font-bold">Invoices</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Invoices</h1>
         <Button asChild>
           <Link href={`${basePath}/invoices/new`}>
             <Plus className="mr-2 h-4 w-4" /> New Invoice
@@ -272,7 +272,7 @@ export function InvoiceList({ role }: InvoiceListProps) {
                   <div>
                     <Link
                       href={`${basePath}/invoices/${inv.id}`}
-                      className="font-medium hover:underline"
+                      className="font-mono font-medium hover:underline"
                     >
                       {inv.invoiceNumber}
                     </Link>
@@ -280,7 +280,7 @@ export function InvoiceList({ role }: InvoiceListProps) {
                       {inv.customerName}
                     </p>
                   </div>
-                  <p className="font-medium">{formatPrice(inv.total)}</p>
+                  <p className="font-mono font-medium">{formatPrice(inv.total)}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {renderStatusBadge(inv.status)}
@@ -319,7 +319,7 @@ export function InvoiceList({ role }: InvoiceListProps) {
       </div>
 
       {/* Desktop table view */}
-      <div className="hidden md:block rounded-md border">
+      <div className="hidden md:block overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -372,13 +372,13 @@ export function InvoiceList({ role }: InvoiceListProps) {
                   <TableCell>
                     <Link
                       href={`${basePath}/invoices/${inv.id}`}
-                      className="font-medium hover:underline"
+                      className="font-mono font-medium hover:underline"
                     >
                       {inv.invoiceNumber}
                     </Link>
                   </TableCell>
                   <TableCell>{inv.customerName}</TableCell>
-                  <TableCell className="text-right font-medium">
+                  <TableCell className="text-right font-mono font-medium">
                     {formatPrice(inv.total)}
                   </TableCell>
                   <TableCell>{renderStatusBadge(inv.status)}</TableCell>

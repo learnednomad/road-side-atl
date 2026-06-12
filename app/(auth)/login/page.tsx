@@ -120,13 +120,13 @@ function LoginForm() {
 
   if (showVerificationMessage) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-        <Card className="w-full max-w-sm">
+      <div className="flex min-h-screen items-center justify-center bg-[#faf9f6] px-4">
+        <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
           <CardHeader className="text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
               <Mail className="h-6 w-6 text-yellow-600" />
             </div>
-            <CardTitle>Email Not Verified</CardTitle>
+            <CardTitle className="tracking-tight text-neutral-950">Email Not Verified</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <p className="text-muted-foreground">
@@ -134,7 +134,7 @@ function LoginForm() {
             </p>
             <Button
               variant="outline"
-              className="w-full"
+              className="w-full rounded-full border-neutral-300"
               disabled={resendingVerification || verificationResent}
               onClick={async () => {
                 setResendingVerification(true);
@@ -175,13 +175,13 @@ function LoginForm() {
 
   if (magicLinkSent) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-        <Card className="w-full max-w-sm">
+      <div className="flex min-h-screen items-center justify-center bg-[#faf9f6] px-4">
+        <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <Mail className="h-6 w-6 text-primary" />
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-950">
+              <Mail className="h-6 w-6 text-white" />
             </div>
-            <CardTitle>Check your email</CardTitle>
+            <CardTitle className="tracking-tight text-neutral-950">Check your email</CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-sm text-muted-foreground">
@@ -201,16 +201,16 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-screen items-center justify-center bg-[#faf9f6] px-4">
+      <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Car className="h-6 w-6 text-primary" />
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-950">
+            <Car className="h-6 w-6 text-white" />
           </div>
-          <Link href="/" className="text-xl font-bold">
-            RoadSide GA
+          <Link href="/" className="text-xl font-semibold tracking-tight text-neutral-950">
+            RoadSide <span className="text-red-600">GA</span>
           </Link>
-          <CardTitle>Sign In</CardTitle>
+          <CardTitle className="tracking-tight text-neutral-950">Sign In</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
@@ -235,7 +235,7 @@ function LoginForm() {
                 <Label htmlFor="password">Password</Label>
                 <Link
                   href="/forgot-password"
-                  className="text-xs text-primary hover:underline"
+                  className="text-xs font-medium text-neutral-950 underline-offset-4 hover:underline"
                 >
                   Forgot password?
                 </Link>
@@ -252,7 +252,7 @@ function LoginForm() {
             </div>
             <Button
               type="submit"
-              className="w-full"
+              className="w-full rounded-full"
               size="lg"
               disabled={loading !== null}
             >
@@ -266,7 +266,7 @@ function LoginForm() {
           {process.env.NEXT_PUBLIC_MAGIC_LINK_ENABLED === "true" && (
             <Button
               variant="outline"
-              className="w-full"
+              className="w-full rounded-full border-neutral-300"
               size="lg"
               onClick={handleMagicLink}
               disabled={loading !== null}
@@ -282,16 +282,16 @@ function LoginForm() {
 
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t" />
+              <div className="w-full border-t border-neutral-200" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">or</span>
+              <span className="bg-white px-2 text-neutral-500">or</span>
             </div>
           </div>
 
           <Button
             variant="outline"
-            className="w-full"
+            className="w-full rounded-full border-neutral-300"
             size="lg"
             onClick={handleGoogleSignIn}
             disabled={loading !== null}
@@ -306,7 +306,7 @@ function LoginForm() {
 
           <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-primary hover:underline">
+            <Link href="/register" className="font-medium text-neutral-950 underline-offset-4 hover:underline">
               Sign up
             </Link>
           </p>

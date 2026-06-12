@@ -11,7 +11,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold">
+      <h1 className="mb-6 text-3xl font-semibold tracking-tight text-neutral-950">
         Welcome back, {session.user.name || "Customer"}
       </h1>
 
@@ -21,25 +21,25 @@ export default async function DashboardPage() {
         <div className="space-y-4">
           <Link
             href="/my-bookings"
-            className="block rounded-lg border p-4 transition-colors hover:bg-muted"
+            className="block rounded-2xl border border-neutral-200 bg-white p-4 transition-colors hover:bg-neutral-50"
           >
-            <p className="font-medium">My Bookings</p>
+            <p className="font-medium text-neutral-950">My Bookings</p>
             <p className="text-sm text-muted-foreground">View and manage your booking history</p>
           </Link>
 
           <Link
             href="/book"
-            className="block rounded-lg border p-4 transition-colors hover:bg-muted"
+            className="block rounded-2xl border border-neutral-200 bg-white p-4 transition-colors hover:bg-neutral-50"
           >
-            <p className="font-medium">Book a Service</p>
+            <p className="font-medium text-neutral-950">Book a Service</p>
             <p className="text-sm text-muted-foreground">Schedule roadside assistance or an inspection</p>
           </Link>
 
           <Link
             href="/dashboard/referrals"
-            className="block rounded-lg border p-4 transition-colors hover:bg-muted"
+            className="block rounded-2xl border border-neutral-200 bg-white p-4 transition-colors hover:bg-neutral-50"
           >
-            <p className="font-medium">Referrals</p>
+            <p className="font-medium text-neutral-950">Referrals</p>
             <p className="text-sm text-muted-foreground">Share your referral code and earn credits</p>
           </Link>
         </div>

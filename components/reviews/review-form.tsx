@@ -133,7 +133,7 @@ export function ReviewForm({ bookingId, providerName, onReviewSubmitted }: Revie
 
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
-          <Button type="submit" className="w-full" disabled={loading || rating === 0}>
+          <Button type="submit" className="w-full rounded-full" disabled={loading || rating === 0}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Submit Review
           </Button>

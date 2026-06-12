@@ -101,8 +101,8 @@ export default function ReferralsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Referrals</h1>
+    <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Referrals</h1>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
@@ -111,7 +111,7 @@ export default function ReferralsPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{info?.totalReferrals || 0}</div>
+            <div className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{info?.totalReferrals || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -120,7 +120,7 @@ export default function ReferralsPage() {
             <Gift className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{info?.creditedReferrals || 0}</div>
+            <div className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{info?.creditedReferrals || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -129,7 +129,7 @@ export default function ReferralsPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatPrice(info?.creditBalance || 0)}</div>
+            <div className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(info?.creditBalance || 0)}</div>
           </CardContent>
         </Card>
       </div>
@@ -151,8 +151,37 @@ export default function ReferralsPage() {
 
       {referrals.length > 0 && (
         <>
-          <h2 className="text-xl font-semibold">Referral History</h2>
-          <div className="rounded-md border">
+          <h2 className="text-xl font-semibold tracking-tight text-neutral-950">Referral History</h2>
+
+          {/* Mobile card view */}
+          <div className="space-y-3 md:hidden">
+            {referrals.map((referral) => (
+              <div
+                key={referral.id}
+                className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-950">
+                      {referral.refereeName || "Pending signup"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(referral.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <p className="font-mono text-sm font-medium text-neutral-950">
+                    {formatPrice(referral.creditAmount)}
+                  </p>
+                </div>
+                <Badge variant={statusColor(referral.status)}>
+                  {referral.status}
+                </Badge>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table view */}
+          <div className="hidden overflow-x-auto rounded-2xl border border-neutral-200 bg-white md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -171,7 +200,7 @@ export default function ReferralsPage() {
                     <TableCell className="text-sm">
                       {referral.refereeName || "Pending signup"}
                     </TableCell>
-                    <TableCell className="text-sm font-medium">
+                    <TableCell className="font-mono text-sm font-medium">
                       {formatPrice(referral.creditAmount)}
                     </TableCell>
                     <TableCell>
@@ -186,7 +215,7 @@ export default function ReferralsPage() {
           </div>
           {totalPages > 1 && (
             <div className="mt-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
+              <p className="font-mono text-sm text-muted-foreground">
                 Page {page} of {totalPages}
               </p>
               <div className="flex gap-2">

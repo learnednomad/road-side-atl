@@ -45,7 +45,7 @@ export default async function AdminPayoutsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Payouts</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Payouts</h1>
       <PayoutsTable
         payouts={serializedPayouts}
         summary={{

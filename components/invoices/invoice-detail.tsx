@@ -179,7 +179,7 @@ export function InvoiceDetail({ invoiceId, role }: InvoiceDetailProps) {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">{invoice.invoiceNumber}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">{invoice.invoiceNumber}</h1>
             <span
               className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColors[invoice.status]}`}
             >
@@ -219,7 +219,7 @@ export function InvoiceDetail({ invoiceId, role }: InvoiceDetailProps) {
       </div>
 
       {/* Invoice Info */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -290,7 +290,7 @@ export function InvoiceDetail({ invoiceId, role }: InvoiceDetailProps) {
           <CardTitle>Line Items</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -313,10 +313,10 @@ export function InvoiceDetail({ invoiceId, role }: InvoiceDetailProps) {
                     <TableCell className="text-center">
                       {item.quantity}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right font-mono">
                       {formatPrice(item.unitPrice)}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
+                    <TableCell className="text-right font-mono font-medium">
                       {formatPrice(item.total)}
                     </TableCell>
                   </TableRow>
@@ -328,14 +328,14 @@ export function InvoiceDetail({ invoiceId, role }: InvoiceDetailProps) {
           <div className="mt-4 flex flex-col items-end gap-1">
             <div className="flex w-56 justify-between text-sm">
               <span>Subtotal:</span>
-              <span className="font-medium">
+              <span className="font-mono font-medium">
                 {formatPrice(invoice.subtotal)}
               </span>
             </div>
             {invoice.taxRate > 0 && (
               <div className="flex w-56 justify-between text-sm">
                 <span>Tax ({(invoice.taxRate / 100).toFixed(2)}%):</span>
-                <span className="font-medium">
+                <span className="font-mono font-medium">
                   {formatPrice(invoice.taxAmount)}
                 </span>
               </div>
@@ -343,7 +343,7 @@ export function InvoiceDetail({ invoiceId, role }: InvoiceDetailProps) {
             <Separator className="my-1 w-56" />
             <div className="flex w-56 justify-between text-lg font-bold">
               <span>Total:</span>
-              <span>{formatPrice(invoice.total)}</span>
+              <span className="font-mono">{formatPrice(invoice.total)}</span>
             </div>
           </div>
         </CardContent>

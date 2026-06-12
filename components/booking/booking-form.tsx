@@ -439,7 +439,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                     )}
                   >
                     <span className="font-semibold">{s.name}</span>
-                    <span className="mt-1 text-2xl font-bold">
+                    <span className="mt-1 font-mono text-2xl font-semibold tracking-tight text-neutral-950">
                       {formatPrice(s.basePrice)}
                       {s.pricePerMile && (
                         <span className="text-sm font-normal text-muted-foreground">+</span>
@@ -482,7 +482,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                           </span>
                         )}
                       </div>
-                      <span className="mt-1 text-2xl font-bold">{formatPrice(s.basePrice)}</span>
+                      <span className="mt-1 font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(s.basePrice)}</span>
                       {s.description && (
                         <p className="mt-2 text-sm text-muted-foreground">{s.description}</p>
                       )}
@@ -516,7 +516,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">{s.name}</span>
-                      <span className="text-2xl font-bold">{formatPrice(s.basePrice)}</span>
+                      <span className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(s.basePrice)}</span>
                     </div>
                     {s.description && (
                       <p className="mt-2 text-sm text-muted-foreground">{s.description}</p>
@@ -549,7 +549,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
               <Button
                 type="button"
                 variant="outline"
-                className="w-full min-h-[44px]"
+                className="w-full min-h-[44px] rounded-full border-neutral-300"
                 onClick={handleUseMyLocation}
                 disabled={gpsLoading}
               >
@@ -906,7 +906,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                   )}
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">Estimated Total</p>
-                    <p className="text-3xl font-bold">{formatPrice(estimatedPrice)}</p>
+                    <p className="font-mono text-3xl font-semibold tracking-tight text-neutral-950">{formatPrice(estimatedPrice)}</p>
                   </div>
                 </>
               )}
@@ -922,7 +922,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between gap-4">
         {step > 1 ? (
-          <Button type="button" variant="outline" size="lg" onClick={handleBack}>
+          <Button type="button" variant="outline" size="lg" className="rounded-full border-neutral-300" onClick={handleBack}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
@@ -931,7 +931,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
         )}
 
         {step < 4 ? (
-          <Button type="button" size="lg" onClick={handleNext}>
+          <Button type="button" size="lg" className="rounded-full" onClick={handleNext}>
             Continue
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
@@ -941,7 +941,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
             size="lg"
             onClick={handleSubmit}
             disabled={loading}
-            className="min-w-[200px]"
+            className="min-w-[200px] rounded-full"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {loading ? "Submitting..." : "Confirm Booking"}

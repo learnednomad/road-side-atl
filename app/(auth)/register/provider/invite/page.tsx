@@ -141,7 +141,7 @@ function AcceptInviteContent() {
 
   if (verifying) {
     return (
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
         <CardContent className="flex flex-col items-center gap-4 py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <p className="text-muted-foreground">Verifying invite...</p>
@@ -152,16 +152,16 @@ function AcceptInviteContent() {
 
   if (!tokenValid && !success) {
     return (
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
         <CardHeader className="text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
             <AlertCircle className="h-6 w-6 text-destructive" />
           </div>
-          <CardTitle>Invalid Invite</CardTitle>
+          <CardTitle className="tracking-tight text-neutral-950">Invalid Invite</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-center">
           <p className="text-muted-foreground">{error}</p>
-          <Button asChild variant="outline" className="w-full">
+          <Button asChild variant="outline" className="w-full rounded-full border-neutral-300">
             <Link href="/login">Go to Login</Link>
           </Button>
         </CardContent>
@@ -174,16 +174,16 @@ function AcceptInviteContent() {
 
   if (success) {
     return (
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
         <CardHeader className="text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
             <CheckCircle2 className="h-6 w-6 text-green-600" />
           </div>
-          <CardTitle>Account Created</CardTitle>
+          <CardTitle className="tracking-tight text-neutral-950">Account Created</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-center">
           <p className="text-muted-foreground">{config.successMessage}</p>
-          <Button asChild className="w-full">
+          <Button asChild className="w-full rounded-full">
             <Link href="/login">Log In</Link>
           </Button>
         </CardContent>
@@ -192,20 +192,20 @@ function AcceptInviteContent() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-          <IconComponent className="h-6 w-6 text-primary" />
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-950">
+          <IconComponent className="h-6 w-6 text-white" />
         </div>
-        <Link href="/" className="text-xl font-bold">
-          RoadSide GA
+        <Link href="/" className="text-xl font-semibold tracking-tight text-neutral-950">
+          RoadSide <span className="text-red-600">GA</span>
         </Link>
         {config.badge && (
           <Badge variant={config.badgeVariant} className="mx-auto w-fit">
             {config.badge}
           </Badge>
         )}
-        <CardTitle>{config.title}</CardTitle>
+        <CardTitle className="tracking-tight text-neutral-950">{config.title}</CardTitle>
         <CardDescription>
           {inviteType === "referral" && referrerName
             ? `${referrerName} thinks you'd be a great fit for the RoadSide GA team.`
@@ -280,7 +280,7 @@ function AcceptInviteContent() {
           </div>
           <Button
             type="submit"
-            className="w-full"
+            className="w-full rounded-full"
             size="lg"
             disabled={loading}
           >
@@ -291,7 +291,7 @@ function AcceptInviteContent() {
 
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="text-primary hover:underline">
+          <Link href="/login" className="font-medium text-neutral-950 underline-offset-4 hover:underline">
             Sign in
           </Link>
         </p>
@@ -302,7 +302,7 @@ function AcceptInviteContent() {
 
 function LoadingFallback() {
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
       <CardContent className="flex flex-col items-center gap-4 py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         <p className="text-muted-foreground">Loading...</p>
@@ -313,7 +313,7 @@ function LoadingFallback() {
 
 export default function AcceptInvitePage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-8">
+    <div className="flex min-h-screen items-center justify-center bg-[#faf9f6] px-4 py-8">
       <Suspense fallback={<LoadingFallback />}>
         <AcceptInviteContent />
       </Suspense>
