@@ -27,7 +27,7 @@ export function PaymentInstructions({
 
   if (paid) {
     return (
-      <Card className="border-green-200 bg-green-50">
+      <Card className="rounded-2xl border-green-200 bg-green-50">
         <CardContent className="pt-6 text-center">
           <Badge className="mb-2 bg-green-600">Payment Received</Badge>
           <p className="text-sm text-muted-foreground">
@@ -62,9 +62,9 @@ export function PaymentInstructions({
   return (
     <div className="space-y-4">
       {/* Primary payment methods */}
-      <Card>
+      <Card className="rounded-2xl border-neutral-200 bg-white">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 font-semibold tracking-tight text-neutral-950">
             <Smartphone className="h-5 w-5" />
             {isDiagnostics ? "Payment Required to Confirm" : "Payment After Service"}
           </CardTitle>
@@ -82,17 +82,17 @@ export function PaymentInstructions({
             </p>
           )}
 
-          <div className="rounded-lg bg-muted p-4 space-y-3">
+          <div className="rounded-xl border border-neutral-200 bg-[#faf9f6] p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="font-medium">CashApp</span>
-              <code className="rounded bg-background px-2 py-1 text-sm font-bold">
+              <code className="rounded bg-white px-2 py-1 font-mono text-sm font-semibold text-neutral-950">
                 {BUSINESS.cashAppTag}
               </code>
             </div>
             <Separator />
             <div className="flex items-center justify-between">
               <span className="font-medium">Zelle</span>
-              <code className="rounded bg-background px-2 py-1 text-sm font-bold">
+              <code className="rounded bg-white px-2 py-1 font-mono text-sm font-semibold text-neutral-950">
                 {BUSINESS.zelleInfo}
               </code>
             </div>
@@ -106,22 +106,22 @@ export function PaymentInstructions({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Amount due: <strong>{formatPrice(estimatedPrice)}</strong>
+            Amount due: <strong className="font-mono">{formatPrice(estimatedPrice)}</strong>
           </p>
         </CardContent>
       </Card>
 
       {/* Stripe fallback */}
-      <Card>
+      <Card className="rounded-2xl border-neutral-200 bg-white">
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium">Prefer to pay by card?</p>
+              <p className="text-sm font-medium text-neutral-950">Prefer to pay by card?</p>
               <p className="text-xs text-muted-foreground">
                 Credit/debit card via secure checkout
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleStripeCheckout} disabled={stripeLoading}>
+            <Button variant="outline" size="sm" className="rounded-full border-neutral-300" onClick={handleStripeCheckout} disabled={stripeLoading}>
               {stripeLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (

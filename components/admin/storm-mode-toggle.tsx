@@ -261,7 +261,7 @@ export function StormModeToggle() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold">{formatMultiplier(template.multiplier)}</span>
+                        <span className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatMultiplier(template.multiplier)}</span>
                         <span className="text-sm text-muted-foreground">({formatPercentage(template.multiplier)})</span>
                         <Button
                           size="icon"

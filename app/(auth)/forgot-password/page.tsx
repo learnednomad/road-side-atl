@@ -43,13 +43,13 @@ export default function ForgotPasswordPage() {
 
   if (submitted) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-        <Card className="w-full max-w-sm">
+      <div className="flex min-h-screen items-center justify-center bg-[#faf9f6] px-4">
+        <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
           <CardHeader className="text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
               <CheckCircle2 className="h-6 w-6 text-green-600" />
             </div>
-            <CardTitle>Check Your Email</CardTitle>
+            <CardTitle className="tracking-tight text-neutral-950">Check Your Email</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <p className="text-muted-foreground">
@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
             <p className="text-sm text-muted-foreground">
               The link will expire in 1 hour.
             </p>
-            <Button asChild variant="outline" className="w-full">
+            <Button asChild variant="outline" className="w-full rounded-full border-neutral-300">
               <Link href="/login">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Login
@@ -72,16 +72,16 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-screen items-center justify-center bg-[#faf9f6] px-4">
+      <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Car className="h-6 w-6 text-primary" />
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-950">
+            <Car className="h-6 w-6 text-white" />
           </div>
-          <Link href="/" className="text-xl font-bold">
-            RoadSide GA
+          <Link href="/" className="text-xl font-semibold tracking-tight text-neutral-950">
+            RoadSide <span className="text-red-600">GA</span>
           </Link>
-          <CardTitle>Forgot Password</CardTitle>
+          <CardTitle className="tracking-tight text-neutral-950">Forgot Password</CardTitle>
           <p className="text-sm text-muted-foreground">
             Enter your email and we&apos;ll send you a reset link
           </p>
@@ -110,7 +110,7 @@ export default function ForgotPasswordPage() {
             </div>
             <Button
               type="submit"
-              className="w-full"
+              className="w-full rounded-full"
               size="lg"
               disabled={loading}
             >
@@ -121,7 +121,7 @@ export default function ForgotPasswordPage() {
 
           <p className="text-center text-sm text-muted-foreground">
             Remember your password?{" "}
-            <Link href="/login" className="text-primary hover:underline">
+            <Link href="/login" className="font-medium text-neutral-950 underline-offset-4 hover:underline">
               Sign in
             </Link>
           </p>

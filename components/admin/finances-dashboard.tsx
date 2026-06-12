@@ -72,7 +72,7 @@ export function FinancesDashboard() {
   if (loading && !summary) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Financial Overview</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Financial Overview</h1>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
@@ -98,7 +98,7 @@ export function FinancesDashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Financial Overview</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Financial Overview</h1>
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -108,7 +108,7 @@ export function FinancesDashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.totalRevenue)}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.totalRevenue)}</p>
             <p className="text-xs text-muted-foreground">
               Avg {formatPrice(summary.avgRevenuePerJob)}/job
             </p>
@@ -120,7 +120,7 @@ export function FinancesDashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.platformProfit)}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.platformProfit)}</p>
             <p className="text-xs text-muted-foreground">
               {summary.profitMargin}% margin
             </p>
@@ -132,7 +132,7 @@ export function FinancesDashboard() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.outstandingPayments)}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.outstandingPayments)}</p>
             <p className="text-xs text-muted-foreground">
               {summary.outstandingCount} pending payment{summary.outstandingCount !== 1 ? "s" : ""}
             </p>
@@ -144,7 +144,7 @@ export function FinancesDashboard() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{summary.refundRate}%</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{summary.refundRate}%</p>
             <p className="text-xs text-muted-foreground">
               of all payments
             </p>

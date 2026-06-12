@@ -90,17 +90,18 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
   const hasLocation = booking.location.latitude && booking.location.longitude;
 
   return (
+    <div className="min-h-screen bg-[#faf9f6]">
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6">
-        <Link href="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+        <Link href="/" className="inline-flex items-center text-sm text-neutral-500 hover:text-neutral-950">
           <ArrowLeft className="mr-1 h-4 w-4" />
           Back to Home
         </Link>
       </div>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Track Your Service</h1>
-        <p className="text-muted-foreground">Booking #{booking.id.slice(0, 8)}</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">Track Your Service</h1>
+        <p className="font-mono text-sm text-neutral-500">Booking #{booking.id.slice(0, 8)}</p>
       </div>
 
       {!isConnected && (booking.status === "dispatched" || booking.status === "in_progress") && (
@@ -119,19 +120,19 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
       />
 
       {/* Status Banner */}
-      <Card className="mb-6">
+      <Card className="mb-6 rounded-2xl border-neutral-200 bg-white">
         <CardContent className="py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className={`${status.color} text-white p-3 rounded-full`}>
                 {status.icon}
               </div>
               <div>
-                <p className="font-semibold text-lg">{status.label}</p>
-                <p className="text-sm text-muted-foreground">{booking.serviceName}</p>
+                <p className="text-lg font-semibold tracking-tight text-neutral-950">{status.label}</p>
+                <p className="text-sm text-neutral-500">{booking.serviceName}</p>
               </div>
             </div>
-            <Badge variant="outline" className="text-lg px-4 py-2">
+            <Badge variant="outline" className="border-neutral-300 px-4 py-2 font-mono text-lg text-neutral-950">
               ${(booking.estimatedPrice / 100).toFixed(2)}
             </Badge>
           </div>
@@ -147,9 +148,9 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
                       isCompleted
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    } ${isCurrent ? "ring-2 ring-primary ring-offset-2" : ""}`}
+                        ? "bg-neutral-950 text-white"
+                        : "bg-neutral-100 text-neutral-500"
+                    } ${isCurrent ? "ring-2 ring-neutral-950 ring-offset-2" : ""}`}
                   >
                     {i + 1}
                   </div>
@@ -165,9 +166,9 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
 
       {/* Map */}
       {hasLocation && (
-        <Card className="mb-6">
+        <Card className="mb-6 rounded-2xl border-neutral-200 bg-white">
           <CardHeader>
-            <CardTitle className="text-base">Live Tracking</CardTitle>
+            <CardTitle className="text-base font-semibold tracking-tight text-neutral-950">Live Tracking</CardTitle>
           </CardHeader>
           <CardContent>
             <LiveTrackingMap
@@ -212,9 +213,9 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
       <div className="grid gap-6 md:grid-cols-2">
         {/* Provider Info */}
         {initialProvider && (
-          <Card>
+          <Card className="rounded-2xl border-neutral-200 bg-white">
             <CardHeader>
-              <CardTitle className="text-base">Your Provider</CardTitle>
+              <CardTitle className="text-base font-semibold tracking-tight text-neutral-950">Your Provider</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
@@ -228,8 +229,8 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
                       className="h-10 w-10 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Truck className="h-5 w-5 text-primary" />
+                    <div className="w-10 h-10 rounded-full bg-neutral-950 flex items-center justify-center">
+                      <Truck className="h-5 w-5 text-white" />
                     </div>
                   )}
                   <div>
@@ -242,7 +243,7 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
                     )}
                   </div>
                 </div>
-                <Button asChild size="sm" variant="outline">
+                <Button asChild size="sm" variant="outline" className="rounded-full border-neutral-300">
                   <a href={`tel:${initialProvider.phone}`}>
                     <Phone className="h-4 w-4 mr-2" />
                     Call
@@ -250,9 +251,9 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
                 </Button>
               </div>
               {etaMinutes !== null && (booking.status === "dispatched" || booking.status === "in_progress") && (
-                <div className="mt-3 p-3 bg-primary/5 rounded-lg flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-primary" />
-                  <p className="text-sm font-medium">Estimated arrival: {etaMinutes} min</p>
+                <div className="mt-3 flex items-center gap-2 rounded-xl border border-neutral-200 bg-[#faf9f6] p-3">
+                  <Clock className="h-4 w-4 text-neutral-950" />
+                  <p className="text-sm font-medium text-neutral-950">Estimated arrival: <span className="font-mono">{etaMinutes} min</span></p>
                 </div>
               )}
               {providerLocation && (
@@ -265,9 +266,9 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
         )}
 
         {/* Vehicle Info */}
-        <Card>
+        <Card className="rounded-2xl border-neutral-200 bg-white">
           <CardHeader>
-            <CardTitle className="text-base">Vehicle</CardTitle>
+            <CardTitle className="text-base font-semibold tracking-tight text-neutral-950">Vehicle</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-3">
@@ -283,9 +284,9 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
         </Card>
 
         {/* Location Info */}
-        <Card>
+        <Card className="rounded-2xl border-neutral-200 bg-white">
           <CardHeader>
-            <CardTitle className="text-base">Pickup Location</CardTitle>
+            <CardTitle className="text-base font-semibold tracking-tight text-neutral-950">Pickup Location</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-start gap-3">
@@ -305,23 +306,23 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
         </Card>
 
         {/* Booking Details */}
-        <Card>
+        <Card className="rounded-2xl border-neutral-200 bg-white">
           <CardHeader>
-            <CardTitle className="text-base">Details</CardTitle>
+            <CardTitle className="text-base font-semibold tracking-tight text-neutral-950">Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Booked</span>
-              <span>{new Date(booking.createdAt).toLocaleString()}</span>
+              <span className="text-neutral-500">Booked</span>
+              <span className="font-mono text-xs">{new Date(booking.createdAt).toLocaleString()}</span>
             </div>
             {booking.scheduledAt && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Scheduled</span>
-                <span>{new Date(booking.scheduledAt).toLocaleString()}</span>
+                <span className="text-neutral-500">Scheduled</span>
+                <span className="font-mono text-xs">{new Date(booking.scheduledAt).toLocaleString()}</span>
               </div>
             )}
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Contact</span>
+              <span className="text-neutral-500">Contact</span>
               <span>{booking.contactName}</span>
             </div>
           </CardContent>
@@ -329,11 +330,11 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
       </div>
 
       {/* Help */}
-      <Card className="mt-6">
+      <Card className="mt-6 rounded-2xl border-neutral-200 bg-white">
         <CardContent className="py-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Need help with your booking?</p>
-            <Button asChild variant="outline" size="sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-neutral-600">Need help with your booking?</p>
+            <Button asChild variant="outline" size="sm" className="rounded-full border-neutral-300">
               <a href={`tel:${BUSINESS.phone}`}>
                 <Phone className="h-4 w-4 mr-2" />
                 Call Support
@@ -356,13 +357,14 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
 
       {/* Already Reviewed */}
       {booking.status === "completed" && hasReview && (
-        <Card id="review" className="mt-6">
+        <Card id="review" className="mt-6 rounded-2xl border-neutral-200 bg-white">
           <CardContent className="py-6 text-center">
             <Star className="h-8 w-8 text-yellow-400 mx-auto mb-2 fill-yellow-400" />
             <p className="text-muted-foreground">Thank you for reviewing this service!</p>
           </CardContent>
         </Card>
       )}
+    </div>
     </div>
   );
 }

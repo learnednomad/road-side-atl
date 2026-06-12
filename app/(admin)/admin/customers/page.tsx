@@ -40,7 +40,7 @@ export default async function AdminCustomersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Customers</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Customers</h1>
       <CustomersTable
         customers={customers}
         total={total}

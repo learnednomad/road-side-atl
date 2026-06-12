@@ -90,17 +90,17 @@ export function CustomersTable({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>
             {total} Customer{total !== 1 ? "s" : ""}
           </CardTitle>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search name or email..."
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-64 pl-9"
+              className="w-full pl-9 sm:w-64"
             />
           </div>
         </div>
@@ -143,7 +143,7 @@ export function CustomersTable({
                       <span className="text-muted-foreground">
                         {bookingCount} booking{bookingCount !== 1 ? "s" : ""}
                       </span>
-                      <span className="font-medium">
+                      <span className="font-mono font-medium">
                         {formatPrice(Number(totalSpent))}
                       </span>
                     </div>
@@ -153,7 +153,7 @@ export function CustomersTable({
             </div>
 
             {/* Desktop table view */}
-            <div className="hidden md:block rounded-md border">
+            <div className="hidden md:block overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -190,7 +190,7 @@ export function CustomersTable({
                       <TableCell className="text-center">
                         {bookingCount}
                       </TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-right font-mono font-medium">
                         {formatPrice(Number(totalSpent))}
                       </TableCell>
                     </TableRow>

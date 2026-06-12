@@ -36,15 +36,15 @@ const scenarios = [
 
 export function CostExpectations() {
   return (
-    <Card className="mb-8 border-red-200 bg-red-50/40">
+    <Card className="mb-8 rounded-2xl border-neutral-200 bg-white">
       <Accordion type="single" collapsible>
         <AccordionItem value="cost" className="border-0">
           <AccordionTrigger className="px-6 py-4 text-left hover:no-underline">
             <div>
-              <div className="text-base font-semibold">
+              <div className="text-base font-semibold tracking-tight text-neutral-950">
                 What does a typical Atlanta visit cost?
               </div>
-              <div className="mt-1 text-sm font-normal text-muted-foreground">
+              <div className="mt-1 text-sm font-normal text-neutral-600">
                 Atlanta independent shops run $120–$159/hr; dealers $160–$350/hr.
                 Tap to see realistic scenario budgets.
               </div>
@@ -54,20 +54,20 @@ export function CostExpectations() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="py-2 pr-4 font-medium">Scenario</th>
-                    <th className="py-2 pr-4 font-medium">Typically includes</th>
-                    <th className="py-2 text-right font-medium">Budget</th>
+                  <tr className="border-b border-neutral-200 text-left">
+                    <th className="py-2 pr-4 font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">Scenario</th>
+                    <th className="py-2 pr-4 font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">Typically includes</th>
+                    <th className="py-2 text-right font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">Budget</th>
                   </tr>
                 </thead>
                 <tbody>
                   {scenarios.map((s) => (
-                    <tr key={s.label} className="border-b last:border-0">
-                      <td className="py-3 pr-4 font-medium">{s.label}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">
+                    <tr key={s.label} className="border-b border-neutral-200 last:border-0">
+                      <td className="py-3 pr-4 font-medium text-neutral-950">{s.label}</td>
+                      <td className="py-3 pr-4 text-neutral-600">
                         {s.includes}
                       </td>
-                      <td className="py-3 text-right font-semibold tabular-nums">
+                      <td className="py-3 text-right font-mono font-semibold text-neutral-950">
                         {s.range}
                       </td>
                     </tr>
@@ -75,7 +75,7 @@ export function CostExpectations() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">
+            <p className="mt-4 text-xs text-neutral-500">
               Final price is set by your mechanic after on-site assessment.
               Towing adds a base fee ($50–$80) plus mileage. After-hours and
               flatbed service carry surcharges.

@@ -50,7 +50,7 @@ function ResendVerificationForm() {
   return (
     <form onSubmit={handleResend} className="space-y-2 text-left">
       <Label htmlFor="resend-email">Email address</Label>
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input
           id="resend-email"
           type="email"
@@ -60,7 +60,7 @@ function ResendVerificationForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <Button type="submit" size="sm" disabled={sending}>
+        <Button className="rounded-full" type="submit" size="sm" disabled={sending}>
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Resend"}
         </Button>
       </div>
@@ -110,7 +110,7 @@ function VerifyEmailContent() {
 
   if (status === "loading") {
     return (
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md rounded-2xl border-neutral-200 bg-white">
         <CardContent className="py-12 text-center">
           <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
           <p className="mt-4 text-muted-foreground">Verifying your email...</p>
@@ -121,7 +121,7 @@ function VerifyEmailContent() {
 
   if (status === "no-token") {
     return (
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md rounded-2xl border-neutral-200 bg-white">
         <CardHeader>
           <CardTitle className="text-center">Email Verification</CardTitle>
         </CardHeader>
@@ -130,7 +130,7 @@ function VerifyEmailContent() {
           <p className="text-muted-foreground">
             No verification token provided. Please check your email for the verification link.
           </p>
-          <Button asChild>
+          <Button className="rounded-full" asChild>
             <Link href="/login">Go to Login</Link>
           </Button>
         </CardContent>
@@ -140,7 +140,7 @@ function VerifyEmailContent() {
 
   if (status === "success") {
     return (
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md rounded-2xl border-neutral-200 bg-white">
         <CardHeader>
           <CardTitle className="text-center text-green-600">Email Verified!</CardTitle>
         </CardHeader>
@@ -150,7 +150,7 @@ function VerifyEmailContent() {
           <p className="text-sm text-muted-foreground">
             You can now sign in to your account.
           </p>
-          <Button asChild>
+          <Button className="rounded-full" asChild>
             <Link href="/login">Sign In</Link>
           </Button>
         </CardContent>
@@ -159,7 +159,7 @@ function VerifyEmailContent() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md rounded-2xl border-neutral-200 bg-white">
       <CardHeader>
         <CardTitle className="text-center text-red-600">Verification Failed</CardTitle>
       </CardHeader>
@@ -170,7 +170,7 @@ function VerifyEmailContent() {
           Your verification link may have expired. Enter your email below to receive a new one.
         </p>
         <ResendVerificationForm />
-        <Button asChild variant="outline" className="w-full">
+        <Button asChild variant="outline" className="w-full rounded-full border-neutral-300">
           <Link href="/login">Go to Login</Link>
         </Button>
       </CardContent>
@@ -180,10 +180,10 @@ function VerifyEmailContent() {
 
 export default function VerifyEmailPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#faf9f6] px-4">
       <Suspense
         fallback={
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-md rounded-2xl border-neutral-200 bg-white">
             <CardContent className="py-12 text-center">
               <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
             </CardContent>

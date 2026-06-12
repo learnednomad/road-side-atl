@@ -92,7 +92,7 @@ function ResetPasswordContent() {
 
   if (verifying) {
     return (
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
         <CardContent className="py-12 text-center">
           <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
           <p className="mt-4 text-muted-foreground">Verifying reset link...</p>
@@ -103,7 +103,7 @@ function ResetPasswordContent() {
 
   if (!token || !tokenValid) {
     return (
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
         <CardHeader className="text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
             <XCircle className="h-6 w-6 text-red-600" />
@@ -114,11 +114,11 @@ function ResetPasswordContent() {
           <p className="text-muted-foreground">
             This password reset link is invalid or has expired.
           </p>
-          <Button asChild className="w-full">
+          <Button asChild className="w-full rounded-full">
             <Link href="/forgot-password">Request New Link</Link>
           </Button>
           <p className="text-sm text-muted-foreground">
-            <Link href="/login" className="text-primary hover:underline">
+            <Link href="/login" className="font-medium text-neutral-950 underline-offset-4 hover:underline">
               Back to Login
             </Link>
           </p>
@@ -129,7 +129,7 @@ function ResetPasswordContent() {
 
   if (success) {
     return (
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
         <CardHeader className="text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
             <CheckCircle2 className="h-6 w-6 text-green-600" />
@@ -143,7 +143,7 @@ function ResetPasswordContent() {
           <p className="text-sm text-muted-foreground">
             Redirecting to login...
           </p>
-          <Button asChild className="w-full">
+          <Button asChild className="w-full rounded-full">
             <Link href="/login">Sign In Now</Link>
           </Button>
         </CardContent>
@@ -152,15 +152,15 @@ function ResetPasswordContent() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-          <Car className="h-6 w-6 text-primary" />
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-950">
+          <Car className="h-6 w-6 text-white" />
         </div>
-        <Link href="/" className="text-xl font-bold">
-          RoadSide GA
+        <Link href="/" className="text-xl font-semibold tracking-tight text-neutral-950">
+          RoadSide <span className="text-red-600">GA</span>
         </Link>
-        <CardTitle>Reset Password</CardTitle>
+        <CardTitle className="tracking-tight text-neutral-950">Reset Password</CardTitle>
         <p className="text-sm text-muted-foreground">
           Enter your new password below
         </p>
@@ -219,7 +219,7 @@ function ResetPasswordContent() {
           </div>
           <Button
             type="submit"
-            className="w-full"
+            className="w-full rounded-full"
             size="lg"
             disabled={loading}
           >
@@ -234,10 +234,10 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-[#faf9f6] px-4">
       <Suspense
         fallback={
-          <Card className="w-full max-w-sm">
+          <Card className="w-full max-w-sm rounded-2xl border-neutral-200 bg-white">
             <CardContent className="py-12 text-center">
               <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
             </CardContent>

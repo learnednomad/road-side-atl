@@ -557,7 +557,7 @@ export function InvoiceForm({ role, invoiceId }: InvoiceFormProps) {
                   <span className="font-medium">{formatPrice(taxAmount)}</span>
                 </div>
               )}
-              <div className="flex w-48 justify-between border-t pt-1 text-base font-bold">
+              <div className="flex w-48 justify-between border-t pt-1 font-mono text-base font-semibold">
                 <span>Total:</span>
                 <span>{formatPrice(total)}</span>
               </div>

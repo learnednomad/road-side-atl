@@ -109,7 +109,7 @@ export function FinancialReportsDashboard() {
   if (loading && !breakdown) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Financial Reports</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Financial Reports</h1>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
@@ -134,7 +134,7 @@ export function FinancialReportsDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-3xl font-bold">Financial Reports</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Financial Reports</h1>
         <ExportButton
           endpoint={`/api/admin/financial-reports/revenue-breakdown/export?${exportQs}`}
           filename={`revenue-breakdown-${new Date().toISOString().split("T")[0]}.csv`}
@@ -147,7 +147,7 @@ export function FinancialReportsDashboard() {
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <Select value={source} onValueChange={setSource}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-full sm:w-[140px]">
             <SelectValue placeholder="Source" />
           </SelectTrigger>
           <SelectContent>
@@ -158,7 +158,7 @@ export function FinancialReportsDashboard() {
         </Select>
 
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px]">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -169,7 +169,7 @@ export function FinancialReportsDashboard() {
         </Select>
 
         <Select value={method} onValueChange={setMethod}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px]">
             <SelectValue placeholder="Payment Method" />
           </SelectTrigger>
           <SelectContent>
@@ -182,7 +182,7 @@ export function FinancialReportsDashboard() {
         </Select>
 
         <Select value={tier} onValueChange={setTier}>
-          <SelectTrigger className="w-[170px]">
+          <SelectTrigger className="w-full sm:w-[170px]">
             <SelectValue placeholder="Time Block" />
           </SelectTrigger>
           <SelectContent>
@@ -203,7 +203,7 @@ export function FinancialReportsDashboard() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{overview.pendingPayments.count}</p>
+              <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{overview.pendingPayments.count}</p>
               <p className="text-xs text-muted-foreground">
                 {formatPrice(overview.pendingPayments.total)} total
               </p>
@@ -215,7 +215,7 @@ export function FinancialReportsDashboard() {
               <CreditCard className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{formatPrice(overview.payoutQueue.total)}</p>
+              <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(overview.payoutQueue.total)}</p>
               <p className="text-xs text-muted-foreground">
                 {overview.payoutQueue.count} pending payouts
               </p>
@@ -227,7 +227,7 @@ export function FinancialReportsDashboard() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{overview.activeBookings}</p>
+              <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{overview.activeBookings}</p>
               <p className="text-xs text-muted-foreground">confirmed/dispatched/in progress</p>
             </CardContent>
           </Card>
@@ -237,7 +237,7 @@ export function FinancialReportsDashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{overview.onlineProviders}</p>
+              <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{overview.onlineProviders}</p>
               <p className="text-xs text-muted-foreground">available now</p>
             </CardContent>
           </Card>
@@ -254,7 +254,7 @@ export function FinancialReportsDashboard() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{formatPrice(breakdown.totals.revenue)}</p>
+                <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(breakdown.totals.revenue)}</p>
                 <p className="text-xs text-muted-foreground">
                   {breakdown.totals.bookingCount} bookings
                 </p>
@@ -266,7 +266,7 @@ export function FinancialReportsDashboard() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{formatPrice(breakdown.totals.avgBookingValue)}</p>
+                <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(breakdown.totals.avgBookingValue)}</p>
                 <p className="text-xs text-muted-foreground">per confirmed booking</p>
               </CardContent>
             </Card>
@@ -276,7 +276,7 @@ export function FinancialReportsDashboard() {
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{breakdown.totals.bookingCount}</p>
+                <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{breakdown.totals.bookingCount}</p>
                 <p className="text-xs text-muted-foreground">in selected period</p>
               </CardContent>
             </Card>

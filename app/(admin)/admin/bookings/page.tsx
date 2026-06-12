@@ -75,7 +75,7 @@ export default async function AdminBookingsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Bookings</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Bookings</h1>
       <BookingsTable
         bookings={Array.from(bookingMap.values())}
         total={total}

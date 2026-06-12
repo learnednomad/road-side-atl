@@ -85,7 +85,7 @@ export function StatsCards({
             <card.icon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{card.value}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{card.value}</p>
             {card.sparkline && card.sparkline.length > 0 && (
               <div className="mt-2">
                 <MiniSparkline data={card.sparkline} color={card.color} />

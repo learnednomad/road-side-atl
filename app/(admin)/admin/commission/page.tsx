@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function AdminCommissionPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Commission Rates</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Commission Rates</h1>
       <p className="text-muted-foreground">
         Configure platform commission rates per service category. The commission rate is the percentage the platform takes from each booking. Providers receive the remainder.
       </p>

@@ -46,7 +46,7 @@ export default async function AdminTrustTierPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Trust Tier Management</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Trust Tier Management</h1>
       <TrustTierTable
         customers={customers}
         total={total}

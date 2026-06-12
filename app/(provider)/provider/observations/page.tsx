@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 
 interface ObservationData {
@@ -68,7 +69,61 @@ export default function ProviderObservationsPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Vehicle Observations</h1>
       </div>
 
-      <div className="rounded-md border">
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="py-8 text-center">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center gap-2 py-8">
+            <AlertCircle className="h-6 w-6 text-destructive" />
+            <p className="text-sm text-muted-foreground">Failed to load observations.</p>
+            <Button variant="outline" size="sm" onClick={fetchObservations}>
+              <RefreshCw className="mr-2 h-3 w-3" /> Retry
+            </Button>
+          </div>
+        ) : observations.length === 0 ? (
+          <p className="py-8 text-center text-muted-foreground">
+            No observations submitted yet.
+          </p>
+        ) : (
+          observations.map(({ observation, booking, service }) => {
+            const maxSeverity = observation.items.reduce((max, item) => {
+              const order = { low: 0, medium: 1, high: 2 };
+              return (order[item.severity as keyof typeof order] || 0) > (order[max as keyof typeof order] || 0) ? item.severity : max;
+            }, "low");
+            return (
+              <Card key={observation.id}>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium">{booking.contactName}</p>
+                      <p className="text-sm text-muted-foreground">{service.name}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(observation.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm">{observation.items.length} items</span>
+                    <Badge variant={severityColor(maxSeverity)}>
+                      {maxSeverity}
+                    </Badge>
+                    <Badge variant={observation.followUpSent ? "default" : "secondary"}>
+                      {observation.followUpSent ? "Sent" : "Not sent"}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

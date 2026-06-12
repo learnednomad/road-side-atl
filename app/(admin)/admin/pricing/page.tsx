@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function AdminPricingPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Pricing</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Pricing</h1>
       <StormModeToggle />
       <PricingConfigTable />
     </div>

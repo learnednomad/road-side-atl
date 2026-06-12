@@ -144,7 +144,7 @@ export function InvoicesTable() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Invoices</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Invoices</h1>
 
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -154,7 +154,7 @@ export function InvoicesTable() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.totalInvoiced)}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.totalInvoiced)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -163,7 +163,7 @@ export function InvoicesTable() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{summary.issuedCount}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{summary.issuedCount}</p>
           </CardContent>
         </Card>
         <Card>
@@ -172,7 +172,7 @@ export function InvoicesTable() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{summary.paidCount}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{summary.paidCount}</p>
           </CardContent>
         </Card>
         <Card>
@@ -181,18 +181,18 @@ export function InvoicesTable() {
             <Ban className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{summary.voidCount}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{summary.voidCount}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters & Actions */}
       <div className="flex flex-wrap items-center gap-4">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search invoices..."
-            className="pl-9 w-64"
+            className="w-full pl-9 sm:w-64"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
@@ -231,7 +231,7 @@ export function InvoicesTable() {
       </div>
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -280,7 +280,7 @@ export function InvoicesTable() {
                     <div className="text-xs text-muted-foreground">{inv.customerEmail}</div>
                   </TableCell>
                   <TableCell className="text-sm">{inv.providerName || "—"}</TableCell>
-                  <TableCell className="text-right font-medium">
+                  <TableCell className="text-right font-mono font-medium">
                     {formatPrice(inv.total)}
                   </TableCell>
                   <TableCell>

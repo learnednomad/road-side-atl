@@ -45,7 +45,7 @@ export function AdminOverviewClient({ stats, recentBookings }: Props) {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Dashboard</h1>
 
       <StatsCards
         todayBookings={stats.todayBookings}
@@ -83,7 +83,7 @@ export function AdminOverviewClient({ stats, recentBookings }: Props) {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium">
+                    <span className="font-mono text-sm font-medium">
                       {formatPrice(booking.estimatedPrice)}
                     </span>
                     <StatusBadge status={booking.status as BookingStatus} />
