@@ -18,6 +18,7 @@ jobs:
     environment: production
     steps:
       - name: Trigger Coolify deployment
+        id: trigger
         run: |
           # Use the /deploy endpoint (rebuilds from the tracked branch) — NOT
           # /restart, which only bounces the existing (stale) container image and
@@ -38,13 +39,47 @@ jobs:
             exit 1
           fi
 
-          echo "Deployment triggered successfully for ${{ github.ref_name }}"
+          # The trigger response carries the deployment's uuid — the wait step
+          # polls it so a failed image build can't pass as a green deploy.
+          DEPLOYMENT_UUID=$(echo "$BODY" | grep -o '"deployment_uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+          if [ -z "$DEPLOYMENT_UUID" ]; then
+            echo "::error::Could not extract deployment_uuid from Coolify response"
+            exit 1
+          fi
+          echo "deployment_uuid=$DEPLOYMENT_UUID" >> "$GITHUB_OUTPUT"
+          echo "Deployment $DEPLOYMENT_UUID triggered for ${{ github.ref_name }}"
+
+      - name: Wait for Coolify build to finish
+        run: |
+          # Coolify builds asynchronously; the old container keeps serving (and
+          # passing HTTP health checks) until the new image is up. Poll the
+          # actual deployment status instead. Builds run ~5-10 min; allow 25.
+          DEPLOYMENT_UUID="${{ steps.trigger.outputs.deployment_uuid }}"
+          for i in $(seq 1 50); do
+            STATUS=$(curl -s \
+              "${{ secrets.COOLIFY_API_URL }}/api/v1/deployments/$DEPLOYMENT_UUID" \
+              -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
+              | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+            echo "Deployment status: ${STATUS:-unknown} (attempt $i/50)"
+            case "$STATUS" in
+              finished)
+                echo "Coolify deployment finished."
+                exit 0
+                ;;
+              failed|cancelled)
+                echo "::error::Coolify deployment ended with status '$STATUS'. Check Coolify logs."
+                exit 1
+                ;;
+            esac
+            sleep 30
+          done
+
+          echo "::error::Coolify deployment did not finish within 25 minutes."
+          exit 1
 
       - name: Verify deployment health
         run: |
-          echo "Waiting 120s for deployment to start..."
-          sleep 120
-
           for i in $(seq 1 10); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               "https://roadsidega.com/api/health" \
@@ -58,7 +93,7 @@ jobs:
             sleep 30
           done
 
-          echo "::warning::Health check did not return 200 after deployment. Check Coolify logs."
+          echo "::error::Health check did not return 200 after deployment. Check Coolify logs."
           exit 1
 
   deploy-staging:
@@ -70,6 +105,7 @@ jobs:
     environment: staging
     steps:
       - name: Trigger Coolify staging deployment
+        id: trigger
         run: |
           # /deploy rebuilds the staging app from its tracked branch
           # (development). Note: Coolify builds the branch HEAD, not the tag
@@ -90,13 +126,42 @@ jobs:
             exit 1
           fi
 
-          echo "Staging deployment triggered successfully for ${{ github.ref_name }}"
+          DEPLOYMENT_UUID=$(echo "$BODY" | grep -o '"deployment_uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+          if [ -z "$DEPLOYMENT_UUID" ]; then
+            echo "::error::Could not extract deployment_uuid from Coolify response"
+            exit 1
+          fi
+          echo "deployment_uuid=$DEPLOYMENT_UUID" >> "$GITHUB_OUTPUT"
+          echo "Staging deployment $DEPLOYMENT_UUID triggered for ${{ github.ref_name }}"
+
+      - name: Wait for Coolify build to finish
+        run: |
+          DEPLOYMENT_UUID="${{ steps.trigger.outputs.deployment_uuid }}"
+          for i in $(seq 1 50); do
+            STATUS=$(curl -s \
+              "${{ secrets.COOLIFY_API_URL }}/api/v1/deployments/$DEPLOYMENT_UUID" \
+              -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
+              | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+            echo "Deployment status: ${STATUS:-unknown} (attempt $i/50)"
+            case "$STATUS" in
+              finished)
+                echo "Coolify staging deployment finished."
+                exit 0
+                ;;
+              failed|cancelled)
+                echo "::error::Coolify staging deployment ended with status '$STATUS'. Check Coolify logs."
+                exit 1
+                ;;
+            esac
+            sleep 30
+          done
+
+          echo "::error::Coolify staging deployment did not finish within 25 minutes."
+          exit 1
 
       - name: Verify staging deployment health
         run: |
-          echo "Waiting 120s for deployment to start..."
-          sleep 120
-
           for i in $(seq 1 10); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               "https://staging-roadsidega.learnednomad.com/api/health" \
@@ -110,5 +175,5 @@ jobs:
             sleep 30
           done
 
-          echo "::warning::Staging health check did not return 200 after deployment. Check Coolify logs."
+          echo "::error::Staging health check did not return 200 after deployment. Check Coolify logs."
           exit 1
