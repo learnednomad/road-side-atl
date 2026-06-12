@@ -1,76 +1,107 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Phone, ArrowRight, Shield, Clock, MapPin, Star } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowDown, ArrowRight, Info, Phone, Play } from "lucide-react";
 import { BUSINESS } from "@/lib/constants";
 
-const stats = [
-  { icon: Clock, metric: "24/7", label: "Service" },
-  { icon: Shield, metric: "30 min", label: "Response" },
-  { icon: MapPin, metric: "Atlanta", label: "Metro-Wide" },
-  { icon: Star, metric: "500+", label: "Rescues" },
+const STATS = [
+  { label: "Service Hours", value: "24/7" },
+  { label: "Help Starts At", value: "$75" },
+  { label: "Metro Coverage", value: "ITP+OTP" },
 ];
 
 export function Hero() {
   return (
-    <section
-      className="relative overflow-hidden bg-gradient-to-b from-red-50 via-red-50/50 to-transparent py-16 md:py-24"
-      aria-label="Hero"
-    >
+    <section aria-label="Hero" className="border-b bg-[#faf9f6] text-neutral-950">
       <div className="container mx-auto px-4">
-        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-          {/* Left column — text & CTAs */}
-          <div>
-            <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
-              <span className="h-2 w-2 rounded-full bg-red-500" />
-              Available 24/7 in Atlanta
-            </p>
-            <h1 className="mb-6 text-4xl font-extrabold tracking-tight md:text-5xl lg:text-6xl">
-              Roadside Assistance in{" "}
-              <span className="text-red-600">Atlanta, GA</span>
+        <div className="grid lg:grid-cols-2">
+          {/* Left — announcement, headline, CTAs, tagline */}
+          <div className="flex min-h-[34rem] flex-col py-10 pr-0 lg:min-h-[40rem] lg:border-r lg:pr-12">
+            <Link
+              href="/services"
+              className="group inline-flex w-fit items-center gap-2 text-sm font-medium"
+            >
+              <span className="rounded-md bg-amber-400 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wider">
+                NEW
+              </span>
+              Mobile mechanics now serving Atlanta
+              <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
+                ▸
+              </span>
+            </Link>
+
+            <h1 className="mt-16 max-w-xl text-5xl font-semibold leading-[1.04] tracking-tight md:text-6xl lg:mt-24 lg:text-7xl">
+              Atlanta roadside help from the palm of your hand
             </h1>
-            <p className="mb-8 max-w-xl text-lg text-muted-foreground md:text-xl">
-              Fast, reliable emergency roadside help — towing, jump starts,
-              lockouts, flat tires, fuel delivery & vehicle diagnostics across
-              the {BUSINESS.serviceArea}.
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button asChild size="lg" className="text-lg">
-                <Link href="/book">
-                  Get Roadside Help Now
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline" className="text-lg">
-                <a
-                  href={`tel:${BUSINESS.phone}`}
-                  aria-label={`Call us at ${BUSINESS.phone}`}
-                >
-                  <Phone className="mr-2 h-5 w-5" />
-                  Call {BUSINESS.phone}
-                </a>
-              </Button>
+
+            <div className="mt-12 flex flex-wrap items-center gap-6">
+              <Link
+                href="/book"
+                className="inline-flex items-center gap-2 rounded-full bg-neutral-950 px-7 py-4 font-mono text-sm font-medium uppercase tracking-wider text-white transition-colors hover:bg-neutral-800"
+              >
+                Book Now
+                <ArrowRight aria-hidden className="h-4 w-4" />
+              </Link>
+              <a
+                href={`tel:${BUSINESS.phone}`}
+                aria-label={`Call us at ${BUSINESS.phone}`}
+                className="group inline-flex items-center gap-2 font-mono text-sm font-medium uppercase tracking-wider"
+              >
+                Call Us
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-950 text-white transition-colors group-hover:bg-neutral-700">
+                  <Phone aria-hidden className="h-3 w-3" />
+                </span>
+              </a>
+            </div>
+
+            <div className="mt-auto pt-16">
+              <div className="border-t pt-6">
+                <p className="max-w-sm text-lg leading-snug">
+                  The modern roadside assistance platform,
+                  <br className="hidden sm:block" /> built for the speed of Atlanta
+                </p>
+              </div>
+              <a
+                href="#services"
+                aria-label="Scroll to services"
+                className="mt-8 inline-flex h-8 w-12 items-center justify-center rounded-full bg-neutral-200/70 transition-colors hover:bg-neutral-300"
+              >
+                <ArrowDown aria-hidden className="h-4 w-4" />
+              </a>
             </div>
           </div>
 
-          {/* Right column — stats grid */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            {stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="card-hover-glow rounded-2xl border bg-background/80 p-5 text-center backdrop-blur transition-transform hover:-translate-y-0.5"
+          {/* Right — engraved illustration + stats band */}
+          <div className="flex flex-col lg:pl-12">
+            <div className="flex flex-1 items-center justify-center py-8 lg:py-16">
+              <Image
+                src="/images/hero-engraving.png"
+                alt="Engraved illustration of a flatbed tow truck carrying a car on a tree-lined Atlanta street, with the city skyline behind it"
+                width={1122}
+                height={1402}
+                priority
+                className="h-auto w-full max-w-lg mix-blend-multiply"
+              />
+            </div>
+
+            <div className="border-t py-8">
+              <dl className="grid grid-cols-3 gap-4">
+                {STATS.map((stat) => (
+                  <div key={stat.label}>
+                    <dt className="text-sm text-neutral-500">{stat.label}</dt>
+                    <dd className="mt-2 font-mono text-3xl font-semibold tracking-tight md:text-4xl">
+                      {stat.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <Link
+                href="/services"
+                className="mt-6 inline-flex items-center gap-1.5 text-sm text-neutral-500 transition-colors hover:text-neutral-900"
               >
-                <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-red-600/10">
-                  <stat.icon
-                    className="h-5 w-5 text-red-600"
-                    aria-hidden="true"
-                  />
-                </div>
-                <p className="text-xl font-bold sm:text-2xl">{stat.metric}</p>
-                <p className="text-xs text-muted-foreground sm:text-sm">
-                  {stat.label}
-                </p>
-              </div>
-            ))}
+                <Info aria-hidden className="h-3.5 w-3.5" />
+                See pricing details
+              </Link>
+            </div>
           </div>
         </div>
       </div>
