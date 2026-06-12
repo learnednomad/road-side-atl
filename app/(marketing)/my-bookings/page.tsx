@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { bookings, services, payments, providers, reviews } from "@/db/schema";
+import { bookings, services, payments, providers, reviews, users } from "@/db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { MyBookingsClient } from "./my-bookings-client";
 
@@ -24,6 +24,12 @@ export default async function MyBookingsPage() {
     .leftJoin(providers, eq(bookings.providerId, providers.id))
     .where(eq(bookings.userId, session.user.id))
     .orderBy(desc(bookings.createdAt));
+
+  // Loyalty balance for the redeem-on-pending-booking CTA
+  const userRow = await db.query.users.findFirst({
+    where: eq(users.id, session.user.id),
+    columns: { loyaltyPoints: true },
+  });
 
   // Fetch payments for all bookings
   const bookingIds = userBookings.map((b) => b.booking.id);
@@ -100,7 +106,7 @@ export default async function MyBookingsPage() {
             Track your service requests and view booking history
           </p>
         </div>
-        <MyBookingsClient initialBookings={serializedBookings} userId={session.user.id} />
+        <MyBookingsClient initialBookings={serializedBookings} userId={session.user.id} loyaltyBalance={userRow?.loyaltyPoints ?? 0} />
       </div>
     </div>
   );
