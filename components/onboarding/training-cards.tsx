@@ -126,7 +126,7 @@ export function TrainingModule({ onBack }: { onBack?: () => void }) {
 
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold flex items-center gap-2">
+        <h2 className="text-2xl font-semibold tracking-tight text-neutral-950 flex items-center gap-2">
           <BookOpen className="h-6 w-6" />
           Provider Training
         </h2>

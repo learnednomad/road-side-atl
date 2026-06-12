@@ -61,8 +61,8 @@ export function TrustTierCard() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">Trust Tier</CardTitle>
-        <Badge variant={isTier2 ? "default" : "secondary"}>
+        <CardTitle className="text-sm font-semibold tracking-tight text-neutral-950">Trust Tier</CardTitle>
+        <Badge variant={isTier2 ? "default" : "secondary"} className="font-mono">
           Tier {tierInfo.trustTier}
         </Badge>
       </CardHeader>
@@ -75,7 +75,7 @@ export function TrustTierCard() {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Progress to card payments</span>
-              <span className="font-medium">
+              <span className="font-mono font-semibold tracking-tight text-neutral-950">
                 {tierInfo.cleanTransactionCount}/{tierInfo.promotionThreshold}
               </span>
             </div>

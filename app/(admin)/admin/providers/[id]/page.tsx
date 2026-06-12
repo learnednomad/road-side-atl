@@ -83,7 +83,7 @@ export default async function ProviderDetailPage({
           </Link>
         </Button>
       </div>
-      <h1 className="text-3xl font-bold">{provider.name}</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">{provider.name}</h1>
 
       {/* Provider Info */}
       <Card>
@@ -137,7 +137,7 @@ export default async function ProviderDetailPage({
             <CardTitle className="text-sm font-medium">Total Earned</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">
               {formatPrice(Number(earningsSummary.totalEarned))}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -150,7 +150,7 @@ export default async function ProviderDetailPage({
             <CardTitle className="text-sm font-medium">Paid Out</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="font-mono text-2xl font-semibold tracking-tight text-green-600">
               {formatPrice(Number(earningsSummary.totalPaid))}
             </p>
           </CardContent>
@@ -160,7 +160,7 @@ export default async function ProviderDetailPage({
             <CardTitle className="text-sm font-medium">Pending</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-amber-600">
+            <p className="font-mono text-2xl font-semibold tracking-tight text-amber-600">
               {formatPrice(Number(earningsSummary.totalPending))}
             </p>
           </CardContent>
@@ -183,7 +183,7 @@ export default async function ProviderDetailPage({
               No payouts yet.
             </p>
           ) : (
-            <div className="rounded-md border">
+            <div className="overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -203,7 +203,7 @@ export default async function ProviderDetailPage({
                       <TableCell className="text-sm font-medium">
                         {booking.contactName}
                       </TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-right font-mono font-medium">
                         {formatPrice(payout.amount)}
                       </TableCell>
                       <TableCell>

@@ -286,13 +286,13 @@ export function BookingsTable({
     <div>
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-center gap-4">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search name, phone, email..."
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-64 pl-9"
+            className="w-full pl-9 sm:w-64"
           />
         </div>
         <Select value={filter} onValueChange={handleFilterChange}>
@@ -341,7 +341,7 @@ export function BookingsTable({
                         {booking.contactName}
                       </p>
                     </div>
-                    <p className="text-sm font-medium">
+                    <p className="font-mono text-sm font-medium">
                       {formatPrice(
                         booking.finalPrice || booking.estimatedPrice
                       )}
@@ -521,7 +521,7 @@ export function BookingsTable({
                         <Badge variant="secondary">Unpaid</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right text-sm font-medium">
+                    <TableCell className="text-right font-mono text-sm font-medium">
                       {formatPrice(
                         booking.finalPrice || booking.estimatedPrice
                       )}

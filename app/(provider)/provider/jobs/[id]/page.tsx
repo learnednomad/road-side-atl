@@ -84,7 +84,7 @@ export default function ProviderJobDetailPage() {
         <Button variant="ghost" size="sm" onClick={() => router.back()}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Back
         </Button>
-        <h1 className="text-2xl font-bold">Job #{booking.id.slice(0, 8)}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">Job #{booking.id.slice(0, 8)}</h1>
         <Badge variant="secondary">{booking.status.replace("_", " ")}</Badge>
       </div>
 

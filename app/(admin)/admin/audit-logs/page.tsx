@@ -12,7 +12,7 @@ export default async function AuditLogsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Audit Logs</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Audit Logs</h1>
         <p className="text-muted-foreground">
           Track all system activity and admin actions
         </p>

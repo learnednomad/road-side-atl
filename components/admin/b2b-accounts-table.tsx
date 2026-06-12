@@ -547,7 +547,7 @@ export function B2bAccountsTable() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">B2B Accounts</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">B2B Accounts</h1>
           <p className="text-sm text-muted-foreground">{total} accounts total</p>
         </div>
         <Button onClick={openCreate}>
@@ -563,18 +563,18 @@ export function B2bAccountsTable() {
               <Building2 className="h-5 w-5" />
               Accounts
             </CardTitle>
-            <div className="flex gap-2">
-              <div className="relative">
+            <div className="flex flex-wrap gap-2">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search by company..."
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                  className="pl-9 w-[200px]"
+                  className="w-full pl-9 sm:w-[200px]"
                 />
               </div>
               <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="w-full sm:w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -610,6 +610,7 @@ export function B2bAccountsTable() {
             </div>
           ) : (
             <>
+              <div className="overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -678,6 +679,7 @@ export function B2bAccountsTable() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
@@ -940,6 +942,7 @@ export function B2bAccountsTable() {
             ) : accountInvoices.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-8">No invoices found</p>
             ) : (
+              <div className="overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -960,7 +963,7 @@ export function B2bAccountsTable() {
                           ? `${inv.billingPeriodStart} — ${inv.billingPeriodEnd}`
                           : "—"}
                       </TableCell>
-                      <TableCell>{formatPrice(inv.total)}</TableCell>
+                      <TableCell className="font-mono">{formatPrice(inv.total)}</TableCell>
                       <TableCell className="text-xs">
                         {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}
                       </TableCell>
@@ -993,6 +996,7 @@ export function B2bAccountsTable() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </div>
         </DialogContent>

@@ -59,7 +59,7 @@ jobs:
             STATUS=$(curl -s \
               "${{ secrets.COOLIFY_API_URL }}/api/v1/deployments/$DEPLOYMENT_UUID" \
               -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
-              | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+              | grep -oE '"status":"(queued|in_progress|finished|failed|cancelled)[^"]*"' | head -1 | cut -d'"' -f4)
 
             echo "Deployment status: ${STATUS:-unknown} (attempt $i/50)"
             case "$STATUS" in
@@ -141,7 +141,7 @@ jobs:
             STATUS=$(curl -s \
               "${{ secrets.COOLIFY_API_URL }}/api/v1/deployments/$DEPLOYMENT_UUID" \
               -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
-              | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+              | grep -oE '"status":"(queued|in_progress|finished|failed|cancelled)[^"]*"' | head -1 | cut -d'"' -f4)
 
             echo "Deployment status: ${STATUS:-unknown} (attempt $i/50)"
             case "$STATUS" in

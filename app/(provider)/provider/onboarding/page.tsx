@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 export default function OnboardingPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Provider Onboarding</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Provider Onboarding</h1>
       <Suspense
         fallback={
           <div className="flex items-center justify-center py-12">

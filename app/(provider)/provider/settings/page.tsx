@@ -169,7 +169,7 @@ export default function ProviderSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Settings</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Settings</h1>
         <Badge variant={profile.status === "active" ? "default" : "secondary"}>
           {profile.status}
         </Badge>

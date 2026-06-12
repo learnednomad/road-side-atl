@@ -90,7 +90,7 @@ export function RevenueAnalytics() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Revenue Analytics</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Revenue Analytics</h1>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -120,7 +120,7 @@ export function RevenueAnalytics() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-3xl font-bold">Revenue Analytics</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Revenue Analytics</h1>
         <div className="flex items-center gap-2">
           <ExportButton
             endpoint={`/api/admin/revenue/export?${exportParams}`}
@@ -139,7 +139,7 @@ export function RevenueAnalytics() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.totalRevenue)}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.totalRevenue)}</p>
             <p className={`text-xs ${summary.revenueChange >= 0 ? "text-green-600" : "text-red-600"}`}>
               {summary.revenueChange >= 0 ? "+" : ""}
               {summary.revenueChange}% vs prior period
@@ -152,7 +152,7 @@ export function RevenueAnalytics() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.avgBookingValue)}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.avgBookingValue)}</p>
             <p className="text-xs text-muted-foreground">
               {summary.transactionCount} transactions
             </p>
@@ -164,7 +164,7 @@ export function RevenueAnalytics() {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{summary.completionRate}%</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{summary.completionRate}%</p>
             <p className="text-xs text-muted-foreground">of all bookings</p>
           </CardContent>
         </Card>
@@ -174,7 +174,7 @@ export function RevenueAnalytics() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.refundTotal)}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.refundTotal)}</p>
             <p className="text-xs text-muted-foreground">
               {summary.refundCount} refund{summary.refundCount !== 1 ? "s" : ""}
             </p>
@@ -201,7 +201,7 @@ export function RevenueAnalytics() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border">
+            <div className="overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -236,7 +236,7 @@ export function RevenueAnalytics() {
                           {payment.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right text-sm font-medium">
+                      <TableCell className="text-right font-mono text-sm font-medium">
                         {formatPrice(payment.amount)}
                       </TableCell>
                     </TableRow>

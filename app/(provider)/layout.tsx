@@ -20,11 +20,11 @@ export default function ProviderLayout({
   return (
     <div className="flex min-h-screen">
       <ProviderSidebar />
-      <div className="flex-1">
+      <div className="flex-1 bg-[#faf9f6]">
         <AgreementRequiredBanner />
         <OfflineBanner />
         <ProviderMobileNav />
-        <div className="p-6">{children}</div>
+        <div className="p-6 lg:p-8">{children}</div>
       </div>
     </div>
   );

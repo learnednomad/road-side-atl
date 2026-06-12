@@ -183,7 +183,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.totalPending)}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.totalPending)}</p>
             <p className="text-xs text-muted-foreground">
               {summary.pendingCount} payout{summary.pendingCount !== 1 ? "s" : ""}
             </p>
@@ -195,7 +195,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatPrice(summary.totalPaid)}</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-neutral-950">{formatPrice(summary.totalPaid)}</p>
             <p className="text-xs text-muted-foreground">
               {summary.paidCount} payout{summary.paidCount !== 1 ? "s" : ""}
             </p>
@@ -277,7 +277,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
                       </p>
                     </div>
                   </div>
-                  <p className="font-medium">
+                  <p className="font-mono font-medium">
                     {formatPrice(payout.amount)}
                   </p>
                 </div>
@@ -302,7 +302,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
       </div>
 
       {/* Desktop table view */}
-      <div className="hidden md:block rounded-md border">
+      <div className="hidden md:block overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -342,7 +342,7 @@ export function PayoutsTable({ payouts: initialPayouts, summary }: PayoutsTableP
                   </TableCell>
                   <TableCell className="font-medium">{provider.name}</TableCell>
                   <TableCell className="text-sm">{booking.contactName}</TableCell>
-                  <TableCell className={`text-right font-medium ${payout.amount < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
+                  <TableCell className={`text-right font-mono font-medium ${payout.amount < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
                     {payout.amount < 0 ? `-${formatPrice(Math.abs(payout.amount))}` : formatPrice(payout.amount)}
                   </TableCell>
                   <TableCell>

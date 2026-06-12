@@ -1,6 +1,6 @@
 # RoadSide GA — Project Handoff
 
-_Last updated: 2026-06-12 • Production: **v1.8.0** live at roadsidega.com • Branch: `development`_
+_Last updated: 2026-06-12 (evening) • Production: **v1.9.0** live at roadsidega.com • Branch: `development`_
 
 Single source of truth for cross-session state: what's shipped, what's in flight, required operator actions, and the near-term roadmap. History lives in git/PRs; this doc is the current picture.
 
@@ -8,18 +8,52 @@ Single source of truth for cross-session state: what's shipped, what's in flight
 
 ## 1. Production state
 
+- **v1.9.0** (2026-06-12, deployed + verified live): customer web UIs for memberships (`/account/membership` — also fixes the post-Stripe-checkout 404 at the success_url), loyalty (`/account/loyalty` + redeem on pending bookings), and post-inspection quote approval on the tracking page (#107). Note: the v1.9.0 Deploy run shows **red but the deploy succeeded** — a status-parsing bug in the new wait step (fixed in #109, below).
 - **v1.8.0** (2026-06-12, deployed + verified live): full Titan-style editorial redesign — hero with engraved illustration (`public/images/hero-engraving.png`), scenario cards, editorial services/pricing/trust/FAQ sections, ink footer, interior pages (`/services`, `/about`, `/book`, `/my-bookings`). GitHub Actions bumped to Node-24-runtime majors (checkout v6, setup-node v6, upload-artifact v7, aws-creds v6). No new migrations.
 - **v1.7.0**: Stripe Identity customer verification (migration `0018`, gated behind `CUSTOMER_IDENTITY_VERIFICATION`, default OFF), location-aware zone+weather pricing (gated `ZONE_PRICING`/`WEATHER_PRICING`, default OFF), staging deploys for `-rc.*` tags.
 - **Security remediation (June audit): complete.** All 24 headless-audit findings resolved (#82, #83) plus the original 30-finding remediation batches; shipped across v1.5.x–v1.6.x. Detail: `docs/audit-2026-06.md`, PRs #41–#83. Migration history is reconciled (baseline + `DB_ADOPT_BASELINE` cutover, `docs/prod-cutover-runbook.md`).
 
-### Design system (apply to any new marketing surface)
-Cream `#faf9f6` canvas, ink `neutral-950`, hairline dividers, Geist Mono for prices/stats/kickers, pill CTAs. **Red is a signal, not atmosphere** (~90% cream+ink / 8% black / 2% red: emergency card, BOOK pills, section ticks, logo). Shared header: `components/marketing/section-heading.tsx`. SEO guardrail: never change h1/h2 copy, FAQ content, JSON-LD, anchor ids, or sr-only text when restyling.
+### Design system (applies to EVERY surface as of the 2026-06-12 sweep)
+Cream `#faf9f6` canvas, ink `neutral-950`, hairline dividers, Geist Mono for prices/stats/kickers, pill CTAs (`rounded-full`); portal sidebars are ink (`bg-neutral-950`) with a white active pill (`rounded-md` nav links — match `components/provider/provider-sidebar.tsx`). Page h1: `text-3xl font-semibold tracking-tight text-neutral-950`; KPI values: `font-mono text-2xl/3xl font-semibold tracking-tight`. **Red is a signal, not atmosphere** (~90% cream+ink / 8% black / 2% red: emergency card, BOOK pills, section ticks, logo). Shared header: `components/marketing/section-heading.tsx`. SEO guardrail: never change h1/h2 copy, FAQ content, JSON-LD, anchor ids, or sr-only text when restyling. Chart colors: `var(--chart-N, hsl(...))` — never wrap the var in `hsl()` (theme vars are oklch).
 
 ---
 
 ## 2. On `development`, awaiting next release
 
-- **#105 — deploy health-check fix**: deploy jobs now poll the actual Coolify deployment (`deployment_uuid` → `/api/v1/deployments/{uuid}`) until `finished`, hard-failing on `failed`/`cancelled`, before the HTTP health check. **Activates on the next tag** (Deploy runs the workflow file at the tagged commit). Background: v1.8.0's health check passed ~7 min before the new build was actually serving.
+- **#109 — deploy wait-step status parse fix**: #105 (ships in v1.9.0's tag) polls the Coolify deployment, but its first-match grep read the *application* status (`running:healthy`) instead of the deployment status, so the v1.9.0 deploy run timed out red despite succeeding. #109 constrains the match to deployment lifecycle statuses. **Activates on the next tag.**
+
+## 2a. ~~OPEN PRs awaiting visual approval~~ — merged 2026-06-12
+
+- **#110 — provider registration redesign** (`/register/provider`): squash-merged to `development` (`de62817`).
+- **#111 — provider portal redesign**: squash-merged to `development` (`1d4c07f`). Styling only.
+
+## 2b. Provider-portal bugs — FIXED (2026-06-12)
+
+Both portal-tour bugs are fixed on `development` (Playwright-verified against seeded data as the demo provider):
+
+1. **Empty “Earnings by Service” panel** — root cause was **not** the aggregation (API returned correct data): chart colors used `hsl(var(--chart-N, H S% L%))`, but the theme defines `--chart-N`/`--primary` as `oklch(...)`, so the computed value was `hsl(oklch(...))` — invalid CSS → SVG slices rendered with no fill. The Monthly/Daily/Weekly trend area chart was invisible for the same reason (axes/grid masked it). Fixed pattern to `var(--chart-N, hsl(H S% L%))` in **four** files: `components/provider/earnings-charts.tsx` plus the same latent bug in `components/admin/revenue-charts.tsx`, `components/admin/financial-charts.tsx`, `components/admin/financial-reports-dashboard-client.tsx`.
+2. **“Today” count mismatch** — earnings endpoints bucketed by `provider_payouts.createdAt` (when the payout *row* landed — seed created them all at seed time; in prod they can lag via webhook timing/reconciliation cron), while the dashboard counted completed bookings by `bookings.updatedAt`. All provider earnings time buckets (`/earnings/summary` today/week/month, `/earnings/daily`, `/earnings/weekly`, `/earnings/trends`, and `/stats` weekEarnings) now bucket by **job completion time** (`bookings.updatedAt` via join). Dashboard and earnings page now agree. `db/seed-demo.ts` also sets payout `createdAt` to the booking's completion time so re-seeded demo data mirrors prod.
+
+Note (pre-existing, untouched): `server/api/routes/provider.ts` has duplicate dead `/earnings/summary`, `/earnings/history`, `/earnings/pending` registrations after line ~1192 — Hono uses the first registration; the late duplicates never run. Candidate for cleanup.
+
+## 2d. Full design-system + responsiveness sweep (2026-06-12, PR pending)
+
+Branch `feat/design-system-sweep` brings **every remaining page** onto the editorial system and fixes mobile (390px) issues. Styling-only; zero copy/logic changes. Coverage:
+
+- **Admin portal (all ~20 pages)**: cream canvas + responsive padding in `app/(admin)/layout.tsx`; `components/admin/sidebar.tsx` is now the ink sidebar with white active pill (mirrors provider); mobile sheet nav matches and is `max-w-xs`; all page h1s editorial; KPI/stat values + money cells `font-mono`; 10 tables got `overflow-x-auto` wrappers; fixed-width search inputs/SelectTriggers → `w-full sm:w-…`.
+- **Auth (7 pages)**: login, register, forgot/reset-password, verify-email, provider invite, error — cream canvas, `rounded-2xl border-neutral-200 bg-white` cards, ink icon circles, pill buttons, red-GA wordmark accent, ink links. verify-email resend row stacks at mobile.
+- **Marketing leftovers**: `/book/confirmation` + `PaymentInstructions` (mono payment handles/amounts, pill CTAs), `/track/[id]` (editorial cards, ink progress steps, `#review` anchor untouched), `/my-invoices`, `CostExpectations` + `ScenarioPicker` (de-redded: red atmosphere → neutral, per the red-is-a-signal rule).
+- **B2B dashboard (2 pages)**: cream canvas, editorial headers, mono stats, referrals table got mobile card fallback + overflow wrapper.
+- **Provider gaps missed by #111**: shared `invoice-list`/`invoice-detail` (also used by admin), onboarding `ic-agreement`/`training-cards` headers, mobile sheet nav restyled dark, inspections + observations pages got `md:hidden` mobile card fallbacks.
+- **Forms**: booking form (mono prices, pill nav/GPS buttons), invoice form (mono totals), review form (pill submit).
+
+Verified via Playwright screenshots at 1440px + 390px: admin dashboard/payouts, login, /book, /track/[id], /book/confirmation, /my-invoices, B2B dashboard, provider inspections + mobile sheet (logged in as marcus / temp admin / jasmine.carter). A throwaway admin user was created and deleted in the local DB for the check.
+
+## 2c. Local dev environment (recipe discovered 2026-06-12)
+
+- DB: docker compose `db` service; **untracked `docker-compose.override.yml`** publishes it at `127.0.0.1:5433` to match `.env`'s `DATABASE_URL`. Schema was stale → `npx drizzle-kit push --force`, then `ADMIN_PASSWORD='<any ≥12 chars>' npm run db:seed` (seeded 6/12 with demo data).
+- **`.env` is production-shaped** (`APP_ENV=production`, prod `AUTH_URL`, placeholder Stripe webhook secret). Booting `npm run start` against raw `.env` either fail-closes (placeholder guard) or **redirects auth to roadsidega.com — do not submit forms there**. Working boot: spawn with `.env`'s `DATABASE_URL` + `AUTH_URL=http://localhost:3000` + `APP_ENV=development` overridden in process env.
+- Demo logins: provider `marcus@roadsidega.com` / `provider123`; customers `<seed emails>` / `customer123`; admin password is whatever `ADMIN_PASSWORD` was at seed time.
 
 ---
 
@@ -43,10 +77,11 @@ Cream `#faf9f6` canvas, ink `neutral-950`, hairline dividers, Geist Mono for pri
 
 ## 5. Near-term roadmap
 
-1. **Design-system leftovers**: `/track/[id]` (untested visually; needs a live booking), `/my-invoices`, `CostExpectations` accordion on `/services` still old-style.
-2. **Feature-flag rollouts** when ready: `ZONE_PRICING`, `WEATHER_PRICING` (needs pricing_zones rows + OpenWeatherMap key), `CUSTOMER_IDENTITY_VERIFICATION` ($500+ checkout gate).
-3. **Mobile EAS deploy workflow** — pending owner decision (§3).
-4. Mobile legacy-screen refactors (max-lines disables) + finishing social-login WIP.
+1. ~~Merge #110/#111, fix the two provider-portal bugs~~ — **done 2026-06-12** (§2a/§2b).
+2. **Design-system leftovers**: `/track/[id]` (untested visually; needs a live booking), `/my-invoices`, `CostExpectations` accordion on `/services` still old-style.
+3. **Feature-flag rollouts** when ready: `ZONE_PRICING`, `WEATHER_PRICING` (needs pricing_zones rows + OpenWeatherMap key), `CUSTOMER_IDENTITY_VERIFICATION` ($500+ checkout gate).
+4. **Mobile EAS deploy workflow** — pending owner decision (§3).
+5. Mobile legacy-screen refactors (max-lines disables) + finishing social-login WIP.
 
 ---
 

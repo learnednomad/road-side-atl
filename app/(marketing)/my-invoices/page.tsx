@@ -43,24 +43,24 @@ export default async function MyInvoicesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30 py-12">
+    <div className="min-h-screen bg-[#faf9f6] py-12">
       <div className="container mx-auto px-4">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold">My Invoices</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">My Invoices</h1>
+          <p className="mt-2 text-neutral-600">
             View and download invoices for your completed services
           </p>
         </div>
 
         {customerInvoices.length === 0 ? (
-          <div className="rounded-lg border bg-card p-12 text-center">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-12 text-center">
             <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <h2 className="text-lg font-semibold mb-2">No invoices yet</h2>
+            <h2 className="mb-2 text-lg font-semibold tracking-tight text-neutral-950">No invoices yet</h2>
             <p className="text-sm text-muted-foreground mb-4">
               Invoices are generated after your service is completed and payment is confirmed.
             </p>
             <Link href="/book">
-              <Button>Book a Service</Button>
+              <Button className="rounded-full">Book a Service</Button>
             </Link>
           </div>
         ) : (
@@ -68,11 +68,11 @@ export default async function MyInvoicesPage() {
             {customerInvoices.map((inv) => (
               <div
                 key={inv.id}
-                className="rounded-lg border bg-card p-6 flex flex-col sm:flex-row sm:items-center gap-4"
+                className="rounded-2xl border border-neutral-200 bg-white p-6 flex flex-col sm:flex-row sm:items-center gap-4"
               >
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-medium">{inv.invoiceNumber}</span>
+                    <span className="font-mono text-sm font-medium text-neutral-950">{inv.invoiceNumber}</span>
                     <Badge variant={statusBadgeVariant(inv.status)}>
                       {inv.status}
                     </Badge>
@@ -87,13 +87,13 @@ export default async function MyInvoicesPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-lg font-semibold">{formatPrice(inv.total)}</span>
+                  <span className="font-mono text-lg font-semibold tracking-tight text-neutral-950">{formatPrice(inv.total)}</span>
                   <a
                     href={`/api/customer/invoices/${inv.id}/html`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="rounded-full border-neutral-300">
                       <Printer className="h-4 w-4 mr-2" />
                       View
                     </Button>

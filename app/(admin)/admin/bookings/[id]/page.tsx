@@ -90,7 +90,7 @@ export default async function AdminBookingDetailPage({
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Booking Detail</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Booking Detail</h1>
           <p className="text-sm text-muted-foreground">ID: {booking.id}</p>
         </div>
         <StatusBadge status={booking.status as BookingStatus} />

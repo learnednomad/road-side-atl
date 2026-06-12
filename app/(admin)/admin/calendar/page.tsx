@@ -52,7 +52,7 @@ export default async function AdminCalendarPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Calendar — {format(viewDate, "MMMM yyyy")}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Calendar — {format(viewDate, "MMMM yyyy")}</h1>
         <div className="flex gap-2">
           <Link
             href={`/admin/calendar?month=${prevMonth}`}

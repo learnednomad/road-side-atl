@@ -180,7 +180,7 @@ export async function seedDemo(db: PostgresJsDatabase, refs: BaseRefs) {
 
   // ── PROVIDER PAYOUTS ──────────────────────────────────────
   console.log("Seeding demo payouts...");
-  const payoutData: { providerId: string; bookingId: string; amount: number; status: "paid" | "pending"; paidAt?: Date }[] = [];
+  const payoutData: { providerId: string; bookingId: string; amount: number; status: "paid" | "pending"; paidAt?: Date; createdAt: Date }[] = [];
 
   for (const b of completedBookings) {
     if (!b.providerId || !b.finalPrice) continue;
@@ -197,6 +197,8 @@ export async function seedDemo(db: PostgresJsDatabase, refs: BaseRefs) {
       providerId: provider.id, bookingId: b.id, amount: providerShare,
       status: isPaid ? "paid" : "pending",
       paidAt: isPaid ? daysAgo(Math.max(0, Math.floor((Date.now() - b.createdAt.getTime()) / 86400000) - 2)) : undefined,
+      // Mirror prod: the payout row is created when the job completes.
+      createdAt: b.updatedAt ?? b.createdAt,
     });
   }
 

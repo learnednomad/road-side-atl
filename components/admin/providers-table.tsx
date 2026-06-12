@@ -174,13 +174,13 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-4">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search providers..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-64 pl-9"
+            className="w-full pl-9 sm:w-64"
           />
         </div>
         <span className="text-sm text-muted-foreground">
@@ -304,7 +304,7 @@ export function ProvidersTable({ providers: initialProviders }: { providers: Pro
       </div>
 
       {/* Desktop table view */}
-      <div className="hidden md:block rounded-md border">
+      <div className="hidden md:block overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

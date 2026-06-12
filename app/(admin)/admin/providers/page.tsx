@@ -32,7 +32,7 @@ export default async function AdminProvidersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Service Providers</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">Service Providers</h1>
       <ProvidersPageTabs>
         <div className="space-y-6">
           <TaxExportSection />

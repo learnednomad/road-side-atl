@@ -11,7 +11,7 @@ function NewInvoiceContent() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">
+      <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">
         {editId ? "Edit Invoice" : "New Invoice"}
       </h1>
       <InvoiceForm role="admin" invoiceId={editId || undefined} />
