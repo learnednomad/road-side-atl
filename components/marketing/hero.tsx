@@ -76,10 +76,10 @@ export function Hero() {
               <Image
                 src="/images/hero-engraving.png"
                 alt="Engraved illustration of a flatbed tow truck carrying a car on a tree-lined Atlanta street, with the city skyline behind it"
-                width={1122}
-                height={1402}
+                width={1448}
+                height={1086}
                 priority
-                className="h-auto w-full max-w-lg mix-blend-multiply"
+                className="h-auto w-full max-w-xl mix-blend-multiply"
               />
             </div>
 
