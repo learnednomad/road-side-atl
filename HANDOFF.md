@@ -60,6 +60,7 @@ Verified via Playwright screenshots at 1440px + 390px: admin dashboard/payouts, 
 
 ## 3. Mobile app (`learnednomad/roadside-atl-mobile`)
 
+- **Design parity: editorial system adopted** (PR #11, merged 2026-06-12): cream/ink/mono tokens in the NativeWind theme, `font-mono` via platform monospace in the shared Text primitive, pill ink buttons, ink nav tints, all ~53 screens swept (red kept for signals/brand CTAs only). Verified on the iPhone 16 simulator logged in as the demo provider against the local API (repointed tracked `.env` `EXPO_PUBLIC_API_URL` to `http://localhost:3001` locally — do not commit). Ships with the next manual EAS build.
 - **Parity: fully caught up** with web's customer-facing surface (PRs #5–#8): B2B portal, customer identity gate, location-aware pricing estimates (passes geocoded coords; renders zone/weather breakdown lines), memberships, loyalty (screen + redeem-on-booking), service bundles in the book flow, post-inspection quote approve/decline. Intentionally web-only: admin/B2B desktop tooling.
 - ~~Mobile leads web on memberships/loyalty/quote approval~~ — **closed** (#107): web UIs shipped at `/account/membership`, `/account/loyalty`, redeem CTA in My Bookings, quote approval on the tracking page. Parity is now symmetric.
 - **CI**: PRs #9/#10 — lint/typecheck/jest on every PR (zero-error baseline: was 578 lint errors, 2 broken test suites; root causes included a pnpm-incompatible jest `transformIgnorePatterns` and a real `ProgressBar` prop bug). Actions on v6.
