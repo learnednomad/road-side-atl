@@ -32,11 +32,11 @@ import { ExportButton } from "@/components/admin/export-button";
 import { formatPrice } from "@/lib/utils";
 
 const COLORS = [
-  "hsl(var(--chart-1, 220 70% 50%))",
-  "hsl(var(--chart-2, 160 60% 45%))",
-  "hsl(var(--chart-3, 30 80% 55%))",
-  "hsl(var(--chart-4, 280 65% 60%))",
-  "hsl(var(--chart-5, 340 75% 55%))",
+  "var(--chart-1, hsl(220 70% 50%))",
+  "var(--chart-2, hsl(160 60% 45%))",
+  "var(--chart-3, hsl(30 80% 55%))",
+  "var(--chart-4, hsl(280 65% 60%))",
+  "var(--chart-5, hsl(340 75% 55%))",
 ];
 
 interface RevenueBreakdown {
@@ -314,7 +314,7 @@ export function FinancialReportsDashboard() {
                     type="monotone"
                     dataKey="revenue"
                     name="Revenue"
-                    stroke="hsl(var(--primary, 220 70% 50%))"
+                    stroke="var(--primary, hsl(220 70% 50%))"
                     strokeWidth={2}
                     dot={false}
                   />

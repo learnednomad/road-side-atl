@@ -22,15 +22,19 @@ Cream `#faf9f6` canvas, ink `neutral-950`, hairline dividers, Geist Mono for pri
 
 - **#109 — deploy wait-step status parse fix**: #105 (ships in v1.9.0's tag) polls the Coolify deployment, but its first-match grep read the *application* status (`running:healthy`) instead of the deployment status, so the v1.9.0 deploy run timed out red despite succeeding. #109 constrains the match to deployment lifecycle statuses. **Activates on the next tag.**
 
-## 2a. OPEN PRs awaiting visual approval → merge
+## 2a. ~~OPEN PRs awaiting visual approval~~ — merged 2026-06-12
 
-- **#110 — provider registration redesign** (`/register/provider`): two-column editorial application page (sticky pitch panel + numbered form sections, ink chips, red pill submit). CI green; Playwright-verified at 1680/390px + chip interaction.
-- **#111 — provider portal redesign**: ink sidebar with white active pill, cream canvas, tracking-tight headers (12 files), mono stat numerals. CI green; verified logged in as demo provider. Styling only.
+- **#110 — provider registration redesign** (`/register/provider`): squash-merged to `development` (`de62817`).
+- **#111 — provider portal redesign**: squash-merged to `development` (`1d4c07f`). Styling only.
 
-## 2b. Bugs found during the provider-portal tour (NOT yet fixed)
+## 2b. Provider-portal bugs — FIXED (2026-06-12)
 
-1. **Earnings “Earnings by Service” panel renders empty** on `/provider/earnings` despite payouts across 4 service types (`components/provider/earnings-charts.tsx` — likely the by-service aggregation or chart wiring).
-2. **“Today” counts disagree**: dashboard says “Jobs Today: 0” while earnings says “Today: $304.50 · 4 jobs” for the same seeded data — inconsistent date/status bucketing between `provider-dashboard.tsx` stats and the earnings summary (suspect TZ or status filter).
+Both portal-tour bugs are fixed on `development` (Playwright-verified against seeded data as the demo provider):
+
+1. **Empty “Earnings by Service” panel** — root cause was **not** the aggregation (API returned correct data): chart colors used `hsl(var(--chart-N, H S% L%))`, but the theme defines `--chart-N`/`--primary` as `oklch(...)`, so the computed value was `hsl(oklch(...))` — invalid CSS → SVG slices rendered with no fill. The Monthly/Daily/Weekly trend area chart was invisible for the same reason (axes/grid masked it). Fixed pattern to `var(--chart-N, hsl(H S% L%))` in **four** files: `components/provider/earnings-charts.tsx` plus the same latent bug in `components/admin/revenue-charts.tsx`, `components/admin/financial-charts.tsx`, `components/admin/financial-reports-dashboard-client.tsx`.
+2. **“Today” count mismatch** — earnings endpoints bucketed by `provider_payouts.createdAt` (when the payout *row* landed — seed created them all at seed time; in prod they can lag via webhook timing/reconciliation cron), while the dashboard counted completed bookings by `bookings.updatedAt`. All provider earnings time buckets (`/earnings/summary` today/week/month, `/earnings/daily`, `/earnings/weekly`, `/earnings/trends`, and `/stats` weekEarnings) now bucket by **job completion time** (`bookings.updatedAt` via join). Dashboard and earnings page now agree. `db/seed-demo.ts` also sets payout `createdAt` to the booking's completion time so re-seeded demo data mirrors prod.
+
+Note (pre-existing, untouched): `server/api/routes/provider.ts` has duplicate dead `/earnings/summary`, `/earnings/history`, `/earnings/pending` registrations after line ~1192 — Hono uses the first registration; the late duplicates never run. Candidate for cleanup.
 
 ## 2c. Local dev environment (recipe discovered 2026-06-12)
 
@@ -60,7 +64,7 @@ Cream `#faf9f6` canvas, ink `neutral-950`, hairline dividers, Geist Mono for pri
 
 ## 5. Near-term roadmap
 
-1. **Merge #110/#111 after visual sign-off**, then fix the two provider-portal bugs (§2b).
+1. ~~Merge #110/#111, fix the two provider-portal bugs~~ — **done 2026-06-12** (§2a/§2b).
 2. **Design-system leftovers**: `/track/[id]` (untested visually; needs a live booking), `/my-invoices`, `CostExpectations` accordion on `/services` still old-style.
 3. **Feature-flag rollouts** when ready: `ZONE_PRICING`, `WEATHER_PRICING` (needs pricing_zones rows + OpenWeatherMap key), `CUSTOMER_IDENTITY_VERIFICATION` ($500+ checkout gate).
 4. **Mobile EAS deploy workflow** — pending owner decision (§3).
