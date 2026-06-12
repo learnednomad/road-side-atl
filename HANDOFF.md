@@ -1,6 +1,6 @@
 # RoadSide GA — Project Handoff
 
-_Last updated: 2026-06-12 (evening) • Production: **v1.9.0** live at roadsidega.com • Branch: `development`_
+_Last updated: 2026-06-12 (night) • Production: **v1.10.0** live at roadsidega.com • Branch: `development`_
 
 Single source of truth for cross-session state: what's shipped, what's in flight, required operator actions, and the near-term roadmap. History lives in git/PRs; this doc is the current picture.
 
@@ -8,6 +8,7 @@ Single source of truth for cross-session state: what's shipped, what's in flight
 
 ## 1. Production state
 
+- **v1.10.0** (2026-06-12, deployed + verified live — checked `/services` serves the new CostExpectations markup): #109 deploy-status fix (active; this release's Deploy run was genuinely green), #110/#111 provider registration + portal redesigns, #112 portal bug fixes (chart rendering, earnings bucketing), #113 design-system + 390px-responsiveness sweep across every page and form (§2d). Release PR #114, merge `2c8a95c`. No new migrations, no env/flag changes.
 - **v1.9.0** (2026-06-12, deployed + verified live): customer web UIs for memberships (`/account/membership` — also fixes the post-Stripe-checkout 404 at the success_url), loyalty (`/account/loyalty` + redeem on pending bookings), and post-inspection quote approval on the tracking page (#107). Note: the v1.9.0 Deploy run shows **red but the deploy succeeded** — a status-parsing bug in the new wait step (fixed in #109, below).
 - **v1.8.0** (2026-06-12, deployed + verified live): full Titan-style editorial redesign — hero with engraved illustration (`public/images/hero-engraving.png`), scenario cards, editorial services/pricing/trust/FAQ sections, ink footer, interior pages (`/services`, `/about`, `/book`, `/my-bookings`). GitHub Actions bumped to Node-24-runtime majors (checkout v6, setup-node v6, upload-artifact v7, aws-creds v6). No new migrations.
 - **v1.7.0**: Stripe Identity customer verification (migration `0018`, gated behind `CUSTOMER_IDENTITY_VERIFICATION`, default OFF), location-aware zone+weather pricing (gated `ZONE_PRICING`/`WEATHER_PRICING`, default OFF), staging deploys for `-rc.*` tags.
@@ -36,9 +37,9 @@ Both portal-tour bugs are fixed on `development` (Playwright-verified against se
 
 Note (pre-existing, untouched): `server/api/routes/provider.ts` has duplicate dead `/earnings/summary`, `/earnings/history`, `/earnings/pending` registrations after line ~1192 — Hono uses the first registration; the late duplicates never run. Candidate for cleanup.
 
-## 2d. Full design-system + responsiveness sweep (2026-06-12, PR pending)
+## 2d. Full design-system + responsiveness sweep (2026-06-12, shipped in v1.10.0 via #113)
 
-Branch `feat/design-system-sweep` brings **every remaining page** onto the editorial system and fixes mobile (390px) issues. Styling-only; zero copy/logic changes. Coverage:
+PR #113 (squash `545b383`) brings **every remaining page** onto the editorial system and fixes mobile (390px) issues. Styling-only; zero copy/logic changes. Coverage:
 
 - **Admin portal (all ~20 pages)**: cream canvas + responsive padding in `app/(admin)/layout.tsx`; `components/admin/sidebar.tsx` is now the ink sidebar with white active pill (mirrors provider); mobile sheet nav matches and is `max-w-xs`; all page h1s editorial; KPI/stat values + money cells `font-mono`; 10 tables got `overflow-x-auto` wrappers; fixed-width search inputs/SelectTriggers → `w-full sm:w-…`.
 - **Auth (7 pages)**: login, register, forgot/reset-password, verify-email, provider invite, error — cream canvas, `rounded-2xl border-neutral-200 bg-white` cards, ink icon circles, pill buttons, red-GA wordmark accent, ink links. verify-email resend row stacks at mobile.
