@@ -50,8 +50,8 @@ export function Navbar() {
           />
         </Link>
 
-        {/* Desktop nav */}
-        <div className="hidden items-center gap-4 lg:flex">
+        {/* Desktop nav — centered link pill */}
+        <div className="hidden flex-1 justify-center lg:flex">
           <div className="flex items-center rounded-full bg-neutral-200/50 p-1">
             {navLinks.map((link) => {
               const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
@@ -70,7 +70,11 @@ export function Navbar() {
               );
             })}
           </div>
-          <Button asChild variant="outline" size="sm">
+        </div>
+
+        {/* Desktop actions — right cluster */}
+        <div className="hidden items-center gap-2 lg:flex xl:gap-3">
+          <Button asChild variant="outline" size="sm" className="hidden xl:inline-flex">
             <a href={`tel:${BUSINESS.phone}`}>
               <Phone className="mr-2 h-4 w-4" />
               {BUSINESS.phone}
@@ -86,7 +90,7 @@ export function Navbar() {
                       My Bookings
                     </Link>
                   </Button>
-                  <Button asChild variant="ghost" size="sm">
+                  <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
                     <Link href="/account/membership">Membership</Link>
                   </Button>
                 </>
@@ -110,7 +114,7 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Button asChild variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
                 <Link href="/become-provider">
                   <Wrench className="mr-2 h-4 w-4" />
                   Become a Provider

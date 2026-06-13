@@ -66,21 +66,29 @@ export default async function BookPage() {
 
   return (
     <div className="bg-[#faf9f6]">
-    <div className="container mx-auto max-w-2xl px-4 py-16">
-      <p className="flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">
-        <span aria-hidden className="h-3 w-0.5 bg-red-600" />
-        Book
-      </p>
-      <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-950 md:text-4xl">Book Roadside Assistance in Atlanta</h1>
-      <p className="mt-3 mb-8 text-neutral-600">
-        Select your service and location below. We&apos;ll dispatch a technician to you fast.
-      </p>
-      <Suspense fallback={null}>
-        <ScenarioPicker services={allServices} />
-      </Suspense>
-      <Suspense fallback={<div>Loading...</div>}>
-        <BookingForm services={allServices} userInfo={userInfo} />
-      </Suspense>
+    <div className="container mx-auto max-w-6xl px-4 py-16">
+      <div className="max-w-2xl">
+        <p className="flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">
+          <span aria-hidden className="h-3 w-0.5 bg-red-600" />
+          Book
+        </p>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-950 md:text-4xl">Book Roadside Assistance in Atlanta</h1>
+        <p className="mt-3 text-neutral-600">
+          Select your service and location below. We&apos;ll dispatch a technician to you fast.
+        </p>
+      </div>
+      <div className="mt-8 grid gap-8 lg:grid-cols-[1.7fr_1fr] lg:items-start">
+        <aside className="order-1 lg:order-2 lg:sticky lg:top-24">
+          <Suspense fallback={null}>
+            <ScenarioPicker services={allServices} />
+          </Suspense>
+        </aside>
+        <div className="order-2 min-w-0 lg:order-1">
+          <Suspense fallback={<div>Loading...</div>}>
+            <BookingForm services={allServices} userInfo={userInfo} />
+          </Suspense>
+        </div>
+      </div>
     </div>
     </div>
   );
