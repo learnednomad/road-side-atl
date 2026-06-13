@@ -8,14 +8,26 @@ export default function manifest(): MetadataRoute.Manifest {
       "24/7 emergency roadside assistance in Atlanta GA. Towing, jump starts, lockout service, tire changes, fuel delivery & car diagnostics.",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#1a1a2e",
+    background_color: "#faf9f6",
+    theme_color: "#dc2626",
     categories: ["auto", "utilities", "transportation"],
     icons: [
       {
         src: "/favicon.ico",
         sizes: "any",
         type: "image/x-icon",
+      },
+      {
+        src: "/images/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/images/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
       },
     ],
   };
