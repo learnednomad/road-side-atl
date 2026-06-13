@@ -39,18 +39,15 @@ export function Navbar() {
     <>
       <header className="sticky top-0 z-50 bg-[#faf9f6]/95 backdrop-blur supports-[backdrop-filter]:bg-[#faf9f6]/80">
         <nav className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 text-xl font-bold">
+        <Link href="/" aria-label="RoadSide GA — home" className="flex items-center">
           <Image
             src="/images/logo.png"
-            alt="RoadSide GA logo"
-            width={36}
-            height={36}
+            alt="RoadSide GA"
+            width={249}
+            height={110}
             priority
-            className="h-9 w-9 object-contain"
+            className="h-11 w-auto object-contain"
           />
-          <span>
-            RoadSide <span className="text-red-600">GA</span>
-          </span>
         </Link>
 
         {/* Desktop nav */}
