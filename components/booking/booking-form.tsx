@@ -473,11 +473,11 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                           : "border-muted"
                       )}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{s.name}</span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-semibold">{s.name}</span>
                         {s.schedulingMode === "scheduled" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                            <Clock className="h-3 w-3" />
+                          <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                            <Clock className="h-3 w-3 shrink-0" />
                             Scheduled Service
                           </span>
                         )}
