@@ -45,6 +45,7 @@ export const metadata: Metadata = {
     title: "RoadSide GA | 24/7 Roadside Assistance Atlanta GA",
     description:
       "24/7 emergency roadside assistance in Atlanta. Fast towing, jump starts, lockout service, tire changes, fuel delivery & diagnostics. Serving all metro Atlanta.",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: SEO.siteName }],
   },
   twitter: {
     card: "summary_large_image",
@@ -52,6 +53,7 @@ export const metadata: Metadata = {
     title: "RoadSide GA | 24/7 Roadside Assistance Atlanta GA",
     description:
       "24/7 emergency roadside assistance in Atlanta. Fast towing, jump starts, lockout service, tire changes, fuel delivery & diagnostics.",
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
