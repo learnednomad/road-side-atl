@@ -13,6 +13,7 @@ import { logAudit } from "../lib/audit-logger";
 import { isValidStepTransition } from "../lib/onboarding-state-machine";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { notifyBackgroundCheckResult, notifyStripeConnectCompleted } from "@/lib/notifications";
+import { triggerNovu, WF, custSub, provSub, adminsTopic, money } from "@/lib/notifications/novu";
 import { checkAllStepsCompleteAndTransition, onStripeConnectStepComplete } from "../lib/all-steps-complete";
 import { stripeExtensionHandlers } from "../lib/webhook-handlers/stripe-extensions";
 
@@ -193,6 +194,20 @@ app.post("/stripe", async (c) => {
         }
 
         await createPayoutIfEligible(bookingId);
+
+        // Novu: mirror payment confirmation into the customer's Inbox
+        const paidBooking = await db.query.bookings.findFirst({
+          where: eq(bookings.id, bookingId),
+          columns: { userId: true },
+        });
+        if (paidBooking?.userId) {
+          void triggerNovu(
+            WF.paymentConfirmed,
+            custSub(paidBooking.userId),
+            { bookingId, amountFormatted: money(session.amount_total) },
+            { transactionId: `${bookingId}:payment-confirmed` },
+          );
+        }
       }
       break;
     }
@@ -206,6 +221,26 @@ app.post("/stripe", async (c) => {
           .update(payments)
           .set({ status: "failed" })
           .where(and(eq(payments.stripeSessionId, session.id), eq(payments.status, "pending")));
+
+        // Novu: notify customer their checkout payment failed/expired
+        const expiredPayment = await db.query.payments.findFirst({
+          where: eq(payments.stripeSessionId, session.id),
+          columns: { bookingId: true, amount: true },
+        });
+        if (expiredPayment) {
+          const b = await db.query.bookings.findFirst({
+            where: eq(bookings.id, expiredPayment.bookingId),
+            columns: { userId: true },
+          });
+          if (b?.userId) {
+            void triggerNovu(
+              WF.paymentFailed,
+              custSub(b.userId),
+              { bookingId: expiredPayment.bookingId, amountFormatted: money(expiredPayment.amount) },
+              { transactionId: `${expiredPayment.bookingId}:payment-failed` },
+            );
+          }
+        }
       }
       break;
     }
@@ -231,6 +266,20 @@ app.post("/stripe", async (c) => {
             refundedAt: new Date(),
           })
           .where(eq(payments.id, payment.id));
+
+        // Novu: notify customer their refund was processed
+        const refundedBooking = await db.query.bookings.findFirst({
+          where: eq(bookings.id, payment.bookingId),
+          columns: { userId: true },
+        });
+        if (refundedBooking?.userId) {
+          void triggerNovu(
+            WF.paymentRefunded,
+            custSub(refundedBooking.userId),
+            { bookingId: payment.bookingId, refundFormatted: money(refundedAmount) },
+            { transactionId: `${payment.bookingId}:refunded` },
+          );
+        }
 
         // M7: out-of-band (e.g. Stripe dashboard) full refunds must claw back
         // the provider's payout, mirroring the dispute-lost path. The clawback
@@ -266,6 +315,13 @@ app.post("/stripe", async (c) => {
           // B3: also cancel any not-yet-paid (pending) standard payout so the
           // provider isn't paid out for a fully-refunded booking. (The paid
           // case above is handled via clawback.) Mirrors the admin refund path.
+          const pendingPayout = await db.query.providerPayouts.findFirst({
+            where: and(
+              eq(providerPayouts.bookingId, payment.bookingId),
+              eq(providerPayouts.status, "pending"),
+              sql`${providerPayouts.payoutType} = 'standard'`,
+            ),
+          });
           await db
             .update(providerPayouts)
             .set({ status: "held", amount: 0, holdReason: `Full refund (${charge.id})` })
@@ -276,6 +332,16 @@ app.post("/stripe", async (c) => {
                 sql`${providerPayouts.payoutType} = 'standard'`,
               ),
             );
+
+          // Novu: notify provider their payout was held
+          if (pendingPayout) {
+            void triggerNovu(
+              WF.payoutHeld,
+              provSub(pendingPayout.providerId),
+              { bookingId: payment.bookingId, amountFormatted: money(pendingPayout.amount), holdReason: "Full refund" },
+              { transactionId: `${payment.bookingId}:payout-held` },
+            );
+          }
         }
       }
       break;
@@ -305,6 +371,20 @@ app.post("/stripe", async (c) => {
           .update(payments)
           .set({ status: "failed" })
           .where(eq(payments.id, payment.id));
+
+        // Novu: notify customer their payment failed
+        const failedBooking = await db.query.bookings.findFirst({
+          where: eq(bookings.id, payment.bookingId),
+          columns: { userId: true },
+        });
+        if (failedBooking?.userId) {
+          void triggerNovu(
+            WF.paymentFailed,
+            custSub(failedBooking.userId),
+            { bookingId: payment.bookingId, amountFormatted: money(payment.amount) },
+            { transactionId: `${payment.bookingId}:payment-failed` },
+          );
+        }
       }
       break;
     }
@@ -344,12 +424,21 @@ app.post("/stripe", async (c) => {
           })
           .where(eq(bookings.id, payment.bookingId));
 
+        // Capture the pending payout (for the Novu notice) before freezing it.
+        const disputeHoldReason = `Dispute: ${dispute.reason} (${dispute.id})`;
+        const frozenPayout = await db.query.providerPayouts.findFirst({
+          where: and(
+            eq(providerPayouts.bookingId, payment.bookingId),
+            eq(providerPayouts.status, "pending"),
+          ),
+        });
+
         // Freeze any pending payout for this booking
         await db
           .update(providerPayouts)
           .set({
             status: "held",
-            holdReason: `Dispute: ${dispute.reason} (${dispute.id})`,
+            holdReason: disputeHoldReason,
             heldAt: new Date(),
           })
           .where(
@@ -362,12 +451,30 @@ app.post("/stripe", async (c) => {
         // Auto-demote customer trust tier on dispute
         const booking = await db.query.bookings.findFirst({
           where: eq(bookings.id, payment.bookingId),
-          columns: { userId: true },
+          columns: { userId: true, tenantId: true },
         });
         if (booking?.userId) {
           demoteTrustTier(booking.userId, `Dispute: ${dispute.reason} (${dispute.id})`).catch((err) => {
             console.error("[TrustTier] Demotion failed:", err);
           });
+        }
+
+        // Novu: alert ops/admins of the dispute
+        void triggerNovu(
+          WF.opsPaymentDisputed,
+          { type: "Topic", topicKey: adminsTopic(booking?.tenantId) },
+          { bookingId: payment.bookingId, amountFormatted: money(dispute.amount) },
+          { transactionId: `${dispute.id}:disputed` },
+        );
+
+        // Novu: notify the provider their payout was held by the dispute
+        if (frozenPayout) {
+          void triggerNovu(
+            WF.payoutHeld,
+            provSub(frozenPayout.providerId),
+            { bookingId: payment.bookingId, holdReason: disputeHoldReason },
+            { transactionId: `${payment.bookingId}:payout-held:${frozenPayout.id}` },
+          );
         }
       }
       break;
@@ -450,6 +557,14 @@ app.post("/stripe", async (c) => {
               // beat us to it). The unique index guarantees one — that's fine.
               if (!isUniqueViolation(err)) throw err;
             }
+
+            // Novu: notify provider their payout is being clawed back
+            void triggerNovu(
+              WF.payoutClawback,
+              provSub(paidPayout.providerId),
+              { bookingId: payment.bookingId, amountFormatted: money(paidPayout.amount), clawbackReason: "Dispute lost" },
+              { transactionId: `${dispute.id}:clawback` },
+            );
           }
 
           // Cancel any held payouts

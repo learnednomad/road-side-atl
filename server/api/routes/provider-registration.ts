@@ -16,6 +16,7 @@ import {
 } from "@/lib/auth/provider-invite";
 import { sendVerificationEmail } from "@/lib/auth/verification";
 import { logger } from "@/lib/logger";
+import { syncSubscriber, provSub } from "@/lib/notifications/novu";
 
 const app = new Hono();
 
@@ -137,7 +138,7 @@ app.post("/register", async (c) => {
     .returning({ id: users.id });
 
   // Create provider record with pending status
-  await db.insert(providers).values({
+  const [newProvider] = await db.insert(providers).values({
     userId: newUser.id,
     name,
     email,
@@ -146,7 +147,18 @@ app.post("/register", async (c) => {
     address: address ?? null,
     serviceAreas: serviceArea ?? [],
     status: "pending",
-  });
+  }).returning({ id: providers.id });
+
+  // Novu: upsert the provider as a subscriber so their Inbox works from day one
+  if (newProvider) {
+    void syncSubscriber({
+      subscriberId: provSub(newProvider.id),
+      email,
+      phone,
+      firstName: name,
+      data: { role: "provider", status: "pending" },
+    });
+  }
 
   // Send verification email
   sendVerificationEmail(email, name).catch((err) => {

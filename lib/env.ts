@@ -22,6 +22,14 @@ const envSchema = z.object({
   AUTH_GOOGLE_ID: z.string().optional(),
   AUTH_GOOGLE_SECRET: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
+  // Novu notifications (self-hosted). All optional — when NOVU_ENABLED !== "true"
+  // the Novu adapter is a no-op and the app uses only the legacy Resend/Twilio/push senders.
+  NOVU_ENABLED: z.string().optional(),
+  NOVU_SECRET_KEY: z.string().optional(), // per-environment API key (Novu dashboard -> Settings -> API Keys)
+  NOVU_API_URL: z.string().optional(),    // defaults to https://novu-api.roadsidega.com
+  NEXT_PUBLIC_NOVU_APP_ID: z.string().optional(),       // environment "applicationIdentifier" for the <Inbox>
+  NEXT_PUBLIC_NOVU_BACKEND_URL: z.string().optional(),  // https://novu-api.roadsidega.com
+  NEXT_PUBLIC_NOVU_SOCKET_URL: z.string().optional(),   // https://novu-ws.roadsidega.com
   SLACK_OPS_WEBHOOK_URL: z.string().optional(), // Slack Incoming Webhook for ops alerts (optional)
   SLACK_SIGNING_SECRET: z.string().optional(), // Slack app signing secret for the slash-command bot
   SLACK_ADMIN_USER_IDS: z.string().optional(), // comma-separated Slack user ids allowed to use the bot
