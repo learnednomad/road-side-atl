@@ -424,12 +424,21 @@ app.post("/stripe", async (c) => {
           })
           .where(eq(bookings.id, payment.bookingId));
 
+        // Capture the pending payout (for the Novu notice) before freezing it.
+        const disputeHoldReason = `Dispute: ${dispute.reason} (${dispute.id})`;
+        const frozenPayout = await db.query.providerPayouts.findFirst({
+          where: and(
+            eq(providerPayouts.bookingId, payment.bookingId),
+            eq(providerPayouts.status, "pending"),
+          ),
+        });
+
         // Freeze any pending payout for this booking
-        const heldPayouts = await db
+        await db
           .update(providerPayouts)
           .set({
             status: "held",
-            holdReason: `Dispute: ${dispute.reason} (${dispute.id})`,
+            holdReason: disputeHoldReason,
             heldAt: new Date(),
           })
           .where(
@@ -437,8 +446,7 @@ app.post("/stripe", async (c) => {
               eq(providerPayouts.bookingId, payment.bookingId),
               eq(providerPayouts.status, "pending"),
             ),
-          )
-          .returning();
+          );
 
         // Auto-demote customer trust tier on dispute
         const booking = await db.query.bookings.findFirst({
@@ -459,13 +467,13 @@ app.post("/stripe", async (c) => {
           { transactionId: `${dispute.id}:disputed` },
         );
 
-        // Novu: notify provider(s) their payout was held by the dispute
-        for (const hp of heldPayouts) {
+        // Novu: notify the provider their payout was held by the dispute
+        if (frozenPayout) {
           void triggerNovu(
             WF.payoutHeld,
-            provSub(hp.providerId),
-            { bookingId: payment.bookingId, holdReason: hp.holdReason },
-            { transactionId: `${payment.bookingId}:payout-held:${hp.id}` },
+            provSub(frozenPayout.providerId),
+            { bookingId: payment.bookingId, holdReason: disputeHoldReason },
+            { transactionId: `${payment.bookingId}:payout-held:${frozenPayout.id}` },
           );
         }
       }
