@@ -10,6 +10,7 @@ import { rateLimitAuthDb, rateLimitStrictDb } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { logger } from "@/lib/logger";
 import { generateReferralCode } from "../lib/referral-credits";
+import { syncSubscriber, custSub } from "@/lib/notifications/novu";
 import {
   sendVerificationEmail,
   verifyEmailToken,
@@ -61,6 +62,14 @@ app.post("/register", async (c) => {
     password: hashedPassword,
     referralCode,
   }).returning({ id: users.id });
+
+  // Novu: upsert the new customer as a subscriber for their Inbox
+  void syncSubscriber({
+    subscriberId: custSub(newUser.id),
+    email,
+    firstName: name,
+    data: { role: "customer" },
+  });
 
   // Send verification email (fire and forget)
   sendVerificationEmail(email, name).catch((err) => {

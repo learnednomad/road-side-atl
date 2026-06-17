@@ -18,6 +18,9 @@ import {
   sendB2bServiceDispatchedSMS,
 } from "./sms";
 import { notifyBookingStatusPush, notifyProviderNewJobPush } from "./push";
+import { triggerNovu, WF, bookingStatusWorkflow, adminsTopic, custSub, provSub, money } from "./novu";
+
+const appUrl = () => process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
 
 interface BookingInfo {
   id: string;
@@ -43,7 +46,18 @@ export async function notifyBookingCreated(booking: BookingInfo) {
   ];
   if (booking.userId) {
     tasks.push(notifyBookingStatusPush(booking.userId, booking.id, "confirmed"));
+    tasks.push(triggerNovu(WF.bookingCreated, custSub(booking.userId), {
+      bookingId: booking.id,
+      priceFormatted: money(booking.estimatedPrice),
+      address: booking.location.address,
+    }, { transactionId: `${booking.id}:created` }));
   }
+  // Mirror to the ops/admin Inbox feed.
+  tasks.push(triggerNovu(WF.opsNewBooking, { type: "Topic", topicKey: adminsTopic() }, {
+    bookingId: booking.id,
+    priceFormatted: money(booking.estimatedPrice),
+    address: booking.location.address,
+  }, { transactionId: `${booking.id}:ops-created` }));
   await Promise.allSettled(tasks);
 }
 
@@ -53,6 +67,15 @@ export async function notifyProviderAssigned(booking: BookingInfo, provider: Pro
     sendProviderAssignmentSMS(provider.phone, booking, estimatedPrice, estimatedPayout),
   ];
   tasks.push(notifyProviderNewJobPush(provider.id, booking.id, booking.contactName, serviceName || "Roadside Assistance"));
+  tasks.push(triggerNovu(WF.providerJobAssigned, provSub(provider.id), {
+    bookingId: booking.id,
+    serviceName: serviceName || "Roadside Assistance",
+    customerName: booking.contactName,
+    customerPhone: booking.contactPhone,
+    address: booking.location.address,
+    payoutFormatted: money(estimatedPayout),
+    jobUrl: `${appUrl()}/provider/jobs/${booking.id}`,
+  }, { transactionId: `${booking.id}:provider-assigned` }));
   await Promise.allSettled(tasks);
 }
 
@@ -63,6 +86,15 @@ export async function notifyStatusChange(booking: BookingInfo, newStatus: string
   ];
   if (booking.userId) {
     tasks.push(notifyBookingStatusPush(booking.userId, booking.id, newStatus));
+    const wf = bookingStatusWorkflow(newStatus);
+    if (wf) {
+      tasks.push(triggerNovu(wf, custSub(booking.userId), {
+        bookingId: booking.id,
+        address: booking.location.address,
+        finalPriceFormatted: money(amountPaid),
+        trackUrl: `${appUrl()}/bookings/${booking.id}`,
+      }, { transactionId: `${booking.id}:${newStatus}` }));
+    }
   }
   await Promise.allSettled(tasks);
 }
@@ -355,6 +387,10 @@ export async function notifyPayoutComplete(
       `RoadSide GA: A payout of $${dollars} has been sent to your account.`,
     );
   }
+
+  await triggerNovu(WF.payoutPaid, provSub(providerId), {
+    amountFormatted: `$${dollars}`,
+  });
 }
 
 export async function notifyConnectDeadlineExpired(
@@ -387,6 +423,10 @@ export async function notifyConnectDeadlineExpired(
       `RoadSide GA: Your account has been suspended. Complete payment setup to reactivate: ${dashboardLink}`,
     );
   }
+
+  await triggerNovu(WF.providerSuspended, provSub(providerId), {
+    suspendedReason: "Stripe Connect payment setup was not completed by the deadline.",
+  });
 }
 
 export async function notifyPaymentConfirmed(
@@ -455,6 +495,7 @@ export async function notifyProviderRejected(
       sendSMS(user.phone, `RoadSide GA: Your provider application was not approved. Reason: ${reason}. Contact support if you have questions.`),
     );
   }
+  tasks.push(triggerNovu(WF.providerRejected, provSub(providerId), { rejectionReason: reason }));
 
   await Promise.allSettled(tasks);
 }
@@ -496,6 +537,13 @@ export async function notifyApplicationReceived(
       ),
     );
   }
+
+  // Provider subscribers are keyed by provider id; resolve it from the user id.
+  const { db } = await import("@/db");
+  const { providers } = await import("@/db/schema/providers");
+  const { eq } = await import("drizzle-orm");
+  const prov = await db.query.providers.findFirst({ where: eq(providers.userId, userId) });
+  if (prov) tasks.push(triggerNovu(WF.providerApplicationReceived, provSub(prov.id), {}));
 
   await Promise.allSettled(tasks);
 }

@@ -99,12 +99,14 @@ export function buildMetadata(page: {
       siteName: SEO.siteName,
       locale: SEO.locale,
       type: "website",
+      images: [{ url: "/og-image.png", width: 1200, height: 630, alt: SEO.siteName }],
     },
     twitter: {
       card: "summary_large_image",
       title: page.title,
       description: page.description,
       site: SEO.twitterHandle,
+      images: ["/og-image.png"],
     },
     robots: page.noindex
       ? { index: false, follow: false }

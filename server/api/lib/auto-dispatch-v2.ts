@@ -24,6 +24,7 @@ import {
   DEFAULT_SCORING_WEIGHTS,
 } from "@/lib/constants";
 import { notifyProviderAssigned } from "@/lib/notifications";
+import { triggerNovu, WF, provSub, adminsTopic, money } from "@/lib/notifications/novu";
 import { broadcastToProvider, broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 
 const MAX_DISPATCH_DISTANCE_MILES = parseInt(
@@ -195,6 +196,13 @@ export async function autoDispatchBookingV2(
         type: "booking:dispatch_failed",
         data: { bookingId, reason: `All ${MAX_DISPATCH_CASCADE_ATTEMPTS} attempts exhausted` },
       });
+      // Novu: alert ops that no provider accepted the cascade
+      void triggerNovu(
+        WF.opsDispatchNoProvider,
+        { type: "Topic", topicKey: adminsTopic() },
+        { bookingId, attempts: attempt },
+        { transactionId: `${bookingId}:no-provider` },
+      );
       return {
         success: false,
         attemptNumber: attempt,
@@ -274,6 +282,21 @@ export async function autoDispatchBookingV2(
 
   notifyProviderAssigned(booking, assignedProvider, estimatedPrice, estimatedPayout, service?.name).catch(
     () => {},
+  );
+
+  // Novu: deliver the dispatch offer to the provider's Inbox
+  void triggerNovu(
+    WF.dispatchOffer,
+    provSub(best.providerId),
+    {
+      bookingId,
+      serviceName: service?.name,
+      address: location.address,
+      payoutFormatted: money(estimatedPayout),
+      offerWindowMinutes: 1,
+      acceptUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/provider/jobs/${bookingId}`,
+    },
+    { transactionId: `${bookingId}:offer:${attempt}` },
   );
 
   if (assignedProvider.userId) {

@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { memberships } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/logger";
+import { triggerNovu, WF, custSub } from "@/lib/notifications/novu";
 
 function mapStatus(s: string): "active" | "past_due" | "canceled" {
   if (s === "active" || s === "trialing") return "active";
@@ -41,6 +42,19 @@ export async function handleSubscriptionUpsert(event: Stripe.Event): Promise<voi
     } else {
       await db.insert(memberships).values(values);
     }
+
+    // Novu: mirror the membership status change into the customer's Inbox
+    const planName = sub.metadata?.planName || "your plan";
+    if (values.status === "active") {
+      void triggerNovu(WF.membershipActivated, custSub(userId), { planName });
+    } else if (values.status === "past_due") {
+      void triggerNovu(WF.membershipPastDue, custSub(userId), {
+        planName,
+        billingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/account/membership`,
+      });
+    } else if (values.status === "canceled") {
+      void triggerNovu(WF.membershipCanceled, custSub(userId), { planName });
+    }
   } catch (err) {
     logger.error("[Webhook] subscription upsert failed", { error: err instanceof Error ? err.message : String(err) });
   }
@@ -50,6 +64,12 @@ export async function handleSubscriptionDeleted(event: Stripe.Event): Promise<vo
   const sub = event.data.object as Stripe.Subscription;
   try {
     await db.update(memberships).set({ status: "canceled", updatedAt: new Date() }).where(eq(memberships.stripeSubscriptionId, sub.id));
+
+    // Novu: notify customer their membership was canceled
+    const userId = sub.metadata?.userId;
+    if (userId) {
+      void triggerNovu(WF.membershipCanceled, custSub(userId), { planName: sub.metadata?.planName || "your plan" });
+    }
   } catch (err) {
     logger.error("[Webhook] subscription delete failed", { error: err instanceof Error ? err.message : String(err) });
   }

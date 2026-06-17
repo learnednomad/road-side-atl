@@ -49,6 +49,7 @@ import onboardingRoutes from "./routes/onboarding";
 import adminFeatureFlagsRoutes from "./routes/admin-feature-flags";
 import paymentMethodsRoutes from "./routes/payment-methods";
 import adminPromotionsRoutes from "./routes/admin-promotions";
+import novuRoutes from "./routes/novu";
 import { requireOnboardingComplete } from "./middleware/onboarding";
 
 const app = new Hono().basePath("/api");
@@ -164,5 +165,6 @@ app.route("/onboarding", onboardingRoutes);
 app.route("/admin/feature-flags", adminFeatureFlagsRoutes);
 app.route("/payment-methods", paymentMethodsRoutes);
 app.route("/admin/promotions", adminPromotionsRoutes);
+app.route("/novu", novuRoutes);
 
 export default app;
