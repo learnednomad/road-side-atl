@@ -5,6 +5,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { REFERRAL_CREDIT_AMOUNT_CENTS, PROVIDER_REFERRAL_REWARD_CENTS } from "@/lib/constants";
 import { logAudit } from "./audit-logger";
 import { notifyReferralCredit } from "@/lib/notifications";
+import { triggerNovu, WF, custSub, money } from "@/lib/notifications/novu";
 
 /**
  * Apply referral credit when a referee completes their first booking.
@@ -142,6 +143,14 @@ export async function creditReferralOnFirstBooking(
   if (referee?.phone) {
     notifyReferralCredit(referee.phone, REFERRAL_CREDIT_AMOUNT_CENTS, referee.email ?? undefined, referee.name ?? undefined).catch((err) => { console.error("[Notifications] Failed:", err); });
   }
+
+  // Novu: mirror the referral credit into the referrer's Inbox
+  void triggerNovu(
+    WF.referralCredited,
+    custSub(pendingReferral.referrerId),
+    { creditFormatted: money(pendingReferral.creditAmount) },
+    { transactionId: `${pendingReferral.id}:credited` },
+  );
 }
 
 /**

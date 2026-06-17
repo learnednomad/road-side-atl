@@ -3,6 +3,7 @@ import { ProviderSidebar } from "@/components/provider/provider-sidebar";
 import { ProviderMobileNav } from "@/components/provider/provider-mobile-nav";
 import { OfflineBanner } from "@/components/provider/offline-banner";
 import { AgreementRequiredBanner } from "@/components/provider/agreement-required-banner";
+import { InboxBell } from "@/components/notifications/inbox-bell";
 
 export const metadata: Metadata = {
   title: {
@@ -24,6 +25,9 @@ export default function ProviderLayout({
         <AgreementRequiredBanner />
         <OfflineBanner />
         <ProviderMobileNav />
+        <div className="flex justify-end px-6 pt-4 lg:px-8">
+          <InboxBell />
+        </div>
         <div className="p-6 lg:p-8">{children}</div>
       </div>
     </div>

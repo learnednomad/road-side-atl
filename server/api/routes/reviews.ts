@@ -4,6 +4,7 @@ import { reviews, providers, bookings, users } from "@/db/schema";
 import { eq, desc, avg, count } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireAuth } from "../middleware/auth";
+import { triggerNovu, WF, provSub, adminsTopic } from "@/lib/notifications/novu";
 
 type AuthEnv = {
   Variables: {
@@ -145,6 +146,16 @@ app.post("/", requireAuth, async (c) => {
       updatedAt: new Date(),
     })
     .where(eq(providers.id, booking.providerId));
+
+  // Novu: notify provider of the new review; alert ops on low ratings
+  void triggerNovu(WF.reviewReceived, provSub(booking.providerId), { rating, comment });
+  if (rating <= 2) {
+    void triggerNovu(
+      WF.opsLowRating,
+      { type: "Topic", topicKey: adminsTopic() },
+      { rating, comment, bookingId },
+    );
+  }
 
   return c.json({ success: true, review: newReview });
 });

@@ -13,6 +13,7 @@ import { geocodeAddress } from "@/lib/geocoding";
 import { isValidProviderTransition, isValidStepTransition } from "../lib/onboarding-state-machine";
 import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { notifyProviderRejected, notifyDocumentReviewed, notifyAdminProviderReadyForReview } from "@/lib/notifications";
+import { triggerNovu, WF, provSub } from "@/lib/notifications/novu";
 import { sendEmail } from "@/lib/notifications/email";
 import { getPresignedUrl } from "@/lib/s3";
 import { providerDocuments } from "@/db/schema/provider-documents";
@@ -784,6 +785,11 @@ app.post("/:id/activate", async (c) => {
     });
   }
 
+  // Novu: notify provider they are approved
+  void triggerNovu(WF.providerApproved, provSub(id), {
+    dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com"}/provider/onboarding`,
+  });
+
   return c.json(updated, 200);
 });
 
@@ -885,6 +891,9 @@ app.post("/:id/suspend", async (c) => {
     ipAddress,
     userAgent,
   });
+
+  // Novu: notify provider they have been suspended
+  void triggerNovu(WF.providerSuspended, provSub(id), { suspendedReason: parsed.data.reason });
 
   return c.json(updated, 200);
 });
