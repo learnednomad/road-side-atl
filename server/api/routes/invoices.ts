@@ -5,6 +5,7 @@ import {
   invoiceLineItems,
   businessSettings,
   users,
+  bookings,
 } from "@/db/schema";
 import { eq, desc, and, or, ilike, count } from "drizzle-orm";
 import { invoiceStatusEnum } from "@/db/schema/invoices";
@@ -461,10 +462,25 @@ app.get("/:id/pdf", async (c) => {
 
   const [settings] = await db.select().from(businessSettings).limit(1);
 
+  // Vehicle block (SABRONMBC receipt format) — from the linked booking, if any.
+  let vehicle: { label: string; vin: string | null; engine: string | null } | null = null;
+  if (invoice.bookingId) {
+    const booking = await db.query.bookings.findFirst({
+      where: eq(bookings.id, invoice.bookingId),
+      columns: { vehicleInfo: true },
+    });
+    const v = booking?.vehicleInfo;
+    if (v) {
+      const label = [v.year, v.make, v.model].filter(Boolean).join(" ").trim();
+      if (label) vehicle = { label, vin: null, engine: null };
+    }
+  }
+
   const pdfBuffer = await renderInvoicePdf({
     invoice,
     lineItems: items,
     businessSettings: settings || null,
+    vehicle,
   });
 
   return new Response(new Uint8Array(pdfBuffer), {

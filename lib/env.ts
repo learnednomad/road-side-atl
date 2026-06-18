@@ -25,6 +25,9 @@ const envSchema = z.object({
   // Novu notifications (self-hosted). All optional — when NOVU_ENABLED !== "true"
   // the Novu adapter is a no-op and the app uses only the legacy Resend/Twilio/push senders.
   NOVU_ENABLED: z.string().optional(),
+  // PHASE 2: when "true" (and NOVU_ENABLED), Novu delivers email/SMS/push for the
+  // events it has workflows for and the legacy senders skip them (no double-send).
+  NOVU_OWNS_DELIVERY: z.string().optional(),
   NOVU_SECRET_KEY: z.string().optional(), // per-environment API key (Novu dashboard -> Settings -> API Keys)
   NOVU_API_URL: z.string().optional(),    // defaults to https://novu-api.roadsidega.com
   NEXT_PUBLIC_NOVU_APP_ID: z.string().optional(),       // environment "applicationIdentifier" for the <Inbox>

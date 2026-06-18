@@ -70,6 +70,9 @@ app.put("/", requireAdmin, async (c) => {
     invoicePrefix: data.invoicePrefix || "INV",
     defaultTaxRate: data.defaultTaxRate ?? 0,
     invoiceFooterNote: data.invoiceFooterNote || null,
+    companyTagline: data.companyTagline || null,
+    warrantySummary: data.warrantySummary || null,
+    warrantyConditions: data.warrantyConditions || null,
   };
 
   if (existing) {
