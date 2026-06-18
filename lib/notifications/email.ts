@@ -9,13 +9,17 @@ function getResend(): Resend | null {
   return new Resend(key);
 }
 
-const FROM = process.env.RESEND_FROM || "noreply@roadsidega.com";
+// Default to a Resend-VERIFIED sender. The previous default ("noreply@roadsidega.com")
+// pointed at a domain that is NOT verified in Resend, so a missing RESEND_FROM made
+// every email throw (then get swallowed). In production RESEND_FROM is required by the
+// env guard (lib/env.ts); this fallback only applies in dev/test.
+const FROM = process.env.RESEND_FROM || "RoadSide GA <noreply@roadsideatl.learnednomad.com>";
 
 // Generic email sender for verification/password reset emails
 export async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<{ success: boolean; error?: string }> {
   const resend = getResend();
   if (!resend) {
-    logger.warn("Email sending skipped - RESEND_API_KEY not configured");
+    logger.warn("Email sending skipped - RESEND_API_KEY not configured", { to: opts.to, subject: opts.subject });
     return { success: false, error: "Email service not configured (RESEND_API_KEY missing)" };
   }
 
@@ -29,7 +33,9 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error("Email sending failed:", message);
+    // Include recipient + sender so a delivery failure is actionable in the logs
+    // (e.g. an unverified `from` domain rejection is otherwise invisible).
+    logger.error("Email sending failed:", message, { to: opts.to, from: FROM, subject: opts.subject });
     return { success: false, error: message };
   }
 }

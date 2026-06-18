@@ -109,11 +109,17 @@ export async function sendVerificationEmail(email: string, name: string): Promis
     </html>
   `;
 
-  await sendEmail({
+  const result = await sendEmail({
     to: email,
     subject: "Verify your email - RoadSide GA",
     html,
   });
+  // sendEmail swallows Resend errors and returns { success: false }. Surface it so
+  // the caller's .catch (or awaiting endpoint) sees a real failure instead of a
+  // silently-undelivered verification email after an apparently successful signup.
+  if (!result.success) {
+    throw new Error(`Verification email not sent to ${email}: ${result.error ?? "unknown error"}`);
+  }
 }
 
 // Password Reset Functions
@@ -202,9 +208,12 @@ export async function sendPasswordResetEmail(email: string, name: string): Promi
     </html>
   `;
 
-  await sendEmail({
+  const result = await sendEmail({
     to: email,
     subject: "Reset your password - RoadSide GA",
     html,
   });
+  if (!result.success) {
+    throw new Error(`Password reset email not sent to ${email}: ${result.error ?? "unknown error"}`);
+  }
 }

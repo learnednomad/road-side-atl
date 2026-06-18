@@ -46,6 +46,10 @@ jobs:
 
       - name: Build application
         env:
+          # CI is not a production deployment — keep APP_ENV out of "production"
+          # so the fail-closed prod env guards (real Stripe/Resend secrets) don't
+          # trip on CI's intentional placeholders/absences.
+          APP_ENV: development
           DATABASE_URL: postgres://dealer:test_password@localhost:5432/roadside_atl
           AUTH_SECRET: test-secret-for-ci-only
           AUTH_TRUST_HOST: "true"
@@ -62,6 +66,7 @@ jobs:
 
       - name: Run E2E tests
         env:
+          APP_ENV: development
           DATABASE_URL: postgres://dealer:test_password@localhost:5432/roadside_atl
           AUTH_SECRET: test-secret-for-ci-only
           AUTH_TRUST_HOST: "true"
