@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList, Home, Wrench, Info, CalendarCheck, ArrowRight, Truck, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InboxBell } from "@/components/notifications/inbox-bell";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { BUSINESS } from "@/lib/constants";
 
@@ -82,6 +83,7 @@ export function Navbar() {
           </Button>
           {isLoggedIn ? (
             <>
+              <InboxBell />
               {session?.user?.role === "customer" && (
                 <>
                   <Button asChild variant="outline" size="sm">
