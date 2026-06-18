@@ -58,6 +58,36 @@ When adding a new backend endpoint → add the React Query hook in mobile `api.t
 When adding a new web page → add the corresponding mobile screen
 When modifying an API response shape → update the mobile type + hook
 
+## Notifications (Novu)
+
+Self-hosted Novu (https://novu.roadsidega.com) is the notification hub + in-app
+**Inbox**. See `docs/novu-notifications.md` for the full design.
+
+- **Adapter**: `lib/notifications/novu.ts` — `triggerNovu(workflowId, to, payload, {transactionId})`,
+  `syncSubscriber(...)`, `inboxSubscriberHash(...)`. Fire-and-forget, never throws,
+  no-op unless `NOVU_ENABLED`. Triggers are wired centrally into the existing
+  `lib/notifications/index.ts` composite functions + key webhook/route sites.
+- **Workflows**: defined in `scripts/seed-novu-workflows.mjs` (source of truth, 35
+  workflows). Seed/update: `npm run novu:seed` (idempotent; `PROMOTE_TO_PROD=true`
+  publishes Dev→Prod; `CHANNELS_ACTIVE=true` activates email/SMS steps).
+- **Subscriber ids**: customer = `user.id`, provider = `provider:<providerId>`,
+  ops/admin = Novu Topic `admins[:tenantId]`. Always pass a stable `transactionId`
+  (e.g. `${bookingId}:dispatched`) — `triggerNovu` uses it for idempotency.
+- **Flags**: `NOVU_ENABLED` (master, on in dev+prod) lights up the in-app Inbox.
+  `NOVU_OWNS_DELIVERY` (Phase 2) makes the legacy Resend/Twilio/push senders SKIP
+  the events Novu covers so Novu delivers email/SMS too (no double-send). Both off
+  → legacy delivers and Novu adds only the Inbox.
+- **Inbox UI (web)**: `components/notifications/inbox-bell.tsx` (`<InboxBell/>`),
+  mounted in the navbar (signed-in users) + the `(provider)` layout. It fetches
+  `GET /api/novu/inbox-config` (auth) for the subscriberId + HMAC hash, then renders
+  `@novu/react`'s `<Inbox>`. `NEXT_PUBLIC_NOVU_*` env vars are build-time.
+
+**Mobile parity (REQUIRED):** the web Inbox needs a React Native counterpart in
+`roadside-atl-mobile` — use `@novu/react-native` (or the headless hooks), fetch the
+same `GET /api/novu/inbox-config` for the subscriberId + HMAC `subscriberHash`, and
+point `backendUrl`/`socketUrl` at `novu-api`/`novu-ws.roadsidega.com`. No new
+backend work needed — the endpoint already returns everything the client needs.
+
 ## Code Conventions
 - All prices in cents (integer)
 - Commission rates in basis points (10000 = 100%)
