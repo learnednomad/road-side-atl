@@ -127,10 +127,33 @@ async function novuFetch(path: string, body: unknown): Promise<Response> {
 }
 
 /**
+ * Has a notification already been delivered for this transactionId? Self-hosted
+ * Novu does NOT treat transactionId as an idempotency key, so we enforce it
+ * ourselves: the activity feed is queryable by transactionId. Best-effort — on
+ * any error we return false so a real notification is never suppressed by a
+ * transient lookup failure. (Catches retries seconds+ apart; truly simultaneous
+ * double-calls are already prevented upstream by the webhook/transition guards.)
+ */
+async function alreadyTriggered(transactionId: string): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${API_URL}/v1/notifications?transactionId=${encodeURIComponent(transactionId)}&page=0`,
+      { headers: { Authorization: `ApiKey ${SECRET_KEY}` } },
+    );
+    if (!res.ok) return false;
+    const body = await res.json();
+    return Array.isArray(body?.data) && body.data.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Fire a Novu workflow. Never throws — failures are logged and swallowed so a
  * notification problem can never break a booking/payment flow. No-op when
- * Novu is disabled. Pass a stable `transactionId` (e.g. `${bookingId}:dispatched`)
- * to dedupe against webhook retries.
+ * Novu is disabled. When a stable `transactionId` (e.g. `${bookingId}:dispatched`)
+ * is passed, the call is idempotent: if a notification already exists for that
+ * id it is skipped, so a duplicate event can't double-send.
  */
 export async function triggerNovu(
   workflowId: string,
@@ -140,6 +163,9 @@ export async function triggerNovu(
 ): Promise<void> {
   if (!isNovuEnabled()) return;
   try {
+    if (opts.transactionId && (await alreadyTriggered(opts.transactionId))) {
+      return; // idempotent: already delivered for this transaction
+    }
     const res = await novuFetch("/events/trigger", {
       name: workflowId,
       to,
