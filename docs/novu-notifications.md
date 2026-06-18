@@ -32,9 +32,20 @@ Novu's value today is the **in-app Inbox**, which the app lacked.
 
 - **Phase 1 (this integration):** only the `in_app` channel is active in every workflow.
   Novu runs alongside the legacy senders → users get a new Inbox with **zero double-send**.
-- **Phase 2 (later):** configure Novu's Resend + Twilio integrations in the dashboard,
-  re-seed with `CHANNELS_ACTIVE=true`, then delete the corresponding legacy `send*` calls.
-  No app wiring changes are needed — the triggers already carry the payloads.
+- **Phase 2 (cutover):** Novu delivers email/SMS/push too. Two coordinated switches:
+  1. **Novu side** — configure the Resend + Twilio integrations (done on Dev) and
+     activate the email/SMS workflow steps: `CHANNELS_ACTIVE=true … node scripts/seed-novu-workflows.mjs`.
+  2. **App side** — set `NOVU_OWNS_DELIVERY=true`. The `novuOwnsDelivery()` gate then
+     makes the legacy senders **skip** the events Novu covers (booking lifecycle,
+     payments, payouts, provider lifecycle, reviews, loyalty, referrals, memberships,
+     dispatch) so there is no double-send. Events WITHOUT a Novu workflow (email
+     verification, password reset, B2B invoices, Checkr, onboarding-step emails,
+     migration notices, Stripe-Connect reminders, admin manual payment receipts) are
+     never gated and keep using the legacy senders.
+
+  Both switches must flip together per environment (flag on but channels inactive →
+  silent gap; channels active but flag off → double-send). Flip dev, verify a real
+  event delivers exactly once, then prod.
 
 ## Workflows
 

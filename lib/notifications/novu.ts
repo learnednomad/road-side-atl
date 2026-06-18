@@ -28,6 +28,20 @@ export function isNovuEnabled(): boolean {
   return process.env.NOVU_ENABLED === "true" && SECRET_KEY.length > 0;
 }
 
+/**
+ * PHASE 2 cutover switch. When true (and Novu enabled), Novu OWNS delivery of
+ * email/SMS/push for the events it has workflows for — the legacy
+ * Resend/Twilio/web-push senders for those specific events are skipped to avoid
+ * double-sending. Requires the workflows' email/SMS steps to be active in Novu
+ * (re-seed with CHANNELS_ACTIVE=true). Off by default → legacy keeps delivering
+ * and Novu only adds the in-app Inbox. Events WITHOUT a Novu workflow (email
+ * verification, password reset, B2B invoices, Checkr, onboarding steps, etc.)
+ * are never gated by this and keep using the legacy senders.
+ */
+export function novuOwnsDelivery(): boolean {
+  return isNovuEnabled() && process.env.NOVU_OWNS_DELIVERY === "true";
+}
+
 /** Topic that fans out to all admins/ops for a tenant (or global if no tenant). */
 export function adminsTopic(tenantId?: string | null): string {
   return tenantId ? `admins:${tenantId}` : "admins";

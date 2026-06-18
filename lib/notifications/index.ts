@@ -18,7 +18,7 @@ import {
   sendB2bServiceDispatchedSMS,
 } from "./sms";
 import { notifyBookingStatusPush, notifyProviderNewJobPush } from "./push";
-import { triggerNovu, WF, bookingStatusWorkflow, adminsTopic, custSub, provSub, money } from "./novu";
+import { triggerNovu, WF, bookingStatusWorkflow, adminsTopic, custSub, provSub, money, novuOwnsDelivery } from "./novu";
 
 const appUrl = () => process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
 
@@ -40,19 +40,21 @@ interface ProviderInfo {
 }
 
 export async function notifyBookingCreated(booking: BookingInfo) {
-  const tasks: Promise<unknown>[] = [
-    sendBookingConfirmation(booking),
-    sendBookingConfirmationSMS(booking.contactPhone, booking),
-  ];
+  const tasks: Promise<unknown>[] = [];
+  // Legacy email/SMS/push — skipped once Novu owns delivery (Novu sends instead).
+  if (!novuOwnsDelivery()) {
+    tasks.push(sendBookingConfirmation(booking));
+    tasks.push(sendBookingConfirmationSMS(booking.contactPhone, booking));
+    if (booking.userId) tasks.push(notifyBookingStatusPush(booking.userId, booking.id, "confirmed"));
+  }
   if (booking.userId) {
-    tasks.push(notifyBookingStatusPush(booking.userId, booking.id, "confirmed"));
     tasks.push(triggerNovu(WF.bookingCreated, custSub(booking.userId), {
       bookingId: booking.id,
       priceFormatted: money(booking.estimatedPrice),
       address: booking.location.address,
     }, { transactionId: `${booking.id}:created` }));
   }
-  // Mirror to the ops/admin Inbox feed.
+  // Mirror to the ops/admin Inbox feed (always).
   tasks.push(triggerNovu(WF.opsNewBooking, { type: "Topic", topicKey: adminsTopic() }, {
     bookingId: booking.id,
     priceFormatted: money(booking.estimatedPrice),
@@ -62,11 +64,12 @@ export async function notifyBookingCreated(booking: BookingInfo) {
 }
 
 export async function notifyProviderAssigned(booking: BookingInfo, provider: ProviderInfo, estimatedPrice?: number, estimatedPayout?: number, serviceName?: string) {
-  const tasks: Promise<unknown>[] = [
-    sendProviderAssignment(booking, provider, estimatedPayout),
-    sendProviderAssignmentSMS(provider.phone, booking, estimatedPrice, estimatedPayout),
-  ];
-  tasks.push(notifyProviderNewJobPush(provider.id, booking.id, booking.contactName, serviceName || "Roadside Assistance"));
+  const tasks: Promise<unknown>[] = [];
+  if (!novuOwnsDelivery()) {
+    tasks.push(sendProviderAssignment(booking, provider, estimatedPayout));
+    tasks.push(sendProviderAssignmentSMS(provider.phone, booking, estimatedPrice, estimatedPayout));
+    tasks.push(notifyProviderNewJobPush(provider.id, booking.id, booking.contactName, serviceName || "Roadside Assistance"));
+  }
   tasks.push(triggerNovu(WF.providerJobAssigned, provSub(provider.id), {
     bookingId: booking.id,
     serviceName: serviceName || "Roadside Assistance",
@@ -80,12 +83,13 @@ export async function notifyProviderAssigned(booking: BookingInfo, provider: Pro
 }
 
 export async function notifyStatusChange(booking: BookingInfo, newStatus: string, amountPaid?: number) {
-  const tasks: Promise<unknown>[] = [
-    sendStatusUpdate(booking, newStatus, amountPaid),
-    sendStatusUpdateSMS(booking.contactPhone, booking, newStatus, amountPaid),
-  ];
+  const tasks: Promise<unknown>[] = [];
+  if (!novuOwnsDelivery()) {
+    tasks.push(sendStatusUpdate(booking, newStatus, amountPaid));
+    tasks.push(sendStatusUpdateSMS(booking.contactPhone, booking, newStatus, amountPaid));
+    if (booking.userId) tasks.push(notifyBookingStatusPush(booking.userId, booking.id, newStatus));
+  }
   if (booking.userId) {
-    tasks.push(notifyBookingStatusPush(booking.userId, booking.id, newStatus));
     const wf = bookingStatusWorkflow(newStatus);
     if (wf) {
       tasks.push(triggerNovu(wf, custSub(booking.userId), {
@@ -373,19 +377,21 @@ export async function notifyPayoutComplete(
 
   const dollars = (amountCents / 100).toFixed(2);
 
-  const { sendEmail } = await import("./email");
-  await sendEmail({
-    to: user.email,
-    subject: `Payout of $${dollars} sent to your account`,
-    html: `<h2>Payout Sent!</h2><p>Hi ${escapeHtml(user.name || "Provider")},</p><p>A payout of <strong>$${dollars}</strong> has been sent to your connected Stripe account. Funds will be available in your bank account according to your Stripe payout schedule.</p>`,
-  });
+  if (!novuOwnsDelivery()) {
+    const { sendEmail } = await import("./email");
+    await sendEmail({
+      to: user.email,
+      subject: `Payout of $${dollars} sent to your account`,
+      html: `<h2>Payout Sent!</h2><p>Hi ${escapeHtml(user.name || "Provider")},</p><p>A payout of <strong>$${dollars}</strong> has been sent to your connected Stripe account. Funds will be available in your bank account according to your Stripe payout schedule.</p>`,
+    });
 
-  if (user.phone) {
-    const { sendSMS } = await import("./sms");
-    await sendSMS(
-      user.phone,
-      `RoadSide GA: A payout of $${dollars} has been sent to your account.`,
-    );
+    if (user.phone) {
+      const { sendSMS } = await import("./sms");
+      await sendSMS(
+        user.phone,
+        `RoadSide GA: A payout of $${dollars} has been sent to your account.`,
+      );
+    }
   }
 
   await triggerNovu(WF.payoutPaid, provSub(providerId), {
@@ -409,19 +415,21 @@ export async function notifyConnectDeadlineExpired(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://roadsidega.com";
   const dashboardLink = `${appUrl}/provider/onboarding`;
 
-  const { sendEmail } = await import("./email");
-  await sendEmail({
-    to: user.email,
-    subject: "Account suspended — Complete Stripe Connect setup to reactivate",
-    html: `<h2>Account Suspended</h2><p>Hi ${escapeHtml(user.name || "Provider")},</p><p>Your account has been suspended because you did not complete your Stripe Connect payment setup within the required deadline.</p><p>To reactivate your account and start receiving jobs again, please complete your payment setup:</p><p><a href="${dashboardLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;">Complete Payment Setup</a></p>`,
-  });
+  if (!novuOwnsDelivery()) {
+    const { sendEmail } = await import("./email");
+    await sendEmail({
+      to: user.email,
+      subject: "Account suspended — Complete Stripe Connect setup to reactivate",
+      html: `<h2>Account Suspended</h2><p>Hi ${escapeHtml(user.name || "Provider")},</p><p>Your account has been suspended because you did not complete your Stripe Connect payment setup within the required deadline.</p><p>To reactivate your account and start receiving jobs again, please complete your payment setup:</p><p><a href="${dashboardLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;">Complete Payment Setup</a></p>`,
+    });
 
-  if (user.phone) {
-    const { sendSMS } = await import("./sms");
-    await sendSMS(
-      user.phone,
-      `RoadSide GA: Your account has been suspended. Complete payment setup to reactivate: ${dashboardLink}`,
-    );
+    if (user.phone) {
+      const { sendSMS } = await import("./sms");
+      await sendSMS(
+        user.phone,
+        `RoadSide GA: Your account has been suspended. Complete payment setup to reactivate: ${dashboardLink}`,
+      );
+    }
   }
 
   await triggerNovu(WF.providerSuspended, provSub(providerId), {
@@ -472,28 +480,29 @@ export async function notifyProviderRejected(
   const safeName = escapeHtml(user.name || "Provider");
   const safeReason = escapeHtml(reason);
 
-  const { sendEmail } = await import("./email");
-  const { sendPushNotification } = await import("./push");
-
-  const tasks: Promise<unknown>[] = [
-    sendEmail({
-      to: user.email,
-      subject: "RoadSide GA — Application update",
-      html: `<h2>Application Update</h2><p>Hi ${safeName},</p><p>Unfortunately, your provider application was not approved at this time.</p><p><strong>Reason:</strong> ${safeReason}</p><p>If you believe this was in error or have questions, please contact our support team.</p>`,
-    }),
-    sendPushNotification(provider.userId!, {
-      title: "Application Update",
-      body: "Your provider application was not approved. Check your email for details.",
-      url: "/provider/onboarding",
-      tag: "onboarding-rejected",
-    }),
-  ];
-
-  if (user.phone) {
-    const { sendSMS } = await import("./sms");
+  const tasks: Promise<unknown>[] = [];
+  if (!novuOwnsDelivery()) {
+    const { sendEmail } = await import("./email");
+    const { sendPushNotification } = await import("./push");
     tasks.push(
-      sendSMS(user.phone, `RoadSide GA: Your provider application was not approved. Reason: ${reason}. Contact support if you have questions.`),
+      sendEmail({
+        to: user.email,
+        subject: "RoadSide GA — Application update",
+        html: `<h2>Application Update</h2><p>Hi ${safeName},</p><p>Unfortunately, your provider application was not approved at this time.</p><p><strong>Reason:</strong> ${safeReason}</p><p>If you believe this was in error or have questions, please contact our support team.</p>`,
+      }),
+      sendPushNotification(provider.userId!, {
+        title: "Application Update",
+        body: "Your provider application was not approved. Check your email for details.",
+        url: "/provider/onboarding",
+        tag: "onboarding-rejected",
+      }),
     );
+    if (user.phone) {
+      const { sendSMS } = await import("./sms");
+      tasks.push(
+        sendSMS(user.phone, `RoadSide GA: Your provider application was not approved. Reason: ${reason}. Contact support if you have questions.`),
+      );
+    }
   }
   tasks.push(triggerNovu(WF.providerRejected, provSub(providerId), { rejectionReason: reason }));
 
@@ -511,31 +520,32 @@ export async function notifyApplicationReceived(
 
   const safeName = escapeHtml(providerName);
 
-  const { sendEmail } = await import("./email");
-  const { sendPushNotification } = await import("./push");
-
-  const tasks: Promise<unknown>[] = [
-    sendEmail({
-      to: email,
-      subject: "Application received — Welcome to RoadSide GA!",
-      html: `<h2>Application Received!</h2><p>Hi ${safeName},</p><p>Thanks for applying to become a RoadSide GA provider. Your application has been received and your onboarding has started.</p><p>Complete your remaining onboarding steps to start getting jobs:</p><p><a href="${dashboardLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;">Go to Onboarding Dashboard</a></p>`,
-    }),
-    sendPushNotification(userId, {
-      title: "Application Received!",
-      body: "Welcome to RoadSide GA. Complete your onboarding to start getting jobs.",
-      url: "/provider/onboarding",
-      tag: "onboarding-application",
-    }),
-  ];
-
-  if (phone) {
-    const { sendSMS } = await import("./sms");
+  const tasks: Promise<unknown>[] = [];
+  if (!novuOwnsDelivery()) {
+    const { sendEmail } = await import("./email");
+    const { sendPushNotification } = await import("./push");
     tasks.push(
-      sendSMS(
-        phone,
-        `RoadSide GA: Your provider application has been received! Complete your onboarding: ${dashboardLink}`,
-      ),
+      sendEmail({
+        to: email,
+        subject: "Application received — Welcome to RoadSide GA!",
+        html: `<h2>Application Received!</h2><p>Hi ${safeName},</p><p>Thanks for applying to become a RoadSide GA provider. Your application has been received and your onboarding has started.</p><p>Complete your remaining onboarding steps to start getting jobs:</p><p><a href="${dashboardLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;">Go to Onboarding Dashboard</a></p>`,
+      }),
+      sendPushNotification(userId, {
+        title: "Application Received!",
+        body: "Welcome to RoadSide GA. Complete your onboarding to start getting jobs.",
+        url: "/provider/onboarding",
+        tag: "onboarding-application",
+      }),
     );
+    if (phone) {
+      const { sendSMS } = await import("./sms");
+      tasks.push(
+        sendSMS(
+          phone,
+          `RoadSide GA: Your provider application has been received! Complete your onboarding: ${dashboardLink}`,
+        ),
+      );
+    }
   }
 
   // Provider subscribers are keyed by provider id; resolve it from the user id.
