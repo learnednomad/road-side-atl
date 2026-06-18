@@ -5,7 +5,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { REFERRAL_CREDIT_AMOUNT_CENTS, PROVIDER_REFERRAL_REWARD_CENTS } from "@/lib/constants";
 import { logAudit } from "./audit-logger";
 import { notifyReferralCredit } from "@/lib/notifications";
-import { triggerNovu, WF, custSub, money } from "@/lib/notifications/novu";
+import { triggerNovu, WF, custSub, money, novuOwnsDelivery } from "@/lib/notifications/novu";
 
 /**
  * Apply referral credit when a referee completes their first booking.
@@ -137,7 +137,10 @@ export async function creditReferralOnFirstBooking(
   const referrer = await db.query.users.findFirst({ where: eq(users.id, pendingReferral.referrerId) });
   const referee = await db.query.users.findFirst({ where: eq(users.id, userId) });
 
-  if (referrer?.phone) {
+  // Referrer's legacy email/SMS is skipped once Novu owns delivery (the Novu
+  // referral-credited workflow below covers the referrer). The referee has no
+  // Novu workflow, so their legacy notice always sends.
+  if (referrer?.phone && !novuOwnsDelivery()) {
     notifyReferralCredit(referrer.phone, REFERRAL_CREDIT_AMOUNT_CENTS, referrer.email ?? undefined, referrer.name ?? undefined).catch((err) => { console.error("[Notifications] Failed:", err); });
   }
   if (referee?.phone) {
