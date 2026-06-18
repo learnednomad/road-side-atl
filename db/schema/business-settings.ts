@@ -21,6 +21,10 @@ export const businessSettings = pgTable("business_settings", {
   invoicePrefix: text("invoicePrefix").default("INV").notNull(),
   defaultTaxRate: integer("defaultTaxRate").default(0).notNull(), // basis points
   invoiceFooterNote: text("invoiceFooterNote"),
+  // Receipt/invoice presentation (SABRONMBC mechanic-receipt format)
+  companyTagline: text("companyTagline"), // e.g. "Auto Repair & Mechanical Services"
+  warrantySummary: text("warrantySummary"), // short per-part warranty terms
+  warrantyConditions: text("warrantyConditions"), // detailed conditions/exclusions
   tenantId: text("tenantId"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),

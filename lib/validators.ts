@@ -165,6 +165,9 @@ export const businessSettingsSchema = z.object({
   invoicePrefix: z.string().optional(),
   defaultTaxRate: z.number().int().min(0).max(10000).optional(),
   invoiceFooterNote: z.string().optional(),
+  companyTagline: z.string().optional(),
+  warrantySummary: z.string().optional(),
+  warrantyConditions: z.string().optional(),
 });
 
 // Invoice schemas (from main)
