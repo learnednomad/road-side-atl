@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList, Home, Wrench, Info, CalendarCheck, ArrowRight, Truck, Star } from "lucide-react";
+import { Menu, Phone, LogIn, LogOut, LayoutDashboard, ClipboardList, Home, Wrench, Info, CalendarCheck, ArrowRight, Truck, Star, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InboxBell } from "@/components/notifications/inbox-bell";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
@@ -94,6 +94,9 @@ export function Navbar() {
                   </Button>
                   <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
                     <Link href="/account/membership">Membership</Link>
+                  </Button>
+                  <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
+                    <Link href="/account/payment-methods">Payment Methods</Link>
                   </Button>
                 </>
               )}
@@ -205,6 +208,14 @@ export function Navbar() {
                         >
                           <Star className="h-5 w-5 text-muted-foreground" />
                           Membership &amp; Rewards
+                        </Link>
+                        <Link
+                          href="/account/payment-methods"
+                          onClick={() => setOpen(false)}
+                          className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                        >
+                          <CreditCard className="h-5 w-5 text-muted-foreground" />
+                          Payment Methods
                         </Link>
                       </>
                     )}
