@@ -52,6 +52,9 @@ export function BusinessSettingsForm() {
   const [defaultTaxRate, setDefaultTaxRate] = useState(0);
   const [invoicePrefix, setInvoicePrefix] = useState("INV");
   const [invoiceFooterNote, setInvoiceFooterNote] = useState("");
+  const [companyTagline, setCompanyTagline] = useState("");
+  const [warrantySummary, setWarrantySummary] = useState("");
+  const [warrantyConditions, setWarrantyConditions] = useState("");
 
   useEffect(() => {
     fetch("/api/business-settings")
@@ -76,6 +79,9 @@ export function BusinessSettingsForm() {
           setDefaultTaxRate(data.defaultTaxRate || 0);
           setInvoicePrefix(data.invoicePrefix || "INV");
           setInvoiceFooterNote(data.invoiceFooterNote || "");
+          setCompanyTagline(data.companyTagline || "");
+          setWarrantySummary(data.warrantySummary || "");
+          setWarrantyConditions(data.warrantyConditions || "");
         }
       })
       .catch(() => {})
@@ -112,6 +118,9 @@ export function BusinessSettingsForm() {
           defaultTaxRate,
           invoicePrefix: invoicePrefix || undefined,
           invoiceFooterNote: invoiceFooterNote || undefined,
+          companyTagline: companyTagline || undefined,
+          warrantySummary: warrantySummary || undefined,
+          warrantyConditions: warrantyConditions || undefined,
         }),
       });
 
@@ -394,6 +403,44 @@ export function BusinessSettingsForm() {
               onChange={(e) => setInvoiceFooterNote(e.target.value)}
               placeholder="Thank you for your business!"
               rows={2}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="companyTagline" className="flex items-center gap-1.5">
+              <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
+              Company Tagline
+            </Label>
+            <Input
+              id="companyTagline"
+              value={companyTagline}
+              onChange={(e) => setCompanyTagline(e.target.value)}
+              placeholder="Auto Repair & Mechanical Services"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="warrantySummary" className="flex items-center gap-1.5">
+              <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
+              Warranty Summary
+            </Label>
+            <Textarea
+              id="warrantySummary"
+              value={warrantySummary}
+              onChange={(e) => setWarrantySummary(e.target.value)}
+              placeholder="Engine: 12 months / 12,000 miles. Battery: 24 months. Starter: 3 months, defects only."
+              rows={3}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="warrantyConditions" className="flex items-center gap-1.5">
+              <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
+              Warranty Conditions / Exclusions
+            </Label>
+            <Textarea
+              id="warrantyConditions"
+              value={warrantyConditions}
+              onChange={(e) => setWarrantyConditions(e.target.value)}
+              placeholder="Detailed warranty conditions and exclusions shown on receipts..."
+              rows={5}
             />
           </div>
         </CardContent>
