@@ -17,8 +17,8 @@ import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { incrementCleanTransaction } from "../lib/trust-tier";
 import { generateCSV } from "@/lib/csv";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
+import { reverseB2bCreditForBooking, adjustB2bCreditToFinalPrice } from "../lib/b2b-credit";
 import { notifyStatusChange, notifyProviderAssigned, notifyReferralLink, notifyPreServiceConfirmation, notifyPaymentConfirmed } from "@/lib/notifications";
-import { broadcastToAdmins, broadcastToUser, broadcastToProvider } from "@/server/websocket/broadcast";
 import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import type { AuditAction } from "../lib/audit-logger";
@@ -316,28 +316,6 @@ app.patch("/bookings/:id/assign-provider", async (c) => {
 
   // Notify provider
   notifyProviderAssigned(updated, provider, estimatedPrice, estimatedPayout, service?.name).catch((err) => { console.error("[Notifications] Failed:", err); });
-  if (provider.userId) {
-    const loc = updated.location as { address: string; latitude?: number; longitude?: number };
-    broadcastToProvider(provider.userId, {
-      type: "provider:job_assigned",
-      data: {
-        bookingId,
-        providerId: provider.id,
-        contactName: updated.contactName,
-        contactPhone: updated.contactPhone,
-        address: loc.address,
-        latitude: loc.latitude,
-        longitude: loc.longitude,
-        serviceName: service?.name,
-        estimatedPrice,
-        estimatedPayout,
-      },
-    });
-  }
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
-  if (updated.userId) {
-    broadcastToUser(updated.userId, { type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
-  }
 
   // Pre-service confirmation for diagnostic/inspection bookings (FR66)
   if (service && (service.category === "diagnostics" || service.slug.includes("inspection"))) {
@@ -448,6 +426,11 @@ app.patch("/bookings/:id/status", async (c) => {
     clearDelayNotification(bookingId);
   }
 
+  // Reverse NET B2B credit when an admin cancels (idempotent; no-op for non-B2B).
+  if (parsed.data.status === "cancelled") {
+    await reverseB2bCreditForBooking(bookingId);
+  }
+
   // Auto-dispatch when confirmed
   let dispatchResult = null;
   if (parsed.data.status === "confirmed") {
@@ -456,12 +439,6 @@ app.patch("/bookings/:id/status", async (c) => {
 
   // Fire-and-forget notifications (FR32: completion includes amount paid)
   notifyStatusChange(updated, parsed.data.status, amountPaid).catch((err) => { console.error("[Notifications] Failed:", err); });
-
-  // WebSocket broadcasts
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
-  if (updated.userId) {
-    broadcastToUser(updated.userId, { type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
-  }
 
   return c.json({ ...updated, dispatchResult });
 });
@@ -614,6 +591,9 @@ app.post("/bookings/:id/confirm-payment", async (c) => {
     .update(bookings)
     .set({ finalPrice: amount, updatedAt: new Date() })
     .where(eq(bookings.id, bookingId));
+
+  // True up NET B2B AR to the final price (idempotent; no-op for non-B2B).
+  await adjustB2bCreditToFinalPrice(bookingId, amount);
 
   // Audit log the payment confirmation
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
@@ -1113,11 +1093,6 @@ app.patch("/bookings/:id/override-price", async (c) => {
       userAgent,
     });
 
-    broadcastToAdmins({
-      type: "booking:price_override",
-      data: { bookingId: id },
-    });
-
     return c.json(updated, 200);
   }
 
@@ -1152,11 +1127,6 @@ app.patch("/bookings/:id/override-price", async (c) => {
     },
     ipAddress,
     userAgent,
-  });
-
-  broadcastToAdmins({
-    type: "booking:price_override",
-    data: { bookingId: id },
   });
 
   return c.json(updated, 200);
@@ -1220,11 +1190,6 @@ app.patch("/services/:id/commission", async (c) => {
     },
     ipAddress,
     userAgent,
-  });
-
-  broadcastToAdmins({
-    type: "service:commission_updated",
-    data: { serviceId: id, commissionRate: parsed.data.commissionRate },
   });
 
   return c.json(updated, 200);

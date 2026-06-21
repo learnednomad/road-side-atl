@@ -42,7 +42,10 @@ export function computeProviderAmount(
   } else {
     amount = Math.round((effectivePrice * provider.commissionRate) / 10000);
   }
-  return Math.max(0, amount);
+  // Cap at the booking price: a flat_per_job fee larger than the price must not
+  // pay the provider more than the customer paid (the destination-charge app fee
+  // is floored at 0, so an uncapped flat fee would make the platform eat the gap).
+  return Math.min(effectivePrice, Math.max(0, amount));
 }
 
 /** True for a Postgres unique-constraint violation (SQLSTATE 23505). */

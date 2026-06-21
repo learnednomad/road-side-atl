@@ -2,8 +2,6 @@ import "@/lib/env"; // Validate env vars at startup
 import { Hono } from "hono";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { getWSS } from "@/server/websocket/server";
-import { getConnectionCount } from "@/server/websocket/connections";
 import servicesRoutes from "./routes/services";
 import bookingsRoutes from "./routes/bookings";
 import adminRoutes from "./routes/admin";
@@ -100,11 +98,6 @@ app.get("/health", async (c) => {
   checks.database = dbResult;
   checks.stripe = stripeResult;
 
-  // WebSocket server check (synchronous — no timeout needed)
-  const wss = getWSS();
-  checks.websocket = { status: wss ? "healthy" : "unhealthy", latency: 0 };
-  const wsConnections = getConnectionCount();
-
   const allHealthy = Object.values(checks).every(
     (check) => check.status === "healthy" || check.status === "unconfigured"
   );
@@ -113,7 +106,6 @@ app.get("/health", async (c) => {
     {
       status: allHealthy ? "healthy" : "degraded",
       checks,
-      wsConnections,
       timestamp: new Date().toISOString(),
     },
     allHealthy ? 200 : 503,

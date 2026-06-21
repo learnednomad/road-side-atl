@@ -54,7 +54,6 @@
     "tailwind-merge": "^3.4.0",
     "twilio": "^5.12.0",
     "web-push": "^3.6.7",
-    "ws": "^8.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -65,7 +64,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
-    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.0.18",
     "drizzle-kit": "^0.31.8",
     "eslint": "^9",

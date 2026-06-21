@@ -14,7 +14,6 @@ import { isValidProviderTransition, isValidStepTransition } from "../lib/onboard
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { requireProvider } from "../middleware/auth";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
-import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { getPresignedUploadUrl, getPresignedUrl, getObjectSize, deleteFile } from "@/lib/s3";
 import { createCandidate, createInvitation, CheckrApiError } from "../lib/checkr";
 import { stripe, getStripe } from "@/lib/stripe";
@@ -92,16 +91,6 @@ app.get("/dashboard", requireProvider, async (c) => {
         },
         ipAddress,
         userAgent,
-      });
-
-      // Notify provider via WebSocket — dashboard will re-fetch
-      broadcastToUser(user.id, {
-        type: "onboarding:step_updated",
-        data: {
-          providerId: provider.id,
-          stepType: "all",
-          newStatus: "pending_review",
-        },
       });
 
       // Admin notification is handled by checkAllStepsCompleteAndTransition in step-completion endpoints.
@@ -852,11 +841,6 @@ app.post("/training/acknowledge/:cardId", requireProvider, async (c) => {
       userAgent,
     });
 
-    broadcastToUser(user.id, {
-      type: "onboarding:step_updated",
-      data: { providerId: provider.id, stepType: "training", newStatus: "complete" },
-    });
-
     notifyTrainingCompleted(provider.id).catch((err) => {
       logger.error("[Notifications] Failed:", err);
     });
@@ -1124,12 +1108,6 @@ app.post("/steps/:stepId/submit", requireProvider, async (c) => {
     userAgent,
   });
 
-  // Broadcast to admins
-  broadcastToAdmins({
-    type: "onboarding:new_submission",
-    data: { providerId: provider.id, providerName: provider.name, stepType: step.stepType },
-  });
-
   notifyAdminNewDocumentSubmitted(provider.id, provider.name, step.stepType).catch((err) => {
     logger.error("[Notifications] Failed:", err);
   });
@@ -1291,15 +1269,6 @@ app.get("/stripe-status", requireProvider, async (c) => {
             },
             ipAddress,
             userAgent,
-          });
-
-          broadcastToUser(user.id, {
-            type: "onboarding:step_updated",
-            data: {
-              providerId: provider.id,
-              stepType: "stripe_connect",
-              newStatus: "complete",
-            },
           });
 
           notifyStripeConnectCompleted(provider.id).catch((err) => {
@@ -1598,11 +1567,6 @@ app.post("/ic-agreement/accept", requireProvider, async (c) => {
     },
     ipAddress,
     userAgent,
-  });
-
-  broadcastToUser(user.id, {
-    type: "onboarding:step_updated",
-    data: { providerId: provider.id, stepType: "ic_agreement", newStatus: "complete" },
   });
 
   await checkAllStepsCompleteAndTransition(

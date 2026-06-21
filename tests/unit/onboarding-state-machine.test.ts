@@ -85,6 +85,10 @@ describe("Onboarding State Machine", () => {
       expect(isValidStepTransition("in_progress", "complete")).toBe(true);
     });
 
+    it("in_progress → rejected returns true (failed background check / doc step)", () => {
+      expect(isValidStepTransition("in_progress", "rejected")).toBe(true);
+    });
+
     it("pending_review → complete returns true", () => {
       expect(isValidStepTransition("pending_review", "complete")).toBe(true);
     });
@@ -157,7 +161,7 @@ describe("Onboarding State Machine", () => {
     });
 
     it("returns correct options for in_progress", () => {
-      expect(getValidStepTransitions("in_progress")).toEqual(["pending_review", "complete"]);
+      expect(getValidStepTransitions("in_progress")).toEqual(["pending_review", "complete", "rejected"]);
     });
 
     it("returns correct options for pending_review", () => {

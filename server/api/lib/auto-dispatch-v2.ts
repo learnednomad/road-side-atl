@@ -12,7 +12,7 @@
 
 import { db } from "@/db";
 import { bookings, providers, services, dispatchLogs, providerPayouts } from "@/db/schema";
-import { eq, and, inArray, gte, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, gte, sql } from "drizzle-orm";
 import { calculateDistance, milesToMeters } from "@/lib/distance";
 import { calculateEtaMinutes } from "@/server/api/lib/eta-calculator";
 import { scoreAndRankCandidates, type CandidateInput } from "./dispatch-scorer";
@@ -25,7 +25,6 @@ import {
 } from "@/lib/constants";
 import { notifyProviderAssigned } from "@/lib/notifications";
 import { triggerNovu, WF, provSub, adminsTopic, money } from "@/lib/notifications/novu";
-import { broadcastToProvider, broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 
 const MAX_DISPATCH_DISTANCE_MILES = parseInt(
   process.env.MAX_DISPATCH_DISTANCE_MILES || String(DEFAULT_DISPATCH_RADIUS_MILES),
@@ -192,10 +191,6 @@ export async function autoDispatchBookingV2(
         attemptNumber: attempt,
         outcome: "expired",
       });
-      broadcastToAdmins({
-        type: "booking:dispatch_failed",
-        data: { bookingId, reason: `All ${MAX_DISPATCH_CASCADE_ATTEMPTS} attempts exhausted` },
-      });
       // Novu: alert ops that no provider accepted the cascade
       void triggerNovu(
         WF.opsDispatchNoProvider,
@@ -229,7 +224,11 @@ export async function autoDispatchBookingV2(
   const assignedProvider = withCoords.find((p) => p.id === best.providerId)!;
   const offerExpiresAt = new Date(Date.now() + DISPATCH_OFFER_TIMEOUT_MS);
 
-  await db
+  // Atomic guard: only make the offer if the booking is still dispatchable
+  // (not already assigned/accepted by a concurrent or stale dispatch trigger).
+  // Initial dispatch and cascade both see status in (pending|confirmed) with no
+  // provider (offer-expiry/reject clear providerId before cascading).
+  const [assigned] = await db
     .update(bookings)
     .set({
       providerId: best.providerId,
@@ -238,7 +237,22 @@ export async function autoDispatchBookingV2(
       dispatchAttempt: attempt,
       updatedAt: new Date(),
     })
-    .where(eq(bookings.id, bookingId));
+    .where(
+      and(
+        eq(bookings.id, bookingId),
+        inArray(bookings.status, ["pending", "confirmed"]),
+        isNull(bookings.providerId),
+      ),
+    )
+    .returning({ id: bookings.id });
+
+  if (!assigned) {
+    return {
+      success: false,
+      reason: "Booking no longer dispatchable (already assigned or handled)",
+      attemptNumber: attempt,
+    };
+  }
 
   // 8. Log dispatch with scoring metadata
   const dispatchReason = [
@@ -298,34 +312,6 @@ export async function autoDispatchBookingV2(
     },
     { transactionId: `${bookingId}:offer:${attempt}` },
   );
-
-  if (assignedProvider.userId) {
-    broadcastToProvider(assignedProvider.userId, {
-      type: "provider:job_assigned",
-      data: {
-        bookingId,
-        providerId: assignedProvider.id,
-        contactName: booking.contactName,
-        address: location.address,
-        serviceName: service?.name,
-        estimatedPrice,
-        estimatedPayout,
-        offerExpiresAt: offerExpiresAt.toISOString(),
-        etaMinutes: best.etaMinutes,
-      },
-    });
-  }
-
-  broadcastToAdmins({
-    type: "booking:status_changed",
-    data: { bookingId, status: "dispatched" },
-  });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, {
-      type: "booking:status_changed",
-      data: { bookingId, status: "dispatched" },
-    });
-  }
 
   return {
     success: true,

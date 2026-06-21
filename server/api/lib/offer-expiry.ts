@@ -11,7 +11,6 @@ import { bookings, dispatchLogs } from "@/db/schema";
 import { eq, and, isNotNull, lte } from "drizzle-orm";
 import { MAX_DISPATCH_CASCADE_ATTEMPTS } from "@/lib/constants";
 import { logger } from "@/lib/logger";
-import { broadcastToProvider, broadcastToAdmins } from "@/server/websocket/broadcast";
 
 interface ExpiryResult {
   expired: number;
@@ -37,11 +36,14 @@ export async function processExpiredOffers(): Promise<ExpiryResult> {
   if (expiredBookings.length === 0) return result;
 
   for (const booking of expiredBookings) {
-    result.expired++;
     const expiredProviderId = booking.providerId;
 
-    // Revert booking to "confirmed" — clear offer fields
-    await db
+    // Revert to "confirmed" — atomic + state-conditional. Only revert if the
+    // booking is STILL this exact dispatched offer. If the provider accepted or
+    // rejected (status changed) or a newer offer was made (offerExpiresAt
+    // changed) between the SELECT above and now, no row matches → skip, so we
+    // never clobber an accepted/in-progress booking back to confirmed.
+    const reverted = await db
       .update(bookings)
       .set({
         providerId: null,
@@ -49,7 +51,20 @@ export async function processExpiredOffers(): Promise<ExpiryResult> {
         offerExpiresAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(bookings.id, booking.id));
+      .where(
+        and(
+          eq(bookings.id, booking.id),
+          eq(bookings.status, "dispatched"),
+          eq(bookings.offerExpiresAt, booking.offerExpiresAt!),
+        ),
+      )
+      .returning({ id: bookings.id });
+
+    if (reverted.length === 0) {
+      // Lost the race — booking was accepted/rejected/re-offered. Leave it.
+      continue;
+    }
+    result.expired++;
 
     // Log expiry in dispatch_logs
     await db.insert(dispatchLogs).values({
@@ -61,32 +76,9 @@ export async function processExpiredOffers(): Promise<ExpiryResult> {
       outcome: "expired",
     });
 
-    // Notify the provider whose offer expired
-    if (expiredProviderId) {
-      // Look up provider userId for WebSocket broadcast
-      const { providers } = await import("@/db/schema");
-      const provider = await db.query.providers.findFirst({
-        where: eq(providers.id, expiredProviderId),
-        columns: { userId: true },
-      });
-      if (provider?.userId) {
-        broadcastToProvider(provider.userId, {
-          type: "provider:offer_expired",
-          data: { bookingId: booking.id, reason: "Offer timed out" },
-        });
-      }
-    }
-
     // Cascade or escalate
     if (booking.dispatchAttempt >= MAX_DISPATCH_CASCADE_ATTEMPTS) {
       result.manualNeeded++;
-      broadcastToAdmins({
-        type: "booking:dispatch_failed",
-        data: {
-          bookingId: booking.id,
-          reason: `All ${MAX_DISPATCH_CASCADE_ATTEMPTS} dispatch attempts exhausted`,
-        },
-      });
       logger.error("[OfferExpiry] All attempts exhausted", {
         bookingId: booking.id,
         attempts: booking.dispatchAttempt,
@@ -117,16 +109,6 @@ export async function processExpiredOffers(): Promise<ExpiryResult> {
         });
       }
     }
-
-    // Notify admins of expiry (for monitoring)
-    broadcastToAdmins({
-      type: "booking:offer_expired",
-      data: {
-        bookingId: booking.id,
-        attemptNumber: booking.dispatchAttempt,
-        providerId: expiredProviderId || "",
-      },
-    });
   }
 
   if (result.expired > 0) {

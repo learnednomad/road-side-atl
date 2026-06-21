@@ -22,7 +22,6 @@ import { TOWING_BASE_MILES, TOWING_PRICE_PER_MILE_CENTS } from "@/lib/constants"
 import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { geocodeAddress } from "@/lib/geocoding";
 import { notifyB2bServiceDispatched } from "@/lib/notifications";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "./auto-dispatch";
 import { emitPartnerEvent } from "./outbound-webhooks";
 import type { CreateB2bBookingInput } from "@/lib/validators";
@@ -207,7 +206,7 @@ export async function createB2bBooking(
     [booking] = await db.insert(bookings).values(bookingValues).returning();
   }
 
-  // Fire-and-forget B2B notification + admin broadcast.
+  // Fire-and-forget B2B notification.
   notifyB2bServiceDispatched(
     { name: data.contactName, email: data.contactEmail, phone: data.contactPhone },
     account.companyName,
@@ -215,16 +214,6 @@ export async function createB2bBooking(
     data.location.address,
   ).catch((err) => {
     console.error("[Notifications] Failed:", err);
-  });
-  broadcastToAdmins({
-    type: "booking:created",
-    data: {
-      bookingId: booking.id,
-      contactName: booking.contactName,
-      status: booking.status,
-      serviceName: service.name,
-      b2bAccountId: account.id,
-    },
   });
 
   // Outbound partner webhook (fire-and-forget; enqueues to active subscriptions).

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,6 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useWebSocket } from "@/lib/hooks/use-websocket";
 import { OnboardingDetailPanel } from "./onboarding-detail-panel";
 import { toast } from "sonner";
 import { ArrowUpDown, Search, RefreshCw } from "lucide-react";
@@ -58,19 +56,12 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 export function ProviderPipeline() {
-  const { data: session } = useSession();
   const [pipeline, setPipeline] = useState<PipelineData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState<"date_desc" | "date_asc">("date_desc");
   const [selectedProvider, setSelectedProvider] = useState<PipelineProvider | null>(null);
-
-  const { lastEvent } = useWebSocket({
-    userId: session?.user?.id,
-    role: session?.user?.role,
-    enabled: !!session?.user?.id,
-  });
 
   const fetchPipeline = useCallback(async () => {
     const params = new URLSearchParams();
@@ -92,21 +83,6 @@ export function ProviderPipeline() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch
     void fetchPipeline();
   }, [fetchPipeline]);
-
-  useEffect(() => {
-    if (!lastEvent) return;
-    const refreshEvents = [
-      "onboarding:new_submission",
-      "onboarding:step_updated",
-      "onboarding:document_reviewed",
-      "onboarding:ready_for_review",
-      "onboarding:activated",
-    ];
-    if (refreshEvents.includes(lastEvent.type)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh on WS event
-      void fetchPipeline();
-    }
-  }, [lastEvent, fetchPipeline]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

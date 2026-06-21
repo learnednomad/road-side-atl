@@ -6,7 +6,6 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { StepCard, type OnboardingStep } from "./step-card";
 import { MigrationBanner } from "./migration-banner";
-import { useWS } from "@/components/providers/websocket-provider";
 
 interface ProviderSummary {
   status: string;
@@ -26,7 +25,6 @@ export function OnboardingDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { lastEvent } = useWS();
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -48,19 +46,6 @@ export function OnboardingDashboard() {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
-
-  // Real-time: re-fetch dashboard when onboarding-related WebSocket events arrive
-  useEffect(() => {
-    if (!lastEvent) return;
-    const { type } = lastEvent;
-    if (
-      type === "onboarding:step_updated" ||
-      type === "onboarding:document_reviewed" ||
-      type === "onboarding:activated"
-    ) {
-      fetchDashboard();
-    }
-  }, [lastEvent, fetchDashboard]);
 
   if (loading) {
     return (

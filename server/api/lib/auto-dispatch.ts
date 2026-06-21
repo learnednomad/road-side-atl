@@ -1,10 +1,9 @@
 import { db } from "@/db";
 import { bookings, providers, services, dispatchLogs } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { calculateDistance, milesToMeters } from "@/lib/distance";
 import { DEFAULT_DISPATCH_RADIUS_MILES, EXPANDED_DISPATCH_RADIUS_MILES } from "@/lib/constants";
 import { notifyProviderAssigned } from "@/lib/notifications";
-import { broadcastToProvider, broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 
 const MAX_DISPATCH_DISTANCE_MILES = parseInt(
   process.env.MAX_DISPATCH_DISTANCE_MILES || String(DEFAULT_DISPATCH_RADIUS_MILES)
@@ -131,14 +130,27 @@ export async function autoDispatchBooking(
   const best = candidates[0];
   const assignedProvider = activeProviders.find((p) => p.id === best.providerId)!;
 
-  await db
+  // Atomic guard: only assign if the booking is still dispatchable, so a
+  // concurrent/stale dispatch trigger can't hijack an already-assigned booking.
+  const [assigned] = await db
     .update(bookings)
     .set({
       providerId: best.providerId,
       status: "dispatched",
       updatedAt: new Date(),
     })
-    .where(eq(bookings.id, bookingId));
+    .where(
+      and(
+        eq(bookings.id, bookingId),
+        inArray(bookings.status, ["pending", "confirmed"]),
+        isNull(bookings.providerId),
+      ),
+    )
+    .returning({ id: bookings.id });
+
+  if (!assigned) {
+    return { success: false, reason: "Booking no longer dispatchable (already assigned or handled)" };
+  }
 
   const dispatchReason = [
     `Assigned to ${best.name} (${best.distanceMiles} mi, specialty: ${best.specialtyMatch})`,
@@ -170,27 +182,6 @@ export async function autoDispatchBooking(
   }
 
   notifyProviderAssigned(booking, assignedProvider, estimatedPrice, estimatedPayout, service?.name).catch((err) => { console.error("[Notifications] Failed:", err); });
-  if (assignedProvider.userId) {
-    broadcastToProvider(assignedProvider.userId, {
-      type: "provider:job_assigned",
-      data: {
-        bookingId,
-        providerId: assignedProvider.id,
-        contactName: booking.contactName,
-        contactPhone: booking.contactPhone,
-        address: location.address,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        serviceName: service?.name,
-        estimatedPrice,
-        estimatedPayout,
-      },
-    });
-  }
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "dispatched" } });
-  }
 
   return {
     success: true,

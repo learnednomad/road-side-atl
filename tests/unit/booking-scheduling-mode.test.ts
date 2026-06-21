@@ -43,11 +43,6 @@ vi.mock("@/lib/notifications", () => ({
   notifyStatusChange: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToAdmins: vi.fn(),
-  broadcastToUser: vi.fn(),
-}));
-
 vi.mock("@/server/api/lib/auto-dispatch", () => ({
   autoDispatchBooking: vi.fn(() => Promise.resolve(null)),
 }));

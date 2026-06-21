@@ -16,6 +16,7 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM: z.string().optional(), // verified "Name <addr@domain>" sender; required in production (see validateEnv)
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_PHONE_NUMBER: z.string().optional(),
@@ -101,6 +102,28 @@ function validateEnv() {
         console.error(`  ${key} appears to be a placeholder`);
       }
       console.error("Set real values before deploying. Refusing to start (fail-closed).");
+      console.error("========================================");
+      process.exit(1);
+    }
+
+    // Email delivery is required in production: signup verification and password
+    // reset both go through Resend. A missing key makes every send a silent no-op,
+    // and a missing RESEND_FROM falls back to an UNVERIFIED domain that Resend
+    // rejects — both produce apparently-successful signups with no email. The old
+    // placeholder check above only caught a literal "your-" key, not an absent one,
+    // so fail closed on the absence too.
+    const missingEmail: string[] = [];
+    if (!process.env.RESEND_API_KEY) missingEmail.push("RESEND_API_KEY");
+    if (!process.env.RESEND_FROM) missingEmail.push("RESEND_FROM");
+
+    if (missingEmail.length > 0) {
+      console.error("========================================");
+      console.error("FATAL: Required email config missing in production:");
+      for (const key of missingEmail) {
+        console.error(`  ${key} is not set`);
+      }
+      console.error("Signup verification and password-reset emails cannot be delivered.");
+      console.error("Set them to a Resend-verified sender before deploying. Refusing to start.");
       console.error("========================================");
       process.exit(1);
     }

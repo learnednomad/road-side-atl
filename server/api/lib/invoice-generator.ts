@@ -154,8 +154,12 @@ export async function createB2bMonthlyInvoice(
       and(
         eq(bookings.tenantId, accountId),
         eq(bookings.status, "completed"),
-        sql`${bookings.updatedAt} >= ${billingPeriodStart}`,
-        sql`${bookings.updatedAt} <= ${billingPeriodEnd}`,
+        sql`${bookings.updatedAt} >= ${billingPeriodStart}::date`,
+        // Exclusive upper bound at the day AFTER the period end. A 'YYYY-MM-DD'
+        // end string casts to midnight, so `<= end` dropped every booking
+        // completed during the last day (and the next period's `>= start` also
+        // excluded them → silently un-invoiced). `< end + 1 day` includes them.
+        sql`${bookings.updatedAt} < (${billingPeriodEnd}::date + interval '1 day')`,
         isNull(invoices.id),
       ),
     );

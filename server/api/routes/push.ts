@@ -107,30 +107,48 @@ app.get("/status", requireAuth, async (c) => {
   });
 });
 
-// Handle resubscription (from service worker)
-app.post("/resubscribe", async (c) => {
+// Handle resubscription (from service worker). Authenticated + validated, and
+// scoped to the caller's OWN subscriptions — otherwise any client could rewrite
+// another user's push endpoint (subscription hijack) or crash on a missing keys.
+const resubscribeSchema = z.object({
+  oldEndpoint: z.string().url(),
+  newSubscription: subscriptionSchema,
+});
+
+app.post("/resubscribe", requireAuth, async (c) => {
+  const user = c.get("user");
   const body = await c.req.json();
-  const { oldEndpoint, newSubscription } = body;
+  const parsed = resubscribeSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input" }, 400);
+  }
+  const { oldEndpoint, newSubscription } = parsed.data;
 
-  if (oldEndpoint) {
-    // Find and update the old subscription
-    const old = await db.query.pushSubscriptions.findFirst({
-      where: eq(pushSubscriptions.endpoint, oldEndpoint),
-    });
+  // Find the old subscription, but only if it belongs to the authenticated user.
+  const old = await db.query.pushSubscriptions.findFirst({
+    where: and(
+      eq(pushSubscriptions.endpoint, oldEndpoint),
+      eq(pushSubscriptions.userId, user.id),
+    ),
+  });
 
-    if (old && newSubscription) {
-      await db
-        .update(pushSubscriptions)
-        .set({
-          endpoint: newSubscription.endpoint,
-          keys: {
-            p256dh: newSubscription.keys.p256dh,
-            auth: newSubscription.keys.auth,
-          },
-          updatedAt: new Date(),
-        })
-        .where(eq(pushSubscriptions.id, old.id));
-    }
+  if (old) {
+    await db
+      .update(pushSubscriptions)
+      .set({
+        endpoint: newSubscription.endpoint,
+        keys: {
+          p256dh: newSubscription.keys.p256dh,
+          auth: newSubscription.keys.auth,
+        },
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(pushSubscriptions.id, old.id),
+          eq(pushSubscriptions.userId, user.id),
+        ),
+      );
   }
 
   return c.json({ success: true });

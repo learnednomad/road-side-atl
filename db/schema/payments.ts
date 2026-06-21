@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createId } from "./utils";
 import { bookings } from "./bookings";
@@ -50,4 +50,8 @@ export const payments = pgTable("payments", {
   uniqStripeSession: uniqueIndex("uniq_payments_stripe_session")
     .on(t.stripeSessionId)
     .where(sql`${t.stripeSessionId} IS NOT NULL`),
+  // FK join + payment-confirmation lookup by booking (hot path).
+  booking: index("idx_payments_booking").on(t.bookingId),
+  // Revenue dashboards: filter by status + ORDER BY/range on createdAt.
+  statusCreated: index("idx_payments_status_created").on(t.status, t.createdAt),
 }));

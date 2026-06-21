@@ -39,11 +39,6 @@ vi.mock("@/server/api/lib/dispatch-router", () => ({
   dispatchBooking: (...args: unknown[]) => mockAutoDispatch(...args),
 }));
 
-const mockBroadcastToAdmins = vi.fn();
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToAdmins: (...args: unknown[]) => mockBroadcastToAdmins(...args),
-}));
-
 vi.mock("@/lib/logger", () => ({
   logger: {
     info: vi.fn(),
@@ -155,13 +150,6 @@ describe("mechanic-pre-dispatch", () => {
 
       expect(result.dispatched).toBe(0);
       expect(result.failed).toBe(1);
-      expect(mockBroadcastToAdmins).toHaveBeenCalledWith({
-        type: "booking:dispatch_failed",
-        data: {
-          bookingId: "b2",
-          reason: "No providers within range",
-        },
-      });
     });
 
     it("handles autoDispatch throwing an error without stopping the loop", async () => {

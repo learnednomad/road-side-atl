@@ -13,8 +13,8 @@ import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { getActiveMembership } from "@/server/api/lib/memberships";
 import { geocodeAddress } from "@/lib/geocoding";
 import { notifyBookingCreated, notifyStatusChange } from "@/lib/notifications";
-import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
+import { reverseB2bCreditForBooking, adjustB2bCreditToFinalPrice } from "../lib/b2b-credit";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 
@@ -159,13 +159,9 @@ app.post("/", async (c) => {
     userAgent,
   });
 
-  // Fire-and-forget notifications + broadcast
+  // Fire-and-forget notifications
   notifyBookingCreated(booking).catch((err) => {
     console.error("[Notifications] Failed to send booking created notification:", err);
-  });
-  broadcastToAdmins({
-    type: "booking:created",
-    data: { bookingId: booking.id, contactName: booking.contactName, status: booking.status, serviceName: service.name },
   });
 
   // Auto-dispatch for immediate bookings (deferred for scheduled)
@@ -290,16 +286,6 @@ app.patch("/:id/reschedule", requireAuth, async (c) => {
   notifyStatusChange(booking, "rescheduled").catch((err) => {
     console.error("[Notifications] Failed to send reschedule notification:", err);
   });
-  broadcastToAdmins({
-    type: "booking:rescheduled",
-    data: { bookingId, scheduledAt: parsed.data.scheduledAt },
-  });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, {
-      type: "booking:rescheduled",
-      data: { bookingId, scheduledAt: parsed.data.scheduledAt },
-    });
-  }
 
   return c.json(updated);
 });
@@ -327,6 +313,10 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
     .where(eq(bookings.id, bookingId))
     .returning();
 
+  // Reverse any NET B2B credit accrued for this booking (idempotent; no-op for
+  // non-B2B/prepaid). Awaited so a failure surfaces rather than drifting the AR.
+  await reverseB2bCreditForBooking(bookingId);
+
   // Audit log the cancellation
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
@@ -342,10 +332,6 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
   notifyStatusChange(booking, "cancelled").catch((err) => {
     console.error("[Notifications] Failed to send cancellation notification:", err);
   });
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
-  }
 
   return c.json(updated);
 });
@@ -391,6 +377,11 @@ app.post("/:id/quote/approve", requireAuth, async (c) => {
     .set({ finalPrice: quote.totalCents, updatedAt: new Date() })
     .where(eq(bookings.id, booking.id))
     .returning();
+
+  // Keep NET B2B AR in sync with the billed (final) price (idempotent; no-op
+  // for non-B2B). The initial charge was estimatedPrice; the invoice bills this.
+  await adjustB2bCreditToFinalPrice(booking.id, quote.totalCents);
+
   return c.json({ quote: approved, booking: updated });
 });
 

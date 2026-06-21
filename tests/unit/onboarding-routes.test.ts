@@ -152,11 +152,6 @@ vi.mock("@/server/api/lib/audit-logger", () => ({
   getRequestInfo: vi.fn().mockReturnValue({ ipAddress: "127.0.0.1", userAgent: "test" }),
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToUser: vi.fn(),
-  broadcastToAdmins: vi.fn(),
-}));
-
 vi.mock("@/lib/s3", () => ({
   getPresignedUploadUrl: vi.fn().mockResolvedValue("https://s3.example.com/upload?signed=true"),
   getPresignedUrl: vi.fn().mockResolvedValue("https://s3.example.com/download?signed=true"),
@@ -174,7 +169,6 @@ vi.mock("@/server/api/lib/onboarding-state-machine", async () => {
 import { db } from "@/db";
 import app from "@/server/api/routes/onboarding";
 import { logAudit } from "@/server/api/lib/audit-logger";
-import { broadcastToUser } from "@/server/websocket/broadcast";
 
 const mockUsersFindFirst = db.query.users.findFirst as ReturnType<typeof vi.fn>;
 const mockProvidersFindFirst = db.query.providers.findFirst as ReturnType<typeof vi.fn>;
@@ -183,7 +177,6 @@ const mockOnboardingStepsFindFirst = (db.query as unknown as { onboardingSteps: 
 const mockOnboardingStepsFindMany = (db.query as unknown as { onboardingSteps: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).onboardingSteps.findMany;
 const mockTransaction = db.transaction as ReturnType<typeof vi.fn>;
 const mockLogAudit = logAudit as ReturnType<typeof vi.fn>;
-const mockBroadcastToUser = broadcastToUser as ReturnType<typeof vi.fn>;
 const mockDbUpdate = db.update as ReturnType<typeof vi.fn>;
 
 // ---------------------------------------------------------------------------
@@ -582,11 +575,6 @@ describe("GET /dashboard — Onboarding Dashboard", () => {
         }),
       })
     );
-
-    expect(mockBroadcastToUser).toHaveBeenCalledWith(
-      "u1",
-      expect.objectContaining({ type: "onboarding:step_updated" })
-    );
   });
 
   it("does NOT duplicate audit/broadcast on concurrent transition (TOCTOU)", async () => {
@@ -611,7 +599,6 @@ describe("GET /dashboard — Onboarding Dashboard", () => {
 
     // Should NOT log or broadcast since this request didn't perform the transition
     expect(mockLogAudit).not.toHaveBeenCalled();
-    expect(mockBroadcastToUser).not.toHaveBeenCalled();
   });
 
   it("does NOT auto-transition if any step is not complete", async () => {
@@ -635,7 +622,6 @@ describe("GET /dashboard — Onboarding Dashboard", () => {
     expect(json.provider.completedStepsCount).toBe(4);
 
     expect(mockLogAudit).not.toHaveBeenCalled();
-    expect(mockBroadcastToUser).not.toHaveBeenCalled();
   });
 
   it("returns 404 when provider not found", async () => {

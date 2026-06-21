@@ -8,7 +8,6 @@ import { BOOKING_STATUSES } from "@/lib/constants";
 import type { BookingStatus } from "@/lib/constants";
 import { updateBookingStatusSchema, createBookingQuoteSchema } from "@/lib/validators";
 import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
-import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { dispatchBooking } from "../lib/dispatch-router";
 import { awardLoyaltyForBooking } from "../lib/loyalty";
 import { geocodeAddress } from "@/lib/geocoding";
@@ -138,18 +137,27 @@ app.patch("/jobs/:id/accept", requireIcAgreementAccepted, async (c) => {
     return c.json({ error: "Job cannot be accepted in current status" }, 400);
   }
 
+  // Atomic guard: only accept if still assigned to this provider and in an
+  // acceptable status — prevents accepting a job the offer-expiry cron just
+  // reverted/reassigned in the race window after the read above.
   const [updated] = await db
     .update(bookings)
     .set({ status: "in_progress", offerExpiresAt: null, updatedAt: new Date() })
-    .where(eq(bookings.id, bookingId))
+    .where(
+      and(
+        eq(bookings.id, bookingId),
+        eq(bookings.providerId, provider.id),
+        inArray(bookings.status, ["dispatched", "confirmed"]),
+      ),
+    )
     .returning();
+
+  if (!updated) {
+    return c.json({ error: "Job is no longer available to accept" }, 409);
+  }
 
   // Fire-and-forget notifications
   notifyStatusChange(booking, "in_progress").catch(() => {});
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
-  }
 
   return c.json(updated);
 });
@@ -179,12 +187,23 @@ app.patch("/jobs/:id/reject", async (c) => {
     return c.json({ error: "Job can only be rejected when dispatched" }, 400);
   }
 
-  // Unassign provider and revert to confirmed
+  // Unassign provider and revert to confirmed — guarded so a stale reject can't
+  // clobber a booking the offer-expiry cron already reverted/reassigned.
   const [updated] = await db
     .update(bookings)
     .set({ providerId: null, status: "confirmed", offerExpiresAt: null, updatedAt: new Date() })
-    .where(eq(bookings.id, bookingId))
+    .where(
+      and(
+        eq(bookings.id, bookingId),
+        eq(bookings.providerId, provider.id),
+        eq(bookings.status, "dispatched"),
+      ),
+    )
     .returning();
+
+  if (!updated) {
+    return c.json({ error: "Job is no longer assigned to you" }, 409);
+  }
 
   // Log rejection outcome
   await db.insert(dispatchLogs).values({
@@ -207,11 +226,6 @@ app.patch("/jobs/:id/reject", async (c) => {
     excludeProviderIds,
     attempt: (booking.dispatchAttempt || 0) + 1,
   }).catch(() => {});
-
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
-  }
 
   return c.json(updated);
 });
@@ -260,10 +274,6 @@ app.patch("/jobs/:id/status", async (c) => {
     .returning();
 
   notifyStatusChange(booking, parsed.data.status).catch(() => {});
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
-  }
 
   if (parsed.data.status === "completed" || parsed.data.status === "cancelled") {
     if (booking.providerId) {
@@ -342,11 +352,6 @@ app.post("/location", async (c) => {
     })
     .where(eq(providers.id, provider.id));
 
-  broadcastToAdmins({
-    type: "provider:location_updated",
-    data: { providerId: provider.id, lat: latitude, lng: longitude },
-  });
-
   const activeBookings = await db.query.bookings.findMany({
     where: and(
       eq(bookings.providerId, provider.id),
@@ -362,11 +367,6 @@ app.post("/location", async (c) => {
     if (pickupLat && pickupLng) {
       etaMinutes = calculateEtaMinutes(latitude, longitude, pickupLat, pickupLng);
     }
-
-    broadcastToUser(activeBooking.id, {
-      type: "provider:location_updated",
-      data: { providerId: provider.id, lat: latitude, lng: longitude, etaMinutes },
-    });
 
     if (
       etaMinutes &&
@@ -1347,12 +1347,6 @@ app.post("/bookings/:id/quote", async (c) => {
     })
     .returning();
 
-  if (booking.userId) {
-    broadcastToUser(booking.userId, {
-      type: "quote:sent",
-      data: { bookingId: booking.id, quoteId: quote.id, totalCents },
-    });
-  }
   return c.json(quote, 201);
 });
 

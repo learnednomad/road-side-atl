@@ -18,6 +18,9 @@ vi.mock("@/db", () => ({
 vi.mock("@/db/schema", () => ({
   payments: { stripeSessionId: "stripeSessionId", stripePaymentIntentId: "stripePaymentIntentId", id: "id", bookingId: "bookingId", status: "status", method: "method" },
   bookings: { id: "id", finalPrice: "finalPrice", notes: "notes", updatedAt: "updatedAt" },
+  providerPayouts: { id: "id" },
+  webhookEvents: { id: "id", source: "source", status: "status", eventType: "eventType" },
+  users: { id: "id", stripeIdentitySessionId: "stripeIdentitySessionId" },
 }));
 
 vi.mock("@/db/schema/onboarding-steps", () => ({
@@ -58,12 +61,6 @@ vi.mock("@/server/api/lib/audit-logger", () => ({
 vi.mock("@/server/api/lib/onboarding-state-machine", () => ({
   isValidStepTransition: vi.fn().mockReturnValue(true),
   isValidProviderTransition: vi.fn().mockReturnValue(true),
-}));
-
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToUser: vi.fn(),
-  broadcastToAdmins: vi.fn(),
-  broadcastToProvider: vi.fn(),
 }));
 
 vi.mock("@/lib/notifications", () => ({
@@ -345,9 +342,29 @@ describe("Checkr Webhook Handler", () => {
     const updateSetFn = vi.fn().mockReturnValue({ where: updateWhereFn });
     (dbAny as { update: unknown }).update = vi.fn().mockReturnValue({ set: updateSetFn });
 
+    // Transaction chain — the Checkr report.completed mutations now run inside
+    // db.transaction(async (tx) => { tx.update().set().where() }) (FIX 2 / #138).
+    // tx.update().set().where() resolves; rejections propagate (fail-closed).
+    const txUpdateWhereFn = vi.fn().mockResolvedValue(undefined);
+    const txUpdateSetFn = vi.fn().mockReturnValue({ where: txUpdateWhereFn });
+    const txUpdateFn = vi.fn().mockReturnValue({ set: txUpdateSetFn });
+    const txMock = { update: txUpdateFn };
+    (dbAny as { transaction: unknown }).transaction = vi.fn(
+      async (cb: (tx: typeof txMock) => unknown) => await cb(txMock),
+    );
+
+    // Dedup store (webhook_events): not-processed by default; mark = insert.
+    (dbAny as { insert: unknown }).insert = vi.fn().mockReturnValue({
+      values: vi.fn().mockReturnValue({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }),
+    });
+    (db.query as Record<string, unknown>).webhookEvents = {
+      findFirst: vi.fn().mockResolvedValue(undefined),
+    };
+
     // Store references for test assertions
     (dbAny as Record<string, unknown>)._selectLimit = selectLimitFn;
     (dbAny as Record<string, unknown>)._updateReturning = updateReturningFn;
+    (dbAny as Record<string, unknown>)._txUpdate = txUpdateFn;
 
     // Reset provider findFirst
     (db.query.providers.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
@@ -401,7 +418,6 @@ describe("Checkr Webhook Handler", () => {
   it("processes report.completed with clear status and broadcasts to provider", async () => {
     const { db } = await import("@/db");
     const { logAudit } = await import("@/server/api/lib/audit-logger");
-    const { broadcastToUser } = await import("@/server/websocket/broadcast");
     const { notifyBackgroundCheckResult } = await import("@/lib/notifications");
 
     const mockStep = {
@@ -447,15 +463,11 @@ describe("Checkr Webhook Handler", () => {
         details: expect.objectContaining({ newStepStatus: "complete" }),
       }),
     );
-    expect(broadcastToUser).toHaveBeenCalledWith("user_1", expect.objectContaining({
-      type: "onboarding:step_updated",
-    }));
     expect(notifyBackgroundCheckResult).toHaveBeenCalledWith("prov_1", "clear");
   });
 
   it("processes report.completed with consider status and broadcasts to admins", async () => {
     const { db } = await import("@/db");
-    const { broadcastToAdmins } = await import("@/server/websocket/broadcast");
 
     const mockStep = {
       id: "step_2",
@@ -485,12 +497,6 @@ describe("Checkr Webhook Handler", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(broadcastToAdmins).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "onboarding:step_updated",
-        data: expect.objectContaining({ newStatus: "pending_review" }),
-      }),
-    );
   });
 
   it("processes report.completed with suspended status → rejected", async () => {
@@ -531,7 +537,9 @@ describe("Checkr Webhook Handler", () => {
     );
   });
 
-  it("returns 200 for orphan event (report not found)", async () => {
+  it("returns retryable 503 (unmarked) for orphan event (no matching step yet)", async () => {
+    // FIX 2 / D4: a brief candidate-create race must trigger a finite Checkr
+    // redelivery, so no-matching-step now returns 503 and stays UNMARKED.
     const { db } = await import("@/db");
     const dbAny = db as unknown as Record<string, unknown>;
     (dbAny._selectLimit as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
@@ -549,7 +557,9 @@ describe("Checkr Webhook Handler", () => {
       headers: { "Content-Type": "application/json", "x-checkr-signature": signature },
     });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
+    // Stays unmarked so Checkr retries.
+    expect((dbAny.insert as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
   });
 
   it("returns 200 for unknown event type (no error)", async () => {
@@ -601,8 +611,9 @@ describe("Checkr Webhook Handler", () => {
 
     expect(res.status).toBe(200);
 
-    // Verify update was called (backfill + status update = 2 update calls)
-    expect((db as unknown as Record<string, unknown>).update).toHaveBeenCalled();
+    // Verify the mutations ran inside the transaction (backfill + status update
+    // now use tx.update, not db.update — FIX 2 / #138).
+    expect((db as unknown as Record<string, unknown>)._txUpdate).toHaveBeenCalled();
   });
 
   it("deduplicates Checkr events (same event ID returns 200 without processing)", async () => {
