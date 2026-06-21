@@ -17,6 +17,7 @@ import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { incrementCleanTransaction } from "../lib/trust-tier";
 import { generateCSV } from "@/lib/csv";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
+import { reverseB2bCreditForBooking, adjustB2bCreditToFinalPrice } from "../lib/b2b-credit";
 import { notifyStatusChange, notifyProviderAssigned, notifyReferralLink, notifyPreServiceConfirmation, notifyPaymentConfirmed } from "@/lib/notifications";
 import { rateLimitStandard, rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
@@ -425,6 +426,11 @@ app.patch("/bookings/:id/status", async (c) => {
     clearDelayNotification(bookingId);
   }
 
+  // Reverse NET B2B credit when an admin cancels (idempotent; no-op for non-B2B).
+  if (parsed.data.status === "cancelled") {
+    await reverseB2bCreditForBooking(bookingId);
+  }
+
   // Auto-dispatch when confirmed
   let dispatchResult = null;
   if (parsed.data.status === "confirmed") {
@@ -585,6 +591,9 @@ app.post("/bookings/:id/confirm-payment", async (c) => {
     .update(bookings)
     .set({ finalPrice: amount, updatedAt: new Date() })
     .where(eq(bookings.id, bookingId));
+
+  // True up NET B2B AR to the final price (idempotent; no-op for non-B2B).
+  await adjustB2bCreditToFinalPrice(bookingId, amount);
 
   // Audit log the payment confirmation
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
