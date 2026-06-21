@@ -25,7 +25,6 @@ import {
 } from "@/lib/constants";
 import { notifyProviderAssigned } from "@/lib/notifications";
 import { triggerNovu, WF, provSub, adminsTopic, money } from "@/lib/notifications/novu";
-import { broadcastToProvider, broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 
 const MAX_DISPATCH_DISTANCE_MILES = parseInt(
   process.env.MAX_DISPATCH_DISTANCE_MILES || String(DEFAULT_DISPATCH_RADIUS_MILES),
@@ -192,10 +191,6 @@ export async function autoDispatchBookingV2(
         attemptNumber: attempt,
         outcome: "expired",
       });
-      broadcastToAdmins({
-        type: "booking:dispatch_failed",
-        data: { bookingId, reason: `All ${MAX_DISPATCH_CASCADE_ATTEMPTS} attempts exhausted` },
-      });
       // Novu: alert ops that no provider accepted the cascade
       void triggerNovu(
         WF.opsDispatchNoProvider,
@@ -298,34 +293,6 @@ export async function autoDispatchBookingV2(
     },
     { transactionId: `${bookingId}:offer:${attempt}` },
   );
-
-  if (assignedProvider.userId) {
-    broadcastToProvider(assignedProvider.userId, {
-      type: "provider:job_assigned",
-      data: {
-        bookingId,
-        providerId: assignedProvider.id,
-        contactName: booking.contactName,
-        address: location.address,
-        serviceName: service?.name,
-        estimatedPrice,
-        estimatedPayout,
-        offerExpiresAt: offerExpiresAt.toISOString(),
-        etaMinutes: best.etaMinutes,
-      },
-    });
-  }
-
-  broadcastToAdmins({
-    type: "booking:status_changed",
-    data: { bookingId, status: "dispatched" },
-  });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, {
-      type: "booking:status_changed",
-      data: { bookingId, status: "dispatched" },
-    });
-  }
 
   return {
     success: true,

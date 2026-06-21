@@ -5,7 +5,6 @@ import { eq, desc, sql, and, inArray, isNull } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
 import { markPayoutPaidSchema, initiateRefundSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { getStripe } from "@/lib/stripe";
 import { MIGRATION_LAUNCH_DATE, MIGRATION_DEPRECATION_DAYS, MIGRATION_GRACE_PERIOD_DAYS } from "@/lib/constants";
 
@@ -233,12 +232,6 @@ app.post("/mark-paid", async (c) => {
     });
   }
 
-  // Broadcast to admins
-  broadcastToAdmins({
-    type: "payout:batch_paid",
-    data: { payoutIds: updated.map((p) => p.id), count: updated.length },
-  });
-
   return c.json({ updated: updated.length, payouts: updated, settledClawbacks: settled.length });
 });
 
@@ -418,12 +411,6 @@ app.post("/refund", async (c) => {
     },
     ipAddress,
     userAgent,
-  });
-
-  // Broadcast to admins
-  broadcastToAdmins({
-    type: "payment:refunded",
-    data: { paymentId: updatedPayment.id, bookingId, refundType, refundAmount },
   });
 
   return c.json({

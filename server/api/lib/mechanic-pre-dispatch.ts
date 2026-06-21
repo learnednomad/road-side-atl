@@ -10,7 +10,6 @@ import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { eq, and, isNull, gte, lte } from "drizzle-orm";
 import { dispatchBooking } from "./dispatch-router";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { logger } from "@/lib/logger";
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -64,13 +63,6 @@ export async function findAndDispatchMechanicBookings(): Promise<PreDispatchResu
       dispatched++;
     } else {
       failed++;
-      broadcastToAdmins({
-        type: "booking:dispatch_failed",
-        data: {
-          bookingId: row.booking.id,
-          reason: result.reason,
-        },
-      });
     }
   }
 

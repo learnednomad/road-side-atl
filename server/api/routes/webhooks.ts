@@ -11,7 +11,6 @@ import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { demoteTrustTier } from "../lib/trust-tier";
 import { logAudit } from "../lib/audit-logger";
 import { isValidStepTransition } from "../lib/onboarding-state-machine";
-import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { notifyBackgroundCheckResult, notifyStripeConnectCompleted } from "@/lib/notifications";
 import { triggerNovu, WF, custSub, provSub, adminsTopic, money } from "@/lib/notifications/novu";
 import { checkAllStepsCompleteAndTransition, onStripeConnectStepComplete } from "../lib/all-steps-complete";
@@ -694,18 +693,6 @@ app.post("/stripe", async (c) => {
             },
           });
 
-          // Broadcast to provider
-          if (connectedProvider.userId) {
-            broadcastToUser(connectedProvider.userId, {
-              type: "onboarding:step_updated",
-              data: {
-                providerId: connectedProvider.id,
-                stepType: "stripe_connect",
-                newStatus: "complete",
-              },
-            });
-          }
-
           notifyStripeConnectCompleted(connectedProvider.id).catch((err) => {
             console.error("[Notifications] Failed:", err);
           });
@@ -793,11 +780,6 @@ app.post("/stripe", async (c) => {
           details: { stripeTransferId: transfer.id, amount: transfer.amount },
         });
 
-        // Notify admin
-        broadcastToAdmins({
-          type: "payout:transfer_failed",
-          data: { payoutId, stripeTransferId: transfer.id },
-        });
       }
       break;
     }
@@ -1090,30 +1072,9 @@ app.post("/checkr", async (c) => {
     });
 
     if (provider?.userId) {
-      broadcastToUser(provider.userId, {
-        type: "onboarding:step_updated",
-        data: {
-          providerId: step.providerId,
-          stepType: "background_check",
-          newStatus: newStepStatus,
-        },
-      });
-
       // Fire-and-forget notification
       notifyBackgroundCheckResult(step.providerId, effectiveStatus).catch((err) => {
         console.error("[Notifications] Failed:", err);
-      });
-    }
-
-    // Broadcast to admins for consider (pending_review)
-    if (newStepStatus === "pending_review") {
-      broadcastToAdmins({
-        type: "onboarding:step_updated",
-        data: {
-          providerId: step.providerId,
-          stepType: "background_check",
-          newStatus: "pending_review",
-        },
       });
     }
 

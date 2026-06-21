@@ -9,7 +9,6 @@ import { onboardingSteps } from "@/db/schema/onboarding-steps";
 import { providers } from "@/db/schema/providers";
 import { eq, and } from "drizzle-orm";
 import { logAudit } from "./audit-logger";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { notifyAdminProviderReadyForReview } from "@/lib/notifications";
 
 /**
@@ -95,14 +94,6 @@ export async function checkAllStepsCompleteAndTransition(
     .returning();
 
   if (result.length > 0) {
-    broadcastToAdmins({
-      type: "onboarding:ready_for_review",
-      data: {
-        providerId,
-        providerName: provider.name || "",
-      },
-    });
-
     notifyAdminProviderReadyForReview(providerId, provider.name || "").catch((err) => {
       console.error("[Notifications] Failed:", err);
     });

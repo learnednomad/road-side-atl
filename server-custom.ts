@@ -1,8 +1,6 @@
-import { createServer, type IncomingMessage } from "http";
-import type { Socket } from "net";
+import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
-import { createWebSocketServer, handleUpgrade, getWSS } from "./server/websocket/server";
 import { startCronJobs, stopCronJobs } from "./server/cron";
 import { logger } from "./lib/logger";
 
@@ -14,16 +12,11 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
-  createWebSocketServer();
   startCronJobs();
 
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url!, true);
     handle(req, res, parsedUrl);
-  });
-
-  server.on("upgrade", (req: IncomingMessage, socket: Socket, head: Buffer) => {
-    handleUpgrade(req, socket, head);
   });
 
   // Graceful shutdown
@@ -41,18 +34,7 @@ app.prepare().then(() => {
     // 2. Stop cron jobs
     stopCronJobs();
 
-    // 3. Close WebSocket connections
-    const wss = getWSS();
-    if (wss) {
-      for (const client of wss.clients) {
-        client.close(1001, "Server shutting down");
-      }
-      wss.close(() => {
-        logger.info("[Shutdown] WebSocket server closed");
-      });
-    }
-
-    // 4. Force exit after 30s if graceful shutdown stalls
+    // 3. Force exit after 30s if graceful shutdown stalls
     setTimeout(() => {
       logger.warn("[Shutdown] Forcing exit after timeout");
       process.exit(1);
