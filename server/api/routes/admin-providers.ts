@@ -11,7 +11,6 @@ import { rateLimitStrict } from "../middleware/rate-limit";
 import { createProviderSchema, updateProviderSchema, betaInviteSchema, adminRejectProviderSchema, adminSuspendProviderSchema, adminReviewStepSchema, adminDocumentReviewSchema } from "@/lib/validators";
 import { geocodeAddress } from "@/lib/geocoding";
 import { isValidProviderTransition, isValidStepTransition } from "../lib/onboarding-state-machine";
-import { broadcastToUser, broadcastToAdmins } from "@/server/websocket/broadcast";
 import { notifyProviderRejected, notifyDocumentReviewed, notifyAdminProviderReadyForReview } from "@/lib/notifications";
 import { triggerNovu, WF, provSub } from "@/lib/notifications/novu";
 import { sendEmail } from "@/lib/notifications/email";
@@ -770,11 +769,6 @@ app.post("/:id/activate", async (c) => {
   });
 
   if (provider.userId) {
-    broadcastToUser(provider.userId, {
-      type: "onboarding:activated",
-      data: { providerId: id, providerName: provider.name },
-    });
-
     // Fire-and-forget activation notification
     sendEmail({
       to: provider.email,
@@ -836,11 +830,6 @@ app.post("/:id/reject", async (c) => {
   });
 
   if (provider.userId) {
-    broadcastToUser(provider.userId, {
-      type: "onboarding:step_updated",
-      data: { providerId: id, stepType: "all", newStatus: "rejected" },
-    });
-
     notifyProviderRejected(id, parsed.data.reason).catch((err) => {
       console.error("[Notifications] Failed:", err);
     });
@@ -1027,23 +1016,9 @@ app.patch("/:id/steps/:stepId", async (c) => {
     userAgent,
   });
 
-  // Broadcast WebSocket event
   const provider = await db.query.providers.findFirst({
     where: eq(providers.id, id),
   });
-  if (provider?.userId) {
-    broadcastToUser(provider.userId, {
-      type: "onboarding:step_updated",
-      data: {
-        providerId: id,
-        stepType: step.stepType,
-        newStatus: parsed.data.status,
-        ...(parsed.data.rejectionReason && {
-          rejectionReason: parsed.data.rejectionReason,
-        }),
-      },
-    });
-  }
 
   // Auto-transition check: if approving and all steps now complete
   if (parsed.data.status === "complete" && provider?.status === "onboarding") {
@@ -1170,19 +1145,7 @@ app.patch("/:id/documents/:documentId", async (c) => {
     userAgent,
   });
 
-  // Broadcast WebSocket event to provider
   const provider = await db.query.providers.findFirst({ where: eq(providers.id, id) });
-  if (provider?.userId) {
-    broadcastToUser(provider.userId, {
-      type: "onboarding:document_reviewed",
-      data: {
-        providerId: id,
-        documentType: doc.documentType,
-        status: parsed.data.status,
-        ...(parsed.data.rejectionReason && { rejectionReason: parsed.data.rejectionReason }),
-      },
-    });
-  }
 
   // Fire-and-forget notification
   notifyDocumentReviewed(provider?.userId ?? undefined, doc.documentType, parsed.data.status, parsed.data.rejectionReason ?? undefined)
@@ -1237,11 +1200,6 @@ app.patch("/:id/documents/:documentId", async (c) => {
             }).where(and(eq(providers.id, id), eq(providers.status, "onboarding"))).returning();
 
             if (transitioned) {
-              broadcastToAdmins({
-                type: "onboarding:ready_for_review",
-                data: { providerId: id, providerName: provider.name },
-              });
-
               notifyAdminProviderReadyForReview(id, provider.name || "").catch((err) => {
                 console.error("[Notifications] Failed:", err);
               });

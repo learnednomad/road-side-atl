@@ -8,7 +8,6 @@ import { BOOKING_STATUSES } from "@/lib/constants";
 import type { BookingStatus } from "@/lib/constants";
 import { updateBookingStatusSchema, createBookingQuoteSchema } from "@/lib/validators";
 import { notifyStatusChange, notifyReferralLink } from "@/lib/notifications";
-import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { dispatchBooking } from "../lib/dispatch-router";
 import { awardLoyaltyForBooking } from "../lib/loyalty";
 import { geocodeAddress } from "@/lib/geocoding";
@@ -159,10 +158,6 @@ app.patch("/jobs/:id/accept", requireIcAgreementAccepted, async (c) => {
 
   // Fire-and-forget notifications
   notifyStatusChange(booking, "in_progress").catch(() => {});
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "in_progress" } });
-  }
 
   return c.json(updated);
 });
@@ -232,11 +227,6 @@ app.patch("/jobs/:id/reject", async (c) => {
     attempt: (booking.dispatchAttempt || 0) + 1,
   }).catch(() => {});
 
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "confirmed" } });
-  }
-
   return c.json(updated);
 });
 
@@ -284,10 +274,6 @@ app.patch("/jobs/:id/status", async (c) => {
     .returning();
 
   notifyStatusChange(booking, parsed.data.status).catch(() => {});
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: parsed.data.status } });
-  }
 
   if (parsed.data.status === "completed" || parsed.data.status === "cancelled") {
     if (booking.providerId) {
@@ -366,11 +352,6 @@ app.post("/location", async (c) => {
     })
     .where(eq(providers.id, provider.id));
 
-  broadcastToAdmins({
-    type: "provider:location_updated",
-    data: { providerId: provider.id, lat: latitude, lng: longitude },
-  });
-
   const activeBookings = await db.query.bookings.findMany({
     where: and(
       eq(bookings.providerId, provider.id),
@@ -386,11 +367,6 @@ app.post("/location", async (c) => {
     if (pickupLat && pickupLng) {
       etaMinutes = calculateEtaMinutes(latitude, longitude, pickupLat, pickupLng);
     }
-
-    broadcastToUser(activeBooking.id, {
-      type: "provider:location_updated",
-      data: { providerId: provider.id, lat: latitude, lng: longitude, etaMinutes },
-    });
 
     if (
       etaMinutes &&
@@ -1371,12 +1347,6 @@ app.post("/bookings/:id/quote", async (c) => {
     })
     .returning();
 
-  if (booking.userId) {
-    broadcastToUser(booking.userId, {
-      type: "quote:sent",
-      data: { bookingId: booking.id, quoteId: quote.id, totalCents },
-    });
-  }
   return c.json(quote, 201);
 });
 

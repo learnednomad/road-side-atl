@@ -13,7 +13,6 @@ import { calculateBookingPrice } from "@/server/api/lib/pricing-engine";
 import { getActiveMembership } from "@/server/api/lib/memberships";
 import { geocodeAddress } from "@/lib/geocoding";
 import { notifyBookingCreated, notifyStatusChange } from "@/lib/notifications";
-import { broadcastToAdmins, broadcastToUser } from "@/server/websocket/broadcast";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
@@ -159,13 +158,9 @@ app.post("/", async (c) => {
     userAgent,
   });
 
-  // Fire-and-forget notifications + broadcast
+  // Fire-and-forget notifications
   notifyBookingCreated(booking).catch((err) => {
     console.error("[Notifications] Failed to send booking created notification:", err);
-  });
-  broadcastToAdmins({
-    type: "booking:created",
-    data: { bookingId: booking.id, contactName: booking.contactName, status: booking.status, serviceName: service.name },
   });
 
   // Auto-dispatch for immediate bookings (deferred for scheduled)
@@ -290,16 +285,6 @@ app.patch("/:id/reschedule", requireAuth, async (c) => {
   notifyStatusChange(booking, "rescheduled").catch((err) => {
     console.error("[Notifications] Failed to send reschedule notification:", err);
   });
-  broadcastToAdmins({
-    type: "booking:rescheduled",
-    data: { bookingId, scheduledAt: parsed.data.scheduledAt },
-  });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, {
-      type: "booking:rescheduled",
-      data: { bookingId, scheduledAt: parsed.data.scheduledAt },
-    });
-  }
 
   return c.json(updated);
 });
@@ -342,10 +327,6 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
   notifyStatusChange(booking, "cancelled").catch((err) => {
     console.error("[Notifications] Failed to send cancellation notification:", err);
   });
-  broadcastToAdmins({ type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
-  if (booking.userId) {
-    broadcastToUser(booking.userId, { type: "booking:status_changed", data: { bookingId, status: "cancelled" } });
-  }
 
   return c.json(updated);
 });

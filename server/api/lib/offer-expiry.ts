@@ -11,7 +11,6 @@ import { bookings, dispatchLogs } from "@/db/schema";
 import { eq, and, isNotNull, lte } from "drizzle-orm";
 import { MAX_DISPATCH_CASCADE_ATTEMPTS } from "@/lib/constants";
 import { logger } from "@/lib/logger";
-import { broadcastToProvider, broadcastToAdmins } from "@/server/websocket/broadcast";
 
 interface ExpiryResult {
   expired: number;
@@ -77,32 +76,9 @@ export async function processExpiredOffers(): Promise<ExpiryResult> {
       outcome: "expired",
     });
 
-    // Notify the provider whose offer expired
-    if (expiredProviderId) {
-      // Look up provider userId for WebSocket broadcast
-      const { providers } = await import("@/db/schema");
-      const provider = await db.query.providers.findFirst({
-        where: eq(providers.id, expiredProviderId),
-        columns: { userId: true },
-      });
-      if (provider?.userId) {
-        broadcastToProvider(provider.userId, {
-          type: "provider:offer_expired",
-          data: { bookingId: booking.id, reason: "Offer timed out" },
-        });
-      }
-    }
-
     // Cascade or escalate
     if (booking.dispatchAttempt >= MAX_DISPATCH_CASCADE_ATTEMPTS) {
       result.manualNeeded++;
-      broadcastToAdmins({
-        type: "booking:dispatch_failed",
-        data: {
-          bookingId: booking.id,
-          reason: `All ${MAX_DISPATCH_CASCADE_ATTEMPTS} dispatch attempts exhausted`,
-        },
-      });
       logger.error("[OfferExpiry] All attempts exhausted", {
         bookingId: booking.id,
         attempts: booking.dispatchAttempt,
@@ -133,16 +109,6 @@ export async function processExpiredOffers(): Promise<ExpiryResult> {
         });
       }
     }
-
-    // Notify admins of expiry (for monitoring)
-    broadcastToAdmins({
-      type: "booking:offer_expired",
-      data: {
-        bookingId: booking.id,
-        attemptNumber: booking.dispatchAttempt,
-        providerId: expiredProviderId || "",
-      },
-    });
   }
 
   if (result.expired > 0) {

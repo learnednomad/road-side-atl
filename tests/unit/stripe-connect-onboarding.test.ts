@@ -117,11 +117,6 @@ vi.mock("@/server/api/lib/all-steps-complete", () => ({
   onStripeConnectStepComplete: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToUser: vi.fn(),
-  broadcastToAdmins: vi.fn(),
-}));
-
 vi.mock("@/lib/notifications", () => ({
   notifyBackgroundCheckResult: vi.fn().mockResolvedValue(undefined),
   notifyStripeConnectReminder: vi.fn().mockResolvedValue(undefined),

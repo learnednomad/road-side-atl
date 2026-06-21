@@ -13,11 +13,6 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToUser: vi.fn(),
-  broadcastToAdmins: vi.fn(),
-}));
-
 vi.mock("@/server/api/lib/audit-logger", () => ({
   logAudit: vi.fn(),
   getRequestInfo: vi.fn().mockReturnValue({ ipAddress: "127.0.0.1", userAgent: "test" }),
@@ -80,7 +75,6 @@ vi.mock("@/server/api/middleware/rate-limit", () => ({
 
 import { db } from "@/db";
 import { logAudit } from "@/server/api/lib/audit-logger";
-import { broadcastToUser } from "@/server/websocket/broadcast";
 import { checkAllStepsCompleteAndTransition } from "@/server/api/lib/all-steps-complete";
 
 // ── Tests ────────────────────────────────────────────────────────
@@ -194,10 +188,6 @@ describe("IC Agreement", () => {
             signedName: "Jane Smith",
           }),
         }),
-      );
-      expect(broadcastToUser).toHaveBeenCalledWith(
-        "user-1",
-        expect.objectContaining({ type: "onboarding:step_updated" }),
       );
       expect(checkAllStepsCompleteAndTransition).toHaveBeenCalledWith(
         "p1",

@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import { WebSocketWrapper } from "@/components/providers/websocket-wrapper";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { SITE_URL, SEO, ALL_KEYWORDS } from "@/lib/seo";
 import "./globals.css";
@@ -92,7 +91,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <AuthSessionProvider>
-          <WebSocketWrapper>{children}</WebSocketWrapper>
+          {children}
         </AuthSessionProvider>
         <Toaster />
       </body>

@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { JobCard } from "@/components/provider/job-card";
 import { LocationTracker } from "@/components/provider/location-tracker";
-import { useWS } from "@/components/providers/websocket-provider";
 import { toast } from "sonner";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import type { BookingStatus } from "@/lib/constants";
@@ -34,7 +33,6 @@ export function ProviderDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
-  const { lastEvent } = useWS();
 
   function fetchData() {
     setLoading(true);
@@ -54,18 +52,6 @@ export function ProviderDashboard() {
   useEffect(() => {
     fetchData(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching pattern
   }, []);
-
-  // Listen for new job assignments
-  useEffect(() => {
-    if (lastEvent?.type === "provider:job_assigned") {
-      toast.info("New job assigned!");
-      // Refresh jobs
-      fetch("/api/provider/jobs?status=dispatched")
-        .then((r) => r.json())
-        .then((data) => setJobs(data.data || []))
-        .catch(() => {});
-    }
-  }, [lastEvent]);
 
   async function handleAccept(bookingId: string) {
     const res = await fetch(`/api/provider/jobs/${bookingId}/accept`, { method: "PATCH" });

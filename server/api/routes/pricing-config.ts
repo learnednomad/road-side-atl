@@ -6,7 +6,6 @@ import { and, eq, gte } from "drizzle-orm";
 import { updateTimeBlockConfigSchema, activateStormModeSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "@/server/api/lib/audit-logger";
 import { STORM_MODE_PRIORITY } from "@/lib/constants";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
 
 type AuthEnv = {
   Variables: {
@@ -87,11 +86,6 @@ app.post("/storm-mode/activate", async (c) => {
     userAgent,
   });
 
-  broadcastToAdmins({
-    type: "storm_mode:activated",
-    data: { templateName: template.name, multiplier: template.multiplier, activatedBy: user.name || user.id },
-  });
-
   return c.json(activated, 200);
 });
 
@@ -112,11 +106,6 @@ app.post("/storm-mode/deactivate", async (c) => {
     details: { action: "deactivate_all" },
     ipAddress,
     userAgent,
-  });
-
-  broadcastToAdmins({
-    type: "storm_mode:deactivated",
-    data: { deactivatedBy: user.name || user.id },
   });
 
   return c.json({ success: true }, 200);

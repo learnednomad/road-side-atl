@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useWebSocket } from "@/lib/hooks/use-websocket";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,6 @@ import {
   Star,
 } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { LoyaltyRedeemButton } from "@/components/account/loyalty-redeem-button";
 import { formatPrice } from "@/lib/utils";
 
@@ -100,7 +98,6 @@ function formatDate(dateStr: string): string {
 export function MyBookingsClient({ initialBookings, userId, loyaltyBalance }: MyBookingsClientProps) {
   const [bookings, setBookings] = useState(initialBookings);
   const [pointsBalance, setPointsBalance] = useState(loyaltyBalance);
-  const { lastEvent, isConnected } = useWebSocket({ userId, role: "customer" });
 
   // Loyalty redemption reduced the booking's price and the balance.
   const handleRedeemed = (bookingId: string, discountCents: number) => {
@@ -120,30 +117,6 @@ export function MyBookingsClient({ initialBookings, userId, loyaltyBalance }: My
     setPointsBalance((prev) => Math.max(0, prev - discountCents));
   };
 
-  // Handle real-time updates
-  useEffect(() => {
-    if (!lastEvent) return;
-
-    if (lastEvent.type === "booking:status_changed") {
-      const { bookingId, status } = lastEvent.data as { bookingId: string; status: string };
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- websocket-driven state update
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.booking.id === bookingId
-            ? { ...b, booking: { ...b.booking, status } }
-            : b
-        )
-      );
-      const statusInfo = statusConfig[status];
-      toast.info(`Booking status updated: ${statusInfo?.label || status}`);
-    }
-
-    if (lastEvent.type === "provider:location_updated") {
-      // Just show a subtle indicator that provider location was updated
-      // The actual tracking page handles the map updates
-    }
-  }, [lastEvent]);
-
   // Separate active and completed bookings
   const activeStatuses = ["pending", "confirmed", "dispatched", "in_progress"];
   const activeBookings = bookings.filter((b) =>
@@ -158,14 +131,6 @@ export function MyBookingsClient({ initialBookings, userId, loyaltyBalance }: My
 
   return (
     <div className="space-y-6">
-      {/* Connection status */}
-      {isConnected && (
-        <div className="flex items-center gap-2 text-sm text-green-600">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          Live updates enabled
-        </div>
-      )}
-
       {/* Loyalty balance */}
       {pointsBalance > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white/60 px-4 py-3">

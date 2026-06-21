@@ -154,11 +154,6 @@ vi.mock("@/lib/csv", () => ({
   generateCSV: vi.fn().mockReturnValue("csv-data"),
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToUser: vi.fn(),
-  broadcastToAdmins: vi.fn(),
-}));
-
 vi.mock("@/server/api/lib/onboarding-state-machine", async () => {
   const actual = await vi.importActual("@/server/api/lib/onboarding-state-machine");
   return actual;
@@ -186,7 +181,6 @@ vi.mock("@/db/schema/provider-documents", () => ({
 import { db } from "@/db";
 import app from "@/server/api/routes/admin-providers";
 import { logAudit } from "@/server/api/lib/audit-logger";
-import { broadcastToUser } from "@/server/websocket/broadcast";
 import { sendEmail } from "@/lib/notifications/email";
 
 const mockProvidersFindFirst = db.query.providers.findFirst as ReturnType<typeof vi.fn>;
@@ -195,7 +189,6 @@ const mockStepsFindMany = (db.query as unknown as { onboardingSteps: { findFirst
 const mockDbUpdate = db.update as ReturnType<typeof vi.fn>;
 const mockTransaction = db.transaction as ReturnType<typeof vi.fn>;
 const mockLogAudit = logAudit as ReturnType<typeof vi.fn>;
-const mockBroadcastToUser = broadcastToUser as ReturnType<typeof vi.fn>;
 const mockSendEmail = sendEmail as ReturnType<typeof vi.fn>;
 
 // ---------------------------------------------------------------------------
@@ -251,10 +244,6 @@ describe("POST /:id/activate — Activate Provider", () => {
     expect(json.status).toBe("active");
     expect(mockLogAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "onboarding.activated" }),
-    );
-    expect(mockBroadcastToUser).toHaveBeenCalledWith(
-      "u1",
-      expect.objectContaining({ type: "onboarding:activated" }),
     );
     expect(mockSendEmail).toHaveBeenCalled();
   });
@@ -459,10 +448,6 @@ describe("PATCH /:id/steps/:stepId — Admin Step Review", () => {
 
     expect(mockLogAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "onboarding.step_completed" }),
-    );
-    expect(mockBroadcastToUser).toHaveBeenCalledWith(
-      "u1",
-      expect.objectContaining({ type: "onboarding:step_updated" }),
     );
   });
 

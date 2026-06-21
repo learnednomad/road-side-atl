@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useWebSocket } from "@/lib/hooks/use-websocket";
+import { useState } from "react";
 import { LiveTrackingMap } from "@/components/maps/live-tracking-map";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,33 +57,9 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 
 export function TrackingClient({ booking: initialBooking, provider: initialProvider, hasReview: initialHasReview = false }: TrackingClientProps) {
   const [booking, setBooking] = useState(initialBooking);
-  const [providerLocation, setProviderLocation] = useState(initialProvider?.currentLocation || null);
-  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
+  const [providerLocation] = useState(initialProvider?.currentLocation || null);
+  const [etaMinutes] = useState<number | null>(null);
   const [hasReview, setHasReview] = useState(initialHasReview);
-  const { lastEvent, isConnected } = useWebSocket({ userId: booking.id, role: "tracking", enabled: true });
-
-  // Listen for real-time updates
-  useEffect(() => {
-    if (!lastEvent) return;
-
-    if (lastEvent.type === "booking:status_changed") {
-      const data = lastEvent.data as { bookingId: string; status: string };
-      if (data.bookingId === booking.id) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- websocket-driven state update
-        setBooking((prev) => ({ ...prev, status: data.status }));
-      }
-    }
-
-    if (lastEvent.type === "provider:location_updated") {
-      const data = lastEvent.data as { providerId: string; lat: number; lng: number; etaMinutes?: number };
-      if (initialProvider && data.providerId === initialProvider.id) {
-        setProviderLocation({ lat: data.lat, lng: data.lng, updatedAt: new Date().toISOString() });
-        if (data.etaMinutes !== undefined) {
-          setEtaMinutes(data.etaMinutes);
-        }
-      }
-    }
-  }, [lastEvent, booking.id, initialProvider]);
 
   const status = statusConfig[booking.status] || statusConfig.pending;
   const hasLocation = booking.location.latitude && booking.location.longitude;
@@ -103,13 +78,6 @@ export function TrackingClient({ booking: initialBooking, provider: initialProvi
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">Track Your Service</h1>
         <p className="font-mono text-sm text-neutral-500">Booking #{booking.id.slice(0, 8)}</p>
       </div>
-
-      {!isConnected && (booking.status === "dispatched" || booking.status === "in_progress") && (
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2 text-sm text-yellow-800">
-          <div className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
-          Reconnecting to live updates...
-        </div>
-      )}
 
       {/* Post-inspection quote awaiting the customer's decision (owner-only) */}
       <QuoteApprovalCard

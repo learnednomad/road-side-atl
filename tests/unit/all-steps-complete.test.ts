@@ -46,10 +46,6 @@ vi.mock("@/server/api/lib/audit-logger", () => ({
   logAudit: vi.fn(),
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToAdmins: vi.fn(),
-}));
-
 vi.mock("@/lib/notifications", () => ({
   notifyAdminProviderReadyForReview: vi.fn().mockResolvedValue(undefined),
 }));
@@ -58,7 +54,6 @@ vi.mock("@/lib/notifications", () => ({
 
 import { db } from "@/db";
 import { logAudit } from "@/server/api/lib/audit-logger";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { checkAllStepsCompleteAndTransition } from "@/server/api/lib/all-steps-complete";
 
 // ── Tests ────────────────────────────────────────────────────────
@@ -149,20 +144,18 @@ describe("checkAllStepsCompleteAndTransition", () => {
     );
   });
 
-  it("broadcasts to admins on successful transition", async () => {
+  it("transitions successfully on all steps complete (broadcast removed)", async () => {
     (db.query.onboardingSteps.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
       { id: "step-1", status: "complete" },
     ]);
     mockUpdateReturnValues.push([{ id: "provider-1", status: "pending_review" }]);
 
-    await checkAllStepsCompleteAndTransition(
+    const result = await checkAllStepsCompleteAndTransition(
       "provider-1", "step-1", "test",
       undefined, mockProvider,
     );
 
-    expect(broadcastToAdmins).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "onboarding:ready_for_review" }),
-    );
+    expect(result).toBe(true);
   });
 
   it("logs audit with trigger and context on successful transition", async () => {
@@ -203,7 +196,6 @@ describe("checkAllStepsCompleteAndTransition", () => {
     );
 
     expect(result).toBe(false);
-    expect(broadcastToAdmins).not.toHaveBeenCalled();
     expect(logAudit).not.toHaveBeenCalled();
   });
 
