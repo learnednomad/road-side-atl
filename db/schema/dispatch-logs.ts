@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, jsonb, pgEnum, real } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, jsonb, pgEnum, real, index } from "drizzle-orm/pg-core";
 import { createId } from "./utils";
 import { bookings } from "./bookings";
 import { providers } from "./providers";
@@ -26,4 +26,9 @@ export const dispatchLogs = pgTable("dispatch_logs", {
   outcome: text("outcome"), // V2: "accepted" | "rejected" | "expired" | "assigned"
   scoringWeights: jsonb("scoringWeights").$type<Record<string, number>>(), // V2: weights used for scoring
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-});
+}, (t) => ({
+  // Per-booking lookups (provider accept/decline flow + offer-expiry cascade).
+  booking: index("idx_dispatch_logs_booking").on(t.bookingId),
+  // Per-provider dispatch history / analytics.
+  provider: index("idx_dispatch_logs_provider").on(t.assignedProviderId),
+}));
