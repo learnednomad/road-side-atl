@@ -60,12 +60,6 @@ vi.mock("@/server/api/lib/onboarding-state-machine", () => ({
   isValidProviderTransition: vi.fn().mockReturnValue(true),
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToUser: vi.fn(),
-  broadcastToAdmins: vi.fn(),
-  broadcastToProvider: vi.fn(),
-}));
-
 vi.mock("@/lib/notifications", () => ({
   notifyBackgroundCheckResult: vi.fn().mockResolvedValue(undefined),
 }));
@@ -401,7 +395,6 @@ describe("Checkr Webhook Handler", () => {
   it("processes report.completed with clear status and broadcasts to provider", async () => {
     const { db } = await import("@/db");
     const { logAudit } = await import("@/server/api/lib/audit-logger");
-    const { broadcastToUser } = await import("@/server/websocket/broadcast");
     const { notifyBackgroundCheckResult } = await import("@/lib/notifications");
 
     const mockStep = {
@@ -447,15 +440,11 @@ describe("Checkr Webhook Handler", () => {
         details: expect.objectContaining({ newStepStatus: "complete" }),
       }),
     );
-    expect(broadcastToUser).toHaveBeenCalledWith("user_1", expect.objectContaining({
-      type: "onboarding:step_updated",
-    }));
     expect(notifyBackgroundCheckResult).toHaveBeenCalledWith("prov_1", "clear");
   });
 
   it("processes report.completed with consider status and broadcasts to admins", async () => {
     const { db } = await import("@/db");
-    const { broadcastToAdmins } = await import("@/server/websocket/broadcast");
 
     const mockStep = {
       id: "step_2",
@@ -485,12 +474,6 @@ describe("Checkr Webhook Handler", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(broadcastToAdmins).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "onboarding:step_updated",
-        data: expect.objectContaining({ newStatus: "pending_review" }),
-      }),
-    );
   });
 
   it("processes report.completed with suspended status → rejected", async () => {

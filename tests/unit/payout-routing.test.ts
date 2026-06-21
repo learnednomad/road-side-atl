@@ -18,11 +18,6 @@ vi.mock("@/server/api/lib/audit-logger", () => ({
   getRequestInfo: vi.fn(() => ({ ipAddress: "127.0.0.1", userAgent: "test" })),
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToAdmins: vi.fn(),
-  broadcastToUser: vi.fn(),
-}));
-
 vi.mock("@/lib/notifications", () => ({
   notifyPayoutComplete: vi.fn().mockResolvedValue(undefined),
   notifyConnectDeadlineExpired: vi.fn().mockResolvedValue(undefined),

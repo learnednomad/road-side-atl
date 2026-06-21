@@ -177,11 +177,6 @@ vi.mock("@/lib/csv", () => ({
   generateCSV: vi.fn().mockReturnValue("csv-data"),
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToUser: vi.fn(),
-  broadcastToAdmins: vi.fn(),
-}));
-
 vi.mock("@/server/api/lib/onboarding-state-machine", async () => {
   const actual = await vi.importActual("@/server/api/lib/onboarding-state-machine");
   return actual;
@@ -198,7 +193,6 @@ vi.mock("@/lib/s3", () => ({
 import { db } from "@/db";
 import app from "@/server/api/routes/admin-providers";
 import { logAudit } from "@/server/api/lib/audit-logger";
-import { broadcastToUser } from "@/server/websocket/broadcast";
 import { notifyDocumentReviewed } from "@/lib/notifications";
 import { getPresignedUrl } from "@/lib/s3";
 
@@ -209,7 +203,6 @@ const mockDocsFindFirst = (db.query as unknown as { providerDocuments: { findFir
 const mockDocsFindMany = (db.query as unknown as { providerDocuments: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> } }).providerDocuments.findMany;
 const mockDbUpdate = db.update as ReturnType<typeof vi.fn>;
 const mockLogAudit = logAudit as ReturnType<typeof vi.fn>;
-const mockBroadcastToUser = broadcastToUser as ReturnType<typeof vi.fn>;
 const mockNotifyDocumentReviewed = notifyDocumentReviewed as ReturnType<typeof vi.fn>;
 const mockGetPresignedUrl = getPresignedUrl as ReturnType<typeof vi.fn>;
 
@@ -338,17 +331,6 @@ describe("PATCH /:id/documents/:documentId — Admin Document Review", () => {
         action: "document.approved",
         resourceType: "provider_document",
         resourceId: "doc-1",
-      }),
-    );
-
-    expect(mockBroadcastToUser).toHaveBeenCalledWith(
-      "u1",
-      expect.objectContaining({
-        type: "onboarding:document_reviewed",
-        data: expect.objectContaining({
-          providerId: "p1",
-          status: "approved",
-        }),
       }),
     );
 

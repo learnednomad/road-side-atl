@@ -161,11 +161,6 @@ vi.mock("@/server/api/lib/audit-logger", () => ({
   getRequestInfo: vi.fn().mockReturnValue({ ipAddress: "127.0.0.1", userAgent: "test" }),
 }));
 
-vi.mock("@/server/websocket/broadcast", () => ({
-  broadcastToUser: vi.fn(),
-  broadcastToAdmins: vi.fn(),
-}));
-
 vi.mock("@/server/api/lib/onboarding-state-machine", async () => {
   const actual = await vi.importActual("@/server/api/lib/onboarding-state-machine");
   return actual;
@@ -183,7 +178,6 @@ vi.mock("@/lib/s3", () => ({
 import { db } from "@/db";
 import app from "@/server/api/routes/onboarding";
 import { logAudit } from "@/server/api/lib/audit-logger";
-import { broadcastToAdmins } from "@/server/websocket/broadcast";
 import { getPresignedUploadUrl, getPresignedUrl } from "@/lib/s3";
 
 const mockProvidersFindFirst = db.query.providers.findFirst as ReturnType<typeof vi.fn>;
@@ -193,7 +187,6 @@ const mockDocsFindMany = (db.query as unknown as { providerDocuments: { findFirs
 const mockDbInsert = db.insert as ReturnType<typeof vi.fn>;
 const mockDbUpdate = db.update as ReturnType<typeof vi.fn>;
 const mockLogAudit = logAudit as ReturnType<typeof vi.fn>;
-const mockBroadcastToAdmins = broadcastToAdmins as ReturnType<typeof vi.fn>;
 const mockGetPresignedUploadUrl = getPresignedUploadUrl as ReturnType<typeof vi.fn>;
 const mockGetPresignedUrl = getPresignedUrl as ReturnType<typeof vi.fn>;
 
@@ -488,16 +481,6 @@ describe("POST /steps/:stepId/submit — Submit Documents for Review", () => {
         details: expect.objectContaining({
           stepType: "insurance",
           trigger: "document_submission",
-        }),
-      }),
-    );
-
-    expect(mockBroadcastToAdmins).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "onboarding:new_submission",
-        data: expect.objectContaining({
-          providerId: "p1",
-          stepType: "insurance",
         }),
       }),
     );

@@ -175,7 +175,6 @@ vi.mock("@/lib/notifications", () => ({ notifyDocumentReviewed: vi.fn().mockReso
 vi.mock("@/server/api/lib/audit-logger", () => ({ logAudit: vi.fn(), getRequestInfo: vi.fn().mockReturnValue({ ipAddress: "127.0.0.1", userAgent: "test" }) }));
 vi.mock("@/server/api/lib/encryption", () => ({ encrypt: vi.fn((v: string) => `enc_${v}`), decrypt: vi.fn((v: string) => v.replace("enc_", "")) }));
 vi.mock("@/lib/csv", () => ({ generateCSV: vi.fn().mockReturnValue("csv-data") }));
-vi.mock("@/server/websocket/broadcast", () => ({ broadcastToUser: vi.fn(), broadcastToAdmins: vi.fn() }));
 vi.mock("@/server/api/lib/onboarding-state-machine", async () => { const actual = await vi.importActual("@/server/api/lib/onboarding-state-machine"); return actual; });
 vi.mock("@/lib/s3", () => ({ getPresignedUrl: vi.fn().mockResolvedValue("https://s3.example.com/download?signed=true") }));
 
