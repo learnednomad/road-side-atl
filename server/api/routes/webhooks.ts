@@ -10,6 +10,7 @@ import { stripe } from "@/lib/stripe";
 import { createPayoutIfEligible } from "../lib/payout-calculator";
 import { demoteTrustTier } from "../lib/trust-tier";
 import { logAudit } from "../lib/audit-logger";
+import { sendOpsAlert } from "../lib/ops-alerts";
 import { isValidStepTransition } from "../lib/onboarding-state-machine";
 import { notifyBackgroundCheckResult, notifyStripeConnectCompleted } from "@/lib/notifications";
 import { triggerNovu, WF, custSub, provSub, adminsTopic, money } from "@/lib/notifications/novu";
@@ -944,9 +945,36 @@ app.post("/stripe", async (c) => {
       // Events not in the core switch dispatch to the extension registry
       // (Phase 4c invoice.paid, Phase 5b subscriptions). Truly-unknown events
       // are recorded as "skipped" rather than silently dropped.
+      //
+      // FAIL-CLOSED INVARIANT (FIX 3): `await handler(event)` runs with NO
+      // enclosing try/catch around the switch and NO app.onError. A thrown
+      // handler therefore bubbles to a Hono 500 *before* markEventProcessed()
+      // below ever runs, so the dedup row is never written and Stripe retries.
+      // Do NOT wrap the switch/dispatch in try/catch and do NOT add an
+      // app.onError — either re-introduces the swallow-all bug (#137) by
+      // converting an UNEXPECTED handler failure into a marked-processed 200.
+      // The narrow try/catch here is observability-only: it re-throws so the
+      // 500/no-mark control flow is unchanged; it never converts a throw to 200.
       const handler = stripeExtensionHandlers[event.type];
       if (handler) {
-        await handler(event);
+        try {
+          await handler(event);
+        } catch (err) {
+          // Money-integrity ops alert (#51): an extension handler failed
+          // unexpectedly. Observe the throw, then re-throw so dispatch stays
+          // fail-closed (no dedup row, Stripe redelivers).
+          sendOpsAlert({
+            title: "Stripe extension handler failed",
+            severity: "critical",
+            fields: {
+              eventType: event.type,
+              eventId: event.id,
+              error: err instanceof Error ? err.message : String(err),
+            },
+            dedupeKey: `stripe-handler-failed:${event.type}:${event.id}`,
+          });
+          throw err;
+        }
       } else {
         unhandled = true;
       }
@@ -998,7 +1026,11 @@ app.post("/checkr", async (c) => {
   if (await isEventProcessed(event.id, "checkr")) {
     return c.json({ ok: true }, 200);
   }
-  await markEventProcessed(event.id, "checkr");
+  // NOTE (FIX 2 / #138): the dedup row is written ONCE at the VERY END, after the
+  // entire pipeline (tx commit + audit + side-effects + checkAllSteps) succeeds.
+  // Marking up-front would strand a half-processed report when a later step throws
+  // (Checkr would never redeliver), so any throw before the final mark leaves the
+  // event UNMARKED on purpose so Checkr retries.
 
   if (event.type === "report.completed") {
     const reportData = event.data.object;
@@ -1021,37 +1053,51 @@ app.post("/checkr", async (c) => {
       .limit(1);
 
     if (!matchingSteps.length) {
-      return c.json({ ok: true }, 200);
+      // No onboarding step matches this candidate yet — likely a brief
+      // candidate-create race. Return a retryable 503 and stay UNMARKED so
+      // Checkr redelivers (a marked 200 would recover nothing). [FIX 2 / D4]
+      console.warn(
+        `[Checkr] report.completed: no matching onboarding step for candidate ${candidateId} (report ${reportId}); returning 503 for retry`,
+      );
+      return c.json({ ok: false }, 503);
     }
 
     const step = matchingSteps[0]!;
     const effectiveStatus = adjudication || checkrStatus;
     const newStepStatus = CHECKR_STATUS_MAP[effectiveStatus] || "in_progress";
 
-    // Backfill real report ID in step metadata (was null until this webhook)
+    // Atomically apply the two mutations (metadata backfill + guarded status
+    // transition) in ONE transaction so a redelivery never partially commits.
+    // The optimistic guard eq(status, step.status) keeps a concurrent/redelivered
+    // application a 0-row no-op. [FIX 2 / D7] Broadcasts, notify, audit and the
+    // all-steps-complete check stay OUTSIDE the tx — a Novu/socket hiccup must
+    // never roll back a committed status transition.
     const existingMetadata = (step.metadata || {}) as Record<string, unknown>;
-    await db
-      .update(onboardingSteps)
-      .set({
-        metadata: { ...existingMetadata, checkrReportId: reportId },
-        updatedAt: new Date(),
-      })
-      .where(eq(onboardingSteps.id, step.id));
-
-    if (isValidStepTransition(step.status, newStepStatus)) {
-      await db
+    await db.transaction(async (tx) => {
+      // Backfill real report ID in step metadata (was null until this webhook)
+      await tx
         .update(onboardingSteps)
         .set({
-          status: newStepStatus as typeof step.status,
-          completedAt: newStepStatus === "complete" ? new Date() : null,
-          rejectionReason:
-            newStepStatus === "rejected"
-              ? `Background check result: ${effectiveStatus}`
-              : null,
+          metadata: { ...existingMetadata, checkrReportId: reportId },
           updatedAt: new Date(),
         })
-        .where(and(eq(onboardingSteps.id, step.id), eq(onboardingSteps.status, step.status)));
-    }
+        .where(eq(onboardingSteps.id, step.id));
+
+      if (isValidStepTransition(step.status, newStepStatus)) {
+        await tx
+          .update(onboardingSteps)
+          .set({
+            status: newStepStatus as typeof step.status,
+            completedAt: newStepStatus === "complete" ? new Date() : null,
+            rejectionReason:
+              newStepStatus === "rejected"
+                ? `Background check result: ${effectiveStatus}`
+                : null,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(onboardingSteps.id, step.id), eq(onboardingSteps.status, step.status)));
+      }
+    });
 
     logAudit({
       action: "checkr.report_received",
@@ -1086,6 +1132,12 @@ app.post("/checkr", async (c) => {
       );
     }
   }
+
+  // Mark processed exactly ONCE, at the very end — AFTER the full pipeline
+  // succeeded (tx commit + audit + side-effects + checkAllSteps). This covers
+  // both report.completed-success AND ignored non-report.completed Checkr types.
+  // Any throw above leaves the event unmarked so Checkr redelivers. [FIX 2]
+  await markEventProcessed(event.id, "checkr", event.type, "processed");
 
   return c.json({ ok: true }, 200);
 });

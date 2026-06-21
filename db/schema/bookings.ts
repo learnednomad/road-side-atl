@@ -5,6 +5,7 @@ import {
   timestamp,
   jsonb,
   pgEnum,
+  index,
 } from "drizzle-orm/pg-core";
 import { createId } from "./utils";
 import { users } from "./users";
@@ -86,4 +87,15 @@ export const bookings = pgTable("bookings", {
   dispatchAttempt: integer("dispatchAttempt").default(0).notNull(), // V2 dispatch: cascade attempt counter
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
-});
+}, (t) => ({
+  // Admin list: filter by status + ORDER BY createdAt DESC.
+  statusCreated: index("idx_bookings_status_created").on(t.status, t.createdAt),
+  // Unfiltered admin list ORDER BY createdAt DESC.
+  created: index("idx_bookings_created").on(t.createdAt),
+  // Customer's own bookings.
+  user: index("idx_bookings_user").on(t.userId),
+  // Provider's jobs, often filtered by status (dispatch/accept flows).
+  providerStatus: index("idx_bookings_provider_status").on(t.providerId, t.status),
+  // FK joins / service segmentation.
+  service: index("idx_bookings_service").on(t.serviceId),
+}));

@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { providers } from "@/db/schema";
 import { onboardingSteps } from "@/db/schema/onboarding-steps";
 import { and, eq } from "drizzle-orm";
-import { auth } from "@/lib/auth";
+import { resolveUser } from "./auth";
 import { logAudit } from "@/server/api/lib/audit-logger";
 
 /**
@@ -15,14 +15,16 @@ import { logAudit } from "@/server/api/lib/audit-logger";
  * index.ts level before route modules run their own requireProvider.
  */
 export const requireOnboardingComplete = createMiddleware(async (c, next) => {
-  const session = await auth();
-  if (!session?.user?.id || session.user.role !== "provider") {
+  // Resolve identity the same way as the rest of the API (cookie OR Bearer),
+  // so the active/migration-bypass gate also runs for token-auth mobile clients.
+  const user = await resolveUser(c);
+  if (!user?.id || user.role !== "provider") {
     // Not a provider — let downstream middleware handle auth errors
     return next();
   }
 
   const provider = await db.query.providers.findFirst({
-    where: eq(providers.userId, session.user.id),
+    where: eq(providers.userId, user.id),
   });
 
   if (!provider) {
@@ -37,7 +39,7 @@ export const requireOnboardingComplete = createMiddleware(async (c, next) => {
   if (provider.migrationBypassExpiresAt && provider.migrationBypassExpiresAt > new Date()) {
     logAudit({
       action: "onboarding.migration_bypass",
-      userId: session.user.id,
+      userId: user.id,
       resourceType: "provider",
       resourceId: provider.id,
       details: { bypassExpiresAt: provider.migrationBypassExpiresAt.toISOString() },
