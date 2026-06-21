@@ -14,6 +14,7 @@ import { getActiveMembership } from "@/server/api/lib/memberships";
 import { geocodeAddress } from "@/lib/geocoding";
 import { notifyBookingCreated, notifyStatusChange } from "@/lib/notifications";
 import { autoDispatchBooking } from "../lib/auto-dispatch";
+import { reverseB2bCreditForBooking, adjustB2bCreditToFinalPrice } from "../lib/b2b-credit";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 
@@ -312,6 +313,10 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
     .where(eq(bookings.id, bookingId))
     .returning();
 
+  // Reverse any NET B2B credit accrued for this booking (idempotent; no-op for
+  // non-B2B/prepaid). Awaited so a failure surfaces rather than drifting the AR.
+  await reverseB2bCreditForBooking(bookingId);
+
   // Audit log the cancellation
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
@@ -372,6 +377,11 @@ app.post("/:id/quote/approve", requireAuth, async (c) => {
     .set({ finalPrice: quote.totalCents, updatedAt: new Date() })
     .where(eq(bookings.id, booking.id))
     .returning();
+
+  // Keep NET B2B AR in sync with the billed (final) price (idempotent; no-op
+  // for non-B2B). The initial charge was estimatedPrice; the invoice bills this.
+  await adjustB2bCreditToFinalPrice(booking.id, quote.totalCents);
+
   return c.json({ quote: approved, booking: updated });
 });
 
