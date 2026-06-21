@@ -37,11 +37,14 @@ export async function processExpiredOffers(): Promise<ExpiryResult> {
   if (expiredBookings.length === 0) return result;
 
   for (const booking of expiredBookings) {
-    result.expired++;
     const expiredProviderId = booking.providerId;
 
-    // Revert booking to "confirmed" — clear offer fields
-    await db
+    // Revert to "confirmed" — atomic + state-conditional. Only revert if the
+    // booking is STILL this exact dispatched offer. If the provider accepted or
+    // rejected (status changed) or a newer offer was made (offerExpiresAt
+    // changed) between the SELECT above and now, no row matches → skip, so we
+    // never clobber an accepted/in-progress booking back to confirmed.
+    const reverted = await db
       .update(bookings)
       .set({
         providerId: null,
@@ -49,7 +52,20 @@ export async function processExpiredOffers(): Promise<ExpiryResult> {
         offerExpiresAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(bookings.id, booking.id));
+      .where(
+        and(
+          eq(bookings.id, booking.id),
+          eq(bookings.status, "dispatched"),
+          eq(bookings.offerExpiresAt, booking.offerExpiresAt!),
+        ),
+      )
+      .returning({ id: bookings.id });
+
+    if (reverted.length === 0) {
+      // Lost the race — booking was accepted/rejected/re-offered. Leave it.
+      continue;
+    }
+    result.expired++;
 
     // Log expiry in dispatch_logs
     await db.insert(dispatchLogs).values({

@@ -12,7 +12,7 @@
 
 import { db } from "@/db";
 import { bookings, providers, services, dispatchLogs, providerPayouts } from "@/db/schema";
-import { eq, and, inArray, gte, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, gte, sql } from "drizzle-orm";
 import { calculateDistance, milesToMeters } from "@/lib/distance";
 import { calculateEtaMinutes } from "@/server/api/lib/eta-calculator";
 import { scoreAndRankCandidates, type CandidateInput } from "./dispatch-scorer";
@@ -229,7 +229,11 @@ export async function autoDispatchBookingV2(
   const assignedProvider = withCoords.find((p) => p.id === best.providerId)!;
   const offerExpiresAt = new Date(Date.now() + DISPATCH_OFFER_TIMEOUT_MS);
 
-  await db
+  // Atomic guard: only make the offer if the booking is still dispatchable
+  // (not already assigned/accepted by a concurrent or stale dispatch trigger).
+  // Initial dispatch and cascade both see status in (pending|confirmed) with no
+  // provider (offer-expiry/reject clear providerId before cascading).
+  const [assigned] = await db
     .update(bookings)
     .set({
       providerId: best.providerId,
@@ -238,7 +242,22 @@ export async function autoDispatchBookingV2(
       dispatchAttempt: attempt,
       updatedAt: new Date(),
     })
-    .where(eq(bookings.id, bookingId));
+    .where(
+      and(
+        eq(bookings.id, bookingId),
+        inArray(bookings.status, ["pending", "confirmed"]),
+        isNull(bookings.providerId),
+      ),
+    )
+    .returning({ id: bookings.id });
+
+  if (!assigned) {
+    return {
+      success: false,
+      reason: "Booking no longer dispatchable (already assigned or handled)",
+      attemptNumber: attempt,
+    };
+  }
 
   // 8. Log dispatch with scoring metadata
   const dispatchReason = [

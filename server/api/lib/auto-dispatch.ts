@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { bookings, providers, services, dispatchLogs } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { calculateDistance, milesToMeters } from "@/lib/distance";
 import { DEFAULT_DISPATCH_RADIUS_MILES, EXPANDED_DISPATCH_RADIUS_MILES } from "@/lib/constants";
 import { notifyProviderAssigned } from "@/lib/notifications";
@@ -131,14 +131,27 @@ export async function autoDispatchBooking(
   const best = candidates[0];
   const assignedProvider = activeProviders.find((p) => p.id === best.providerId)!;
 
-  await db
+  // Atomic guard: only assign if the booking is still dispatchable, so a
+  // concurrent/stale dispatch trigger can't hijack an already-assigned booking.
+  const [assigned] = await db
     .update(bookings)
     .set({
       providerId: best.providerId,
       status: "dispatched",
       updatedAt: new Date(),
     })
-    .where(eq(bookings.id, bookingId));
+    .where(
+      and(
+        eq(bookings.id, bookingId),
+        inArray(bookings.status, ["pending", "confirmed"]),
+        isNull(bookings.providerId),
+      ),
+    )
+    .returning({ id: bookings.id });
+
+  if (!assigned) {
+    return { success: false, reason: "Booking no longer dispatchable (already assigned or handled)" };
+  }
 
   const dispatchReason = [
     `Assigned to ${best.name} (${best.distanceMiles} mi, specialty: ${best.specialtyMatch})`,
