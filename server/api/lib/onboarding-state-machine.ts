@@ -19,7 +19,7 @@ const PROVIDER_TRANSITIONS: Record<string, string[]> = {
 const STEP_TRANSITIONS: Record<string, string[]> = {
   pending: ["draft", "in_progress"],
   draft: ["in_progress", "pending"],
-  in_progress: ["pending_review", "complete"],
+  in_progress: ["pending_review", "complete", "rejected"],
   pending_review: ["complete", "rejected"],
   rejected: ["draft", "pending"],
 };

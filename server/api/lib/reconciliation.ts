@@ -656,6 +656,13 @@ export async function processPendingPayouts(): Promise<{
       and(
         eq(providerPayouts.status, "pending"),
         eq(providerPayouts.payoutMethod, "stripe_connect"),
+        // Never re-transfer a payout that already has a Stripe transfer recorded
+        // (defends against a partial write where the transfer succeeded but the
+        // status flip lagged). Double-pay protection: the cron interval is kept
+        // below Stripe's 24h idempotency-key window (see server/cron.ts) so a
+        // failed status-write retries with the SAME `payout-${id}` key and Stripe
+        // returns the original transfer rather than creating a new one.
+        isNull(providerPayouts.stripeTransferId),
       ),
     );
 

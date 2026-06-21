@@ -49,7 +49,37 @@ vi.mock("@/db/schema/onboarding-steps", () => ({
 }));
 
 import { db } from "@/db";
-import { createPayoutIfEligible } from "@/server/api/lib/payout-calculator";
+import { createPayoutIfEligible, computeProviderAmount } from "@/server/api/lib/payout-calculator";
+
+describe("computeProviderAmount — flat fee cap (#144)", () => {
+  const flatProvider = (flatFeeAmount: number) => ({
+    commissionType: "flat_per_job",
+    commissionRate: 0,
+    flatFeeAmount,
+  });
+
+  it("caps a flat_per_job fee at the booking price when the fee exceeds it", () => {
+    expect(computeProviderAmount(5000, flatProvider(8000), null)).toBe(5000);
+  });
+
+  it("pays the flat fee as-is when it is below the booking price", () => {
+    expect(computeProviderAmount(10000, flatProvider(4000), null)).toBe(4000);
+  });
+
+  it("never returns a negative amount", () => {
+    expect(computeProviderAmount(0, flatProvider(4000), null)).toBe(0);
+  });
+
+  it("percentage payouts are unaffected (already <= price)", () => {
+    expect(
+      computeProviderAmount(
+        10000,
+        { commissionType: "percentage", commissionRate: 7000, flatFeeAmount: null },
+        { commissionRate: 2500 },
+      ),
+    ).toBe(7500);
+  });
+});
 
 const mockBookings = db.query.bookings.findFirst as ReturnType<typeof vi.fn>;
 const mockPayments = db.query.payments.findFirst as ReturnType<typeof vi.fn>;

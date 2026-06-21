@@ -97,7 +97,10 @@ const jobs: CronJob[] = [
   },
   {
     name: "process-pending-payouts",
-    intervalMs: 24 * HOUR,
+    // Must stay BELOW Stripe's 24h idempotency-key retention: if a transfer
+    // succeeds but the status write fails, the retry must reuse the same
+    // `payout-${id}` key so Stripe returns the original transfer (no double-pay).
+    intervalMs: 6 * HOUR,
     run: async () => {
       const { processPendingPayouts } = await import("./api/lib/reconciliation");
       return processPendingPayouts();
