@@ -33,7 +33,6 @@ import { ExportButton } from "./export-button";
 import type { BookingStatus, PaymentMethod } from "@/lib/constants";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Search, Zap } from "lucide-react";
-import { useWS } from "@/components/providers/websocket-provider";
 import { formatPrice } from "@/lib/utils";
 
 interface BookingRow {
@@ -98,7 +97,6 @@ export function BookingsTable({
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
   const [providers, setProviders] = useState<Provider[]>([]);
-  const { lastEvent } = useWS();
 
   // Fetch bookings when page, filter, or search changes
   const fetchBookings = useCallback(async () => {
@@ -116,25 +114,6 @@ export function BookingsTable({
       setTotalPages(data.totalPages);
     }
   }, [page, filter, searchDebounced]);
-
-  // WebSocket real-time updates
-  useEffect(() => {
-    if (!lastEvent) return;
-    if (lastEvent.type === "booking:created") {
-      // Refresh bookings list
-      fetchBookings(); // eslint-disable-line react-hooks/set-state-in-effect -- data refresh pattern
-    }
-    if (lastEvent.type === "booking:status_changed") {
-      const { bookingId, status } = lastEvent.data as { bookingId: string; status: string };
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.booking.id === bookingId
-            ? { ...b, booking: { ...b.booking, status: status as BookingStatus } }
-            : b
-        )
-      );
-    }
-  }, [lastEvent, fetchBookings]);
 
   // Fetch providers on mount
   useEffect(() => {

@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DocumentUploader } from "@/components/onboarding/document-uploader";
 import { DocumentCard } from "@/components/onboarding/document-card";
-import { useWS } from "@/components/providers/websocket-provider";
 import { Loader2, ArrowLeft, Send, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
@@ -56,7 +55,6 @@ function DocumentsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const { lastEvent } = useWS();
 
   const docTypeKey = stepType === "certifications" ? "certifications" : stepType || "insurance";
   const config = DOCUMENT_GUIDANCE[docTypeKey] || DOCUMENT_GUIDANCE.insurance;
@@ -92,17 +90,6 @@ function DocumentsContent() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Re-fetch on relevant WebSocket events
-  useEffect(() => {
-    if (!lastEvent) return;
-    if (
-      lastEvent.type === "onboarding:document_reviewed" ||
-      lastEvent.type === "onboarding:step_updated"
-    ) {
-      fetchData();
-    }
-  }, [lastEvent, fetchData]);
 
   const handleUploadComplete = () => {
     fetchData();
