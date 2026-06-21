@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, jsonb, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, jsonb, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createId } from "./utils";
 import { providers } from "./providers";
@@ -40,4 +40,10 @@ export const providerPayouts = pgTable("provider_payouts", {
   uniqClawbackPerOriginal: uniqueIndex("uniq_payout_clawback_original")
     .on(t.originalPayoutId)
     .where(sql`${t.payoutType} = 'clawback' AND ${t.originalPayoutId} IS NOT NULL`),
+  // Provider earnings dashboard aggregations (providerId [+ payoutType + status]).
+  providerTypeStatus: index("idx_payouts_provider_type_status").on(t.providerId, t.payoutType, t.status),
+  // Admin payouts list: filter by status.
+  status: index("idx_payouts_status").on(t.status),
+  // Admin payouts list: ORDER BY createdAt DESC.
+  created: index("idx_payouts_created").on(t.createdAt),
 }));
