@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { b2bAccounts, b2bPriceList, fleetVehicles, b2bEstimates, recurringBookingSchedules, bookings, services, invoices } from "@/db/schema";
 import type { B2bEstimateLine } from "@/db/schema/b2b-estimates";
 import { eq, desc, and, ilike, count, inArray, ne } from "drizzle-orm";
+import { escapeLike } from "../lib/sql-escape";
 import { requireAdmin } from "@/server/api/middleware/auth";
 import { rateLimitStandard } from "@/server/api/middleware/rate-limit";
 import {
@@ -47,7 +48,7 @@ app.get("/", async (c) => {
 
   const conditions = [];
   if (search) {
-    conditions.push(ilike(b2bAccounts.companyName, `%${search}%`));
+    conditions.push(ilike(b2bAccounts.companyName, `%${escapeLike(search)}%`));
   }
   if (status && ["pending", "active", "suspended"].includes(status)) {
     conditions.push(eq(b2bAccounts.status, status as "pending" | "active" | "suspended"));
