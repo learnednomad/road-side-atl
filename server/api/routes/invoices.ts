@@ -8,6 +8,7 @@ import {
   bookings,
 } from "@/db/schema";
 import { eq, desc, and, or, ilike, count } from "drizzle-orm";
+import { escapeLike } from "../lib/sql-escape";
 import { invoiceStatusEnum } from "@/db/schema/invoices";
 import { requireAuth } from "../middleware/auth";
 import { createInvoiceSchema, updateInvoiceSchema } from "@/lib/validators";
@@ -184,11 +185,12 @@ app.get("/", async (c) => {
   }
 
   if (search) {
+    const s = escapeLike(search);
     conditions.push(
       or(
-        ilike(invoices.customerName, `%${search}%`),
-        ilike(invoices.invoiceNumber, `%${search}%`),
-        ilike(invoices.customerEmail, `%${search}%`)
+        ilike(invoices.customerName, `%${s}%`),
+        ilike(invoices.invoiceNumber, `%${s}%`),
+        ilike(invoices.customerEmail, `%${s}%`)
       )
     );
   }
