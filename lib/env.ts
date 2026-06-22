@@ -127,6 +127,25 @@ function validateEnv() {
       console.error("========================================");
       process.exit(1);
     }
+
+    // AUTH_SECRET must be strong in production (the schema permits 16 for local
+    // dev; production sessions need real entropy). Fail closed.
+    if ((process.env.AUTH_SECRET ?? "").length < 32) {
+      console.error("========================================");
+      console.error("FATAL: AUTH_SECRET must be at least 32 characters in production.");
+      console.error("Refusing to start (fail-closed).");
+      console.error("========================================");
+      process.exit(1);
+    }
+
+    // ENCRYPTION_KEY protects PII at rest. Warn (not fatal) so its absence is
+    // visible without crash-looping a deployment that predates it — set a 64-hex
+    // (32-byte) key to enable at-rest encryption.
+    if (!process.env.ENCRYPTION_KEY) {
+      console.error(
+        "WARNING: ENCRYPTION_KEY is not set in production — PII-at-rest encryption is disabled. Set a 64-hex key.",
+      );
+    }
   }
 
   // Warn about partial AWS configuration

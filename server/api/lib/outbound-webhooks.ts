@@ -19,6 +19,53 @@ export function signPayload(secret: string, body: string): string {
   return crypto.createHmac("sha256", secret).update(body).digest("hex");
 }
 
+/**
+ * SSRF guard: only deliver to public http(s) endpoints. Blocks loopback,
+ * link-local (incl. the 169.254.169.254 cloud-metadata IP), private ranges, and
+ * internal hostnames. (Hostname-literal check; DNS-rebinding to an internal IP
+ * is a deeper follow-up — would require resolving + re-checking the address.)
+ */
+export function isPublicHttpUrl(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+  // URL.hostname keeps brackets for IPv6 literals ("[::1]") — strip them.
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal")
+  ) {
+    return false;
+  }
+  // IPv6 loopback / link-local (fe80::/10) / unique-local (fc00::/7).
+  if (host.includes(":") && (host === "::1" || host.startsWith("fe80") || host.startsWith("fc") || host.startsWith("fd"))) {
+    return false;
+  }
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    if (
+      a === 0 ||
+      a === 127 || // loopback
+      a === 10 || // private
+      (a === 169 && b === 254) || // link-local incl. cloud metadata
+      (a === 172 && b >= 16 && b <= 31) || // private
+      (a === 192 && b === 168) || // private
+      (a === 100 && b >= 64 && b <= 127) // CGNAT
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Enqueue an event for all of an account's active subscriptions to that type. */
 export async function emitPartnerEvent(
   accountId: string,
@@ -63,6 +110,14 @@ export async function deliverPendingWebhooks(now: Date = new Date()): Promise<{ 
     });
     if (!sub || !sub.active) {
       await db.update(webhookDeliveries).set({ status: "failed", lastError: "subscription inactive" }).where(eq(webhookDeliveries.id, d.id));
+      continue;
+    }
+
+    // SSRF guard: never let a partner-registered URL point the cron at an
+    // internal/loopback/metadata address.
+    if (!isPublicHttpUrl(sub.url)) {
+      logger.error("[OutboundWebhook] blocked non-public delivery URL", { deliveryId: d.id, subscriptionId: sub.id });
+      await db.update(webhookDeliveries).set({ status: "failed", lastError: "blocked: non-public URL" }).where(eq(webhookDeliveries.id, d.id));
       continue;
     }
 

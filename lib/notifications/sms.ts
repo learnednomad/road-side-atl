@@ -1,4 +1,5 @@
 import { formatPrice } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 
 interface TwilioMessage {
   sid: string;
@@ -61,7 +62,10 @@ export async function sendSMS(
 ): Promise<{ success: boolean; messageSid?: string }> {
   const client = getTwilio();
   if (!client) return { success: false };
-  if (isRateLimited(phone)) return { success: false };
+  if (isRateLimited(phone)) {
+    logger.warn("[SMS] per-number rate limit hit — transactional SMS dropped");
+    return { success: false };
+  }
 
   try {
     const result = await client.messages.create({
@@ -71,7 +75,8 @@ export async function sendSMS(
       ...(options?.statusCallback && { statusCallback: options.statusCallback }),
     });
     return { success: true, messageSid: result.sid };
-  } catch {
+  } catch (err) {
+    logger.error("[SMS] send failed", { error: err instanceof Error ? err.message : String(err) });
     return { success: false };
   }
 }
