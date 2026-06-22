@@ -163,9 +163,11 @@ export async function createPayoutIfEligible(bookingId: string) {
   });
   const providerAmount = computeProviderAmount(effectivePrice, provider, service, overrideCommissionBp);
 
-  // Determine if this was a destination charge (split already done at charge time)
-  // We check the payment's Stripe session metadata for chargeType
-  const isDestinationCharge = await checkIfDestinationCharge(confirmedPayment.stripeSessionId);
+  // Determine if this was a destination charge (split already done at charge time).
+  // chargeType is written to the payments row at checkout creation; using the DB
+  // field avoids a Stripe API round-trip that could fail open and misclassify a
+  // destination charge as a platform charge, causing a duplicate transfer.
+  const isDestinationCharge = confirmedPayment.chargeType === "destination";
 
   if (isDestinationCharge) {
     // Destination charge: funds already split at charge time.
@@ -218,19 +220,6 @@ export async function createPayoutIfEligible(bookingId: string) {
   return payout;
 }
 
-/**
- * Check if a Checkout Session used destination charges by examining its metadata.
- */
-async function checkIfDestinationCharge(stripeSessionId: string | null): Promise<boolean> {
-  if (!stripeSessionId) return false;
-
-  try {
-    const session = await getStripe().checkout.sessions.retrieve(stripeSessionId);
-    return session.metadata?.chargeType === "destination";
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Issue a Stripe Connect transfer for a legacy platform-side charge.
