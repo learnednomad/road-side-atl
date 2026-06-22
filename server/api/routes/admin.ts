@@ -27,6 +27,7 @@ import { logger } from "@/lib/logger";
 import { generateReferralCode, creditReferralOnFirstBooking } from "../lib/referral-credits";
 import { safeUserColumns } from "../lib/safe-columns";
 import { escapeLike } from "../lib/sql-escape";
+import { parsePagination } from "../lib/pagination";
 import { calculateEtaMinutes } from "../lib/eta-calculator";
 import { BOOKING_STATUSES, SERVICE_CATEGORIES } from "@/lib/constants";
 import type { BookingStatus, ServiceCategory } from "@/lib/constants";
@@ -146,9 +147,7 @@ app.get("/bookings", async (c) => {
   const status = c.req.query("status");
   const serviceType = c.req.query("serviceType");
   const search = c.req.query("search");
-  const page = parseInt(c.req.query("page") || "1");
-  const limit = parseInt(c.req.query("limit") || "20");
-  const offset = (page - 1) * limit;
+  const { page, limit, offset } = parsePagination(c.req.query("page"), c.req.query("limit"));
 
   const conditions: SQL[] = [];
   if (status && isBookingStatus(status)) {
@@ -158,11 +157,12 @@ app.get("/bookings", async (c) => {
     conditions.push(eq(services.category, serviceType));
   }
   if (search) {
+    const s = escapeLike(search);
     conditions.push(
       or(
-        ilike(bookings.contactName, `%${search}%`),
-        ilike(bookings.contactPhone, `%${search}%`),
-        ilike(bookings.contactEmail, `%${search}%`)
+        ilike(bookings.contactName, `%${s}%`),
+        ilike(bookings.contactPhone, `%${s}%`),
+        ilike(bookings.contactEmail, `%${s}%`)
       )!
     );
   }

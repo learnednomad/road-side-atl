@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { db } from "@/db";
 import { invoices, providers } from "@/db/schema";
 import { eq, desc, and, or, ilike, count } from "drizzle-orm";
+import { escapeLike } from "../lib/sql-escape";
 import { requireProvider } from "../middleware/auth";
 import { createStandaloneInvoiceSchema, updateInvoiceStatusSchema } from "@/lib/validators";
 import { invoiceStatusEnum } from "@/db/schema/invoices";
@@ -47,10 +48,11 @@ app.get("/", async (c) => {
   }
 
   if (search) {
+    const s = escapeLike(search);
     conditions.push(
       or(
-        ilike(invoices.customerName, `%${search}%`),
-        ilike(invoices.invoiceNumber, `%${search}%`)
+        ilike(invoices.customerName, `%${s}%`),
+        ilike(invoices.invoiceNumber, `%${s}%`)
       )!
     );
   }
