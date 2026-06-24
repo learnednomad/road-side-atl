@@ -11,6 +11,7 @@ import { requireAuth } from "../middleware/auth";
 import { stripe } from "@/lib/stripe";
 import { membershipCheckoutSchema } from "@/lib/validators";
 import { getActiveMembership } from "../lib/memberships";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 type AuthEnv = { Variables: { user: { id: string; role: string; email?: string | null } } };
 const app = new Hono<AuthEnv>();
@@ -61,6 +62,20 @@ app.post("/checkout", requireAuth, async (c) => {
     },
     metadata: { kind: "membership", userId: user.id, planId: plan.id },
   });
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: user.id,
+    event: "membership_checkout_created",
+    properties: {
+      plan_id: plan.id,
+      plan_name: plan.name,
+      price_cents: plan.priceCents,
+      interval: plan.interval,
+      discount_bp: plan.discountBp,
+    },
+  });
+
   return c.json({ url: checkout.url });
 });
 

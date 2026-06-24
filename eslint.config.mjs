@@ -7,11 +7,14 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
+    // Default ignores of eslint-config-next (broadened to ** so nested copies
+    // inside local git worktrees are ignored too, matching a clean CI checkout):
+    "**/.next/**",
+    "**/out/**",
+    "**/build/**",
     "next-env.d.ts",
+    // Local-only git worktrees created by the agent harness (not app code).
+    ".claude/**",
     // Standalone load-test harness scripts (CommonJS Node scripts, run manually).
     "loadtest/**",
     // CommonJS runtime helper invoked by the Docker entrypoint (not app code).

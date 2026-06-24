@@ -7,6 +7,7 @@ import { ArrowRight, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/utils";
+import posthog from "posthog-js";
 
 interface Plan {
   id: string;
@@ -110,6 +111,13 @@ export function MembershipClient({
 
   const subscribe = async (planId: string) => {
     setBusyPlanId(planId);
+    const selectedPlan = plans.find((p) => p.id === planId);
+    posthog.capture("membership_checkout_started", {
+      plan_id: planId,
+      plan_name: selectedPlan?.name,
+      price_cents: selectedPlan?.priceCents,
+      interval: selectedPlan?.interval,
+    });
     try {
       const res = await fetch("/api/memberships/checkout", {
         method: "POST",

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
+import { PostHogIdentify } from "@/components/providers/posthog-identify";
 import { SITE_URL, SEO, ALL_KEYWORDS } from "@/lib/seo";
 import "./globals.css";
 
@@ -91,6 +92,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <AuthSessionProvider>
+          <PostHogIdentify />
           {children}
         </AuthSessionProvider>
         <Toaster />

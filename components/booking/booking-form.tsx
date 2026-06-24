@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import posthog from "posthog-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -287,9 +288,19 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
       }
 
       const booking = await res.json();
+      posthog.capture("booking_submitted", {
+        booking_id: booking.id,
+        service_id: selectedServiceId,
+        service_name: selectedService?.name,
+        service_slug: selectedService?.slug,
+        service_category: selectedService?.category,
+        estimated_price: estimatedPrice,
+        is_scheduled: bookingMode === "scheduled",
+      });
       router.push(`/book/confirmation?bookingId=${booking.id}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to create booking";
+      posthog.captureException(err instanceof Error ? err : new Error(message));
       setError(message);
     } finally {
       setLoading(false);
