@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import posthog from "posthog-js";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,7 +106,7 @@ export default function ProviderRegisterPage() {
         return;
       }
 
-      posthog.capture("provider_registration_submitted", {
+      posthog.capture(ANALYTICS_EVENTS.PROVIDER_REGISTRATION_SUBMITTED, {
         email,
         specialties,
         service_areas: serviceAreas,

@@ -12,7 +12,8 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { formatPrice } from "@/lib/utils";
 import { auth } from "@/lib/auth";
-import { getPostHogClient } from "@/lib/posthog-server";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 export const dynamic = "force-dynamic";
 
@@ -50,17 +51,13 @@ export default async function ConfirmationPage({
     // DB not ready
   }
 
-  const posthog = getPostHogClient();
-  posthog.capture({
+  captureServer(ANALYTICS_EVENTS.BOOKING_CONFIRMATION_VIEWED, {
     distinctId: session?.user?.id ?? bookingId,
-    event: "booking_confirmation_viewed",
-    properties: {
-      booking_id: bookingId,
-      paid,
-      service_name: service?.name,
-      service_slug: service?.slug,
-      estimated_price: booking?.estimatedPrice,
-    },
+    booking_id: bookingId,
+    paid,
+    service_name: service?.name,
+    service_slug: service?.slug,
+    estimated_price: booking?.estimatedPrice,
   });
 
   if (!booking || !service) {

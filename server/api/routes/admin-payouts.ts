@@ -6,6 +6,8 @@ import { requireAdmin } from "../middleware/auth";
 import { markPayoutPaidSchema, initiateRefundSchema } from "@/lib/validators";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
 import { getStripe } from "@/lib/stripe";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { MIGRATION_LAUNCH_DATE, MIGRATION_DEPRECATION_DAYS, MIGRATION_GRACE_PERIOD_DAYS } from "@/lib/constants";
 
 type AuthEnv = {
@@ -218,6 +220,15 @@ app.post("/mark-paid", async (c) => {
       details: { providerId: payout.providerId, bookingId: payout.bookingId, amount: payout.amount },
       ipAddress,
       userAgent,
+    });
+
+    captureServer(ANALYTICS_EVENTS.PAYOUT_PAID, {
+      distinctId: `provider:${payout.providerId}`,
+      provider_id: payout.providerId,
+      amount_cents: payout.amount,
+      source: "admin_manual",
+      acted_by_admin_id: user.id,
+      payout_id: payout.id,
     });
   }
   for (const cb of settled) {

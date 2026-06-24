@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/utils";
 import posthog from "posthog-js";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 interface Plan {
   id: string;
@@ -112,7 +113,7 @@ export function MembershipClient({
   const subscribe = async (planId: string) => {
     setBusyPlanId(planId);
     const selectedPlan = plans.find((p) => p.id === planId);
-    posthog.capture("membership_checkout_started", {
+    posthog.capture(ANALYTICS_EVENTS.MEMBERSHIP_CHECKOUT_STARTED, {
       plan_id: planId,
       plan_name: selectedPlan?.name,
       price_cents: selectedPlan?.priceCents,

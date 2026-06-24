@@ -21,6 +21,8 @@ import { checkAllStepsCompleteAndTransition } from "../lib/all-steps-complete";
 import { isFeatureEnabled, FEATURE_FLAGS } from "../lib/feature-flags";
 import { logger } from "@/lib/logger";
 import { notifyApplicationReceived, notifyTrainingCompleted, notifyStripeConnectCompleted, notifyAdminProviderReadyForReview, notifyAdminNewDocumentSubmitted } from "@/lib/notifications";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 // Max document upload size (matches documentCreateSchema's client-side cap).
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
@@ -384,6 +386,14 @@ app.post("/apply", async (c) => {
     logger.error("[Notifications] Failed:", err);
   });
 
+  captureServer(ANALYTICS_EVENTS.PROVIDER_APPLICATION_SUBMITTED, {
+    distinctId: `provider:${result.provider.id}`,
+    provider_id: result.provider.id,
+    user_id: result.user.id,
+    specialties: specialties ?? [],
+    service_areas: serviceArea,
+  });
+
   return c.json(
     {
       provider: { ...result.provider, status: "onboarding" },
@@ -544,6 +554,12 @@ app.post("/invite-accept", async (c) => {
   // FR55: Application received notification
   notifyApplicationReceived(result.user.id, invite.name ?? invite.identifier, invite.identifier, phone).catch((err) => {
     logger.error("[Notifications] Failed:", err);
+  });
+
+  captureServer(ANALYTICS_EVENTS.PROVIDER_INVITE_ACCEPTED, {
+    distinctId: `provider:${result.provider.id}`,
+    provider_id: result.provider.id,
+    user_id: result.user.id,
   });
 
   return c.json(
@@ -1006,6 +1022,12 @@ app.post("/documents", requireProvider, async (c) => {
     },
     ipAddress,
     userAgent,
+  });
+
+  captureServer(ANALYTICS_EVENTS.PROVIDER_DOCUMENTS_SUBMITTED, {
+    distinctId: `provider:${provider.id}`,
+    provider_id: provider.id,
+    document_type: parsed.data.documentType,
   });
 
   return c.json(doc, 201);
@@ -1576,6 +1598,12 @@ app.post("/ic-agreement/accept", requireProvider, async (c) => {
     { userId: user.id, ipAddress, userAgent },
     { id: provider.id, name: provider.name, status: provider.status },
   );
+
+  captureServer(ANALYTICS_EVENTS.PROVIDER_IC_AGREEMENT_ACCEPTED, {
+    distinctId: `provider:${provider.id}`,
+    provider_id: provider.id,
+    user_id: user.id,
+  });
 
   return c.json({ step: updated });
 });

@@ -17,6 +17,8 @@ import {
 import { sendVerificationEmail } from "@/lib/auth/verification";
 import { logger } from "@/lib/logger";
 import { syncSubscriber, provSub } from "@/lib/notifications/novu";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 const app = new Hono();
 
@@ -78,6 +80,13 @@ app.post("/accept-invite", async (c) => {
     ipAddress,
     userAgent,
   });
+
+  if (result.userId) {
+    captureServer(ANALYTICS_EVENTS.PROVIDER_INVITE_ACCEPTED, {
+      distinctId: result.userId,
+      user_id: result.userId,
+    });
+  }
 
   return c.json({
     success: true,
@@ -174,6 +183,14 @@ app.post("/register", async (c) => {
     details: { email, method: "self_registration" },
     ipAddress,
     userAgent,
+  });
+
+  captureServer(ANALYTICS_EVENTS.PROVIDER_APPLICATION_SUBMITTED, {
+    distinctId: newProvider ? `provider:${newProvider.id}` : newUser.id,
+    user_id: newUser.id,
+    provider_id: newProvider?.id,
+    specialties: specialties ?? [],
+    service_areas: serviceArea ?? [],
   });
 
   return c.json({

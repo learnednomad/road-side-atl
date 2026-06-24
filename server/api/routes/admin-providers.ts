@@ -26,6 +26,8 @@ import { encrypt, decrypt } from "../lib/encryption";
 import { generateCSV } from "@/lib/csv";
 import { PROVIDER_STATUSES, IRS_1099_THRESHOLD_CENTS, CHECKR_DASHBOARD_BASE_URL, PRESIGNED_DOWNLOAD_EXPIRY_ADMIN } from "@/lib/constants";
 import { logger } from "@/lib/logger";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import type { ProviderStatus } from "@/lib/constants";
 
 type AuthEnv = {
@@ -757,6 +759,12 @@ app.post("/:id/activate", async (c) => {
 
   if (!updated) return c.json({ error: "Provider not found or status changed" }, 409);
 
+  captureServer(ANALYTICS_EVENTS.PROVIDER_ACTIVATED, {
+    distinctId: `provider:${id}`,
+    provider_id: id,
+    acted_by_admin_id: user.id,
+  });
+
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
     action: "onboarding.activated",
@@ -818,6 +826,13 @@ app.post("/:id/reject", async (c) => {
 
   if (!updated) return c.json({ error: "Provider not found or status changed" }, 409);
 
+  captureServer(ANALYTICS_EVENTS.PROVIDER_REJECTED, {
+    distinctId: `provider:${id}`,
+    provider_id: id,
+    reason: parsed.data.reason,
+    acted_by_admin_id: user.id,
+  });
+
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
     action: "onboarding.rejected",
@@ -869,6 +884,13 @@ app.post("/:id/suspend", async (c) => {
     .returning();
 
   if (!updated) return c.json({ error: "Provider not found or status changed" }, 409);
+
+  captureServer(ANALYTICS_EVENTS.PROVIDER_SUSPENDED, {
+    distinctId: `provider:${id}`,
+    provider_id: id,
+    reason: parsed.data.reason,
+    acted_by_admin_id: user.id,
+  });
 
   const { ipAddress, userAgent } = getRequestInfo(c.req.raw);
   logAudit({
