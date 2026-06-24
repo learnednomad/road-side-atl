@@ -16,6 +16,8 @@ import { notifyBackgroundCheckResult, notifyStripeConnectCompleted } from "@/lib
 import { triggerNovu, WF, custSub, provSub, adminsTopic, money } from "@/lib/notifications/novu";
 import { checkAllStepsCompleteAndTransition, onStripeConnectStepComplete } from "../lib/all-steps-complete";
 import { stripeExtensionHandlers } from "../lib/webhook-handlers/stripe-extensions";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 const app = new Hono();
 
@@ -208,6 +210,13 @@ app.post("/stripe", async (c) => {
             { transactionId: `${bookingId}:payment-confirmed` },
           );
         }
+
+        captureServer(ANALYTICS_EVENTS.PAYMENT_SUCCEEDED, {
+          distinctId: paidBooking?.userId ?? bookingId,
+          booking_id: bookingId,
+          amount_cents: session.amount_total ?? 0,
+          payment_kind: isDestinationCharge ? "destination" : "platform",
+        });
       }
       break;
     }
@@ -240,6 +249,12 @@ app.post("/stripe", async (c) => {
               { transactionId: `${expiredPayment.bookingId}:payment-failed` },
             );
           }
+
+          captureServer(ANALYTICS_EVENTS.CHECKOUT_ABANDONED, {
+            distinctId: b?.userId ?? expiredPayment.bookingId,
+            booking_id: expiredPayment.bookingId,
+            amount_cents: expiredPayment.amount,
+          });
         }
       }
       break;
@@ -280,6 +295,13 @@ app.post("/stripe", async (c) => {
             { transactionId: `${payment.bookingId}:refunded` },
           );
         }
+
+        captureServer(ANALYTICS_EVENTS.PAYMENT_REFUNDED, {
+          distinctId: refundedBooking?.userId ?? payment.bookingId,
+          booking_id: payment.bookingId,
+          amount_refunded_cents: refundedAmount,
+          is_full_refund: isFullRefund,
+        });
 
         // M7: out-of-band (e.g. Stripe dashboard) full refunds must claw back
         // the provider's payout, mirroring the dispute-lost path. The clawback
@@ -385,6 +407,14 @@ app.post("/stripe", async (c) => {
             { transactionId: `${payment.bookingId}:payment-failed` },
           );
         }
+
+        captureServer(ANALYTICS_EVENTS.PAYMENT_FAILED, {
+          distinctId: failedBooking?.userId ?? payment.bookingId,
+          booking_id: payment.bookingId,
+          amount_cents: payment.amount,
+          failure_code: failureCode ?? null,
+          failure_message: failureMessage,
+        });
       }
       break;
     }
@@ -476,6 +506,13 @@ app.post("/stripe", async (c) => {
             { transactionId: `${payment.bookingId}:payout-held:${frozenPayout.id}` },
           );
         }
+
+        captureServer(ANALYTICS_EVENTS.PAYMENT_DISPUTE_CREATED, {
+          distinctId: booking?.userId ?? payment.bookingId,
+          booking_id: payment.bookingId,
+          amount_cents: dispute.amount,
+          reason: dispute.reason,
+        });
       }
       break;
     }
@@ -590,6 +627,17 @@ app.post("/stripe", async (c) => {
               refundReason: `Dispute lost: ${dispute.reason}`,
             })
             .where(eq(payments.id, payment.id));
+        }
+
+        // Only emit on a terminal resolution (won/lost), not interim updates.
+        // No customer userId is fetched in this handler; fall back to booking id.
+        if (dispute.status === "won" || dispute.status === "lost") {
+          captureServer(ANALYTICS_EVENTS.PAYMENT_DISPUTE_RESOLVED, {
+            distinctId: payment.bookingId,
+            booking_id: payment.bookingId,
+            status: dispute.status,
+            outcome: dispute.status,
+          });
         }
       }
       break;
@@ -708,6 +756,11 @@ app.post("/stripe", async (c) => {
           onStripeConnectStepComplete(connectedProvider.id).catch((err) => {
             console.error("[Webhook] onStripeConnectStepComplete failed:", err);
           });
+
+          captureServer(ANALYTICS_EVENTS.PROVIDER_STRIPE_CONNECT_COMPLETED, {
+            distinctId: `provider:${connectedProvider.id}`,
+            provider_id: connectedProvider.id,
+          });
         }
       }
       break;
@@ -735,6 +788,13 @@ app.post("/stripe", async (c) => {
           const { notifyPayoutComplete } = await import("@/lib/notifications");
           notifyPayoutComplete(payout.providerId, payout.amount).catch((err) => {
             console.error("[Notifications] Failed:", err);
+          });
+
+          captureServer(ANALYTICS_EVENTS.PAYOUT_PAID, {
+            distinctId: `provider:${payout.providerId}`,
+            provider_id: payout.providerId,
+            amount_cents: payout.amount,
+            source: "stripe",
           });
         }
 
@@ -773,6 +833,12 @@ app.post("/stripe", async (c) => {
           .returning();
 
         if (!reverted) break; // Already handled or manually confirmed — skip
+
+        captureServer(ANALYTICS_EVENTS.PAYOUT_FAILED, {
+          distinctId: `provider:${reverted.providerId}`,
+          provider_id: reverted.providerId,
+          amount_cents: reverted.amount,
+        });
 
         logAudit({
           action: "payout.transfer_failed",
@@ -828,6 +894,12 @@ app.post("/stripe", async (c) => {
           });
 
           await checkAllStepsCompleteAndTransition(providerId, stepId, "identity_webhook");
+
+          captureServer(ANALYTICS_EVENTS.PROVIDER_IDENTITY_VERIFIED, {
+            distinctId: `provider:${providerId}`,
+            provider_id: providerId,
+            subject_type: "provider",
+          });
         }
       } else if (userId) {
         // Customer identity verification (high-value booking gate). Persist the
@@ -847,6 +919,12 @@ app.post("/stripe", async (c) => {
           resourceType: "user",
           resourceId: userId,
           details: { sessionId: session.id, purpose: session.metadata?.purpose },
+        });
+
+        captureServer(ANALYTICS_EVENTS.PROVIDER_IDENTITY_VERIFIED, {
+          distinctId: userId,
+          user_id: userId,
+          subject_type: "customer",
         });
       }
       break;
@@ -1131,6 +1209,13 @@ app.post("/checkr", async (c) => {
         undefined, provider,
       );
     }
+
+    captureServer(ANALYTICS_EVENTS.PROVIDER_BACKGROUND_CHECK_COMPLETED, {
+      distinctId: `provider:${step.providerId}`,
+      provider_id: step.providerId,
+      result: effectiveStatus,
+      status: checkrStatus,
+    });
   }
 
   // Mark processed exactly ONCE, at the very end — AFTER the full pipeline

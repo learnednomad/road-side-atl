@@ -13,7 +13,8 @@ import { isFeatureEnabled, FEATURE_FLAGS } from "@/server/api/lib/feature-flags"
 import { computeProviderAmount } from "@/server/api/lib/payout-calculator";
 import { resolveCommissionBp } from "@/server/api/lib/commission";
 import { requiresCustomerIdentity, createCustomerIdentitySession } from "@/server/api/routes/payment-methods";
-import { getPostHogClient } from "@/lib/posthog-server";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 type AuthEnv = {
   Variables: {
@@ -228,16 +229,12 @@ app.post("/stripe/checkout", async (c) => {
     stripeConnectAccountId: useDestinationCharge ? provider!.stripeConnectAccountId : null,
   });
 
-  const posthog = getPostHogClient();
-  posthog.capture({
+  captureServer(ANALYTICS_EVENTS.PAYMENT_CHECKOUT_SESSION_CREATED, {
     distinctId: user.id,
-    event: "payment_checkout_session_created",
-    properties: {
-      booking_id: booking.id,
-      service_slug: service?.slug ?? "unknown",
-      amount: booking.estimatedPrice,
-      charge_type: useDestinationCharge ? "destination" : "platform",
-    },
+    booking_id: booking.id,
+    service_slug: service?.slug ?? "unknown",
+    amount: booking.estimatedPrice,
+    charge_type: useDestinationCharge ? "destination" : "platform",
   });
 
   return c.json({ url: session.url });

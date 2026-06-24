@@ -14,6 +14,8 @@ import { db } from "@/db";
 import { memberships } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { triggerNovu, WF, custSub } from "@/lib/notifications/novu";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 function mapStatus(s: string): "active" | "past_due" | "canceled" {
   if (s === "active" || s === "trialing") return "active";
@@ -54,6 +56,28 @@ export async function handleSubscriptionUpsert(event: Stripe.Event): Promise<voi
       },
     });
 
+  // Analytics: fire MEMBERSHIP_ACTIVATED only on the transition INTO an active
+  // state — the subscription was created active, or its status just changed to
+  // active on an update. We skip plain updates that don't change status (e.g.
+  // period renewals / metadata edits) so we don't double-count activations.
+  // userId comes from the subscription metadata set at checkout; price/interval
+  // are read from the subscription's price item (unit_amount is already cents).
+  const previousAttributes = event.data.previous_attributes as Partial<Stripe.Subscription> | undefined;
+  const enteredActive =
+    values.status === "active" &&
+    (event.type === "customer.subscription.created" || previousAttributes?.status !== undefined);
+  if (enteredActive) {
+    const priceItem = sub.items?.data?.[0]?.price;
+    captureServer(ANALYTICS_EVENTS.MEMBERSHIP_ACTIVATED, {
+      distinctId: userId,
+      plan_id: planId,
+      plan_name: sub.metadata?.planName ?? null,
+      price_cents: priceItem?.unit_amount ?? null,
+      interval: priceItem?.recurring?.interval ?? null,
+      subscription_status: sub.status,
+    });
+  }
+
   // Novu: mirror the membership status change into the customer's Inbox.
   // Fire-and-forget with a stable transactionId so Stripe-driven retries never
   // double-post to the customer Inbox.
@@ -86,6 +110,13 @@ export async function handleSubscriptionDeleted(event: Stripe.Event): Promise<vo
   // transactionId so a redelivery does not double-post).
   const userId = sub.metadata?.userId;
   if (userId) {
+    // Analytics: customer's subscription was deleted/canceled.
+    captureServer(ANALYTICS_EVENTS.MEMBERSHIP_CANCELED, {
+      distinctId: userId,
+      plan_id: sub.metadata?.planId ?? null,
+      reason: sub.cancellation_details?.reason ?? null,
+    });
+
     void triggerNovu(WF.membershipCanceled, custSub(userId), { planName: sub.metadata?.planName || "your plan" }, { transactionId: `${sub.id}:canceled` });
   }
 }

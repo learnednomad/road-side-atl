@@ -19,6 +19,8 @@ import { getStripe } from "@/lib/stripe";
 import { sendDelayNotificationSMS } from "@/lib/notifications/sms";
 import { ETA_DELAY_THRESHOLD_MINUTES } from "@/lib/constants";
 import { markDelayNotified, hasDelayNotification, clearDelayNotification } from "../lib/delay-tracker";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 type AuthEnv = {
   Variables: {
@@ -159,6 +161,12 @@ app.patch("/jobs/:id/accept", requireIcAgreementAccepted, async (c) => {
   // Fire-and-forget notifications
   notifyStatusChange(booking, "in_progress").catch(() => {});
 
+  captureServer(ANALYTICS_EVENTS.JOB_ACCEPTED, {
+    distinctId: `provider:${provider.id}`,
+    booking_id: bookingId,
+    provider_id: provider.id,
+  });
+
   return c.json(updated);
 });
 
@@ -227,6 +235,13 @@ app.patch("/jobs/:id/reject", async (c) => {
     attempt: (booking.dispatchAttempt || 0) + 1,
   }).catch(() => {});
 
+  captureServer(ANALYTICS_EVENTS.JOB_REJECTED, {
+    distinctId: `provider:${provider.id}`,
+    booking_id: bookingId,
+    provider_id: provider.id,
+    reason: `Provider ${provider.name} rejected the offer`,
+  });
+
   return c.json(updated);
 });
 
@@ -274,6 +289,22 @@ app.patch("/jobs/:id/status", async (c) => {
     .returning();
 
   notifyStatusChange(booking, parsed.data.status).catch(() => {});
+
+  if (parsed.data.status === "in_progress") {
+    captureServer(ANALYTICS_EVENTS.JOB_STARTED, {
+      distinctId: `provider:${provider.id}`,
+      booking_id: bookingId,
+      provider_id: provider.id,
+      status: parsed.data.status,
+    });
+  } else if (parsed.data.status === "completed") {
+    captureServer(ANALYTICS_EVENTS.JOB_COMPLETED, {
+      distinctId: `provider:${provider.id}`,
+      booking_id: bookingId,
+      provider_id: provider.id,
+      status: parsed.data.status,
+    });
+  }
 
   if (parsed.data.status === "completed" || parsed.data.status === "cancelled") {
     if (booking.providerId) {

@@ -10,6 +10,8 @@ import { logger } from "@/lib/logger";
 import { REFERRAL_CREDIT_AMOUNT_CENTS, PROVIDER_REFERRAL_REWARD_CENTS, PROVIDER_REFERRAL_INVITE_LIMIT } from "@/lib/constants";
 import { generateReferralCode, calculateCreditBalance, redeemReferralCredits } from "../lib/referral-credits";
 import { createProviderInviteToken, sendReferralInviteEmail } from "@/lib/auth/provider-invite";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 type AuthEnv = {
   Variables: {
@@ -182,6 +184,12 @@ app.post("/apply", requireAuth, async (c) => {
     userAgent,
   });
 
+  captureServer(ANALYTICS_EVENTS.REFERRAL_APPLIED, {
+    distinctId: user.id,
+    referral_code: referralCode,
+    referrer_id: referrer.id,
+  });
+
   return c.json({ referral: newReferral }, 201);
 });
 
@@ -218,6 +226,12 @@ app.post("/redeem", requireAuth, async (c) => {
     details: { amount, type: "redemption" },
     ipAddress,
     userAgent,
+  });
+
+  captureServer(ANALYTICS_EVENTS.REFERRAL_REDEEMED, {
+    distinctId: user.id,
+    booking_id: bookingId,
+    amount_cents: amount,
   });
 
   return c.json({ success: true, amountApplied: amount });

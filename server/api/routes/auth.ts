@@ -18,7 +18,8 @@ import {
   verifyPasswordResetToken,
   consumePasswordResetToken,
 } from "@/lib/auth/verification";
-import { getPostHogClient } from "@/lib/posthog-server";
+import { getPostHogClient, captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 const app = new Hono();
 
@@ -89,13 +90,8 @@ app.post("/register", async (c) => {
     userAgent,
   });
 
-  const posthog = getPostHogClient();
-  posthog.identify({ distinctId: newUser.id, properties: { email, name } });
-  posthog.capture({
-    distinctId: newUser.id,
-    event: "user_registered",
-    properties: { email, name },
-  });
+  getPostHogClient().identify({ distinctId: newUser.id, properties: { email, name } });
+  captureServer(ANALYTICS_EVENTS.USER_REGISTERED, { distinctId: newUser.id, email, name });
 
   return c.json({ success: true, message: "Please check your email to verify your account" });
 });
@@ -113,6 +109,19 @@ app.post("/verify-email", async (c) => {
 
   if (!result.success) {
     return c.json({ error: result.error }, 400);
+  }
+
+  if (result.email) {
+    const verifiedUser = await db.query.users.findFirst({
+      where: eq(users.email, result.email),
+      columns: { id: true },
+    });
+    if (verifiedUser) {
+      captureServer(ANALYTICS_EVENTS.EMAIL_VERIFIED, {
+        distinctId: verifiedUser.id,
+        user_id: verifiedUser.id,
+      });
+    }
   }
 
   return c.json({ success: true, email: result.email });
@@ -207,6 +216,17 @@ app.post("/reset-password", async (c) => {
     .update(users)
     .set({ password: hashedPassword, updatedAt: new Date() })
     .where(eq(users.email, email));
+
+  const resetUser = await db.query.users.findFirst({
+    where: eq(users.email, email),
+    columns: { id: true },
+  });
+  if (resetUser) {
+    captureServer(ANALYTICS_EVENTS.PASSWORD_RESET_COMPLETED, {
+      distinctId: resetUser.id,
+      user_id: resetUser.id,
+    });
+  }
 
   return c.json({ success: true });
 });

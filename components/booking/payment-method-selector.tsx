@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import posthog from "posthog-js";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { cn } from "@/lib/utils";
 
 const PAYMENT_METHOD_LABELS: Record<string, { label: string; icon: string }> = {
@@ -73,7 +75,12 @@ export function PaymentMethodSelector({
             <button
               key={method}
               type="button"
-              onClick={() => onChange(method)}
+              onClick={() => {
+                onChange(method);
+                posthog.capture(ANALYTICS_EVENTS.BOOKING_PAYMENT_METHOD_SELECTED, {
+                  method,
+                });
+              }}
               className={cn(
                 "flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors",
                 value === method
