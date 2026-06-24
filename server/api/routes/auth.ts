@@ -18,6 +18,7 @@ import {
   verifyPasswordResetToken,
   consumePasswordResetToken,
 } from "@/lib/auth/verification";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 const app = new Hono();
 
@@ -86,6 +87,14 @@ app.post("/register", async (c) => {
     details: { email },
     ipAddress,
     userAgent,
+  });
+
+  const posthog = getPostHogClient();
+  posthog.identify({ distinctId: newUser.id, properties: { email, name } });
+  posthog.capture({
+    distinctId: newUser.id,
+    event: "user_registered",
+    properties: { email, name },
   });
 
   return c.json({ success: true, message: "Please check your email to verify your account" });
