@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -225,6 +226,16 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
     return errors;
   }
 
+  function handleSelectService(s: Service) {
+    setSelectedServiceId(s.id);
+    posthog.capture(ANALYTICS_EVENTS.BOOKING_SERVICE_SELECTED, {
+      service_id: s.id,
+      service_name: s.name,
+      service_slug: s.slug,
+      service_category: s.category,
+    });
+  }
+
   function handleNext() {
     const errors = validateStep(step);
     if (errors.length > 0) {
@@ -236,6 +247,10 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
       return;
     }
     setStepErrors([]);
+    posthog.capture(ANALYTICS_EVENTS.BOOKING_STEP_COMPLETED, {
+      step_number: step,
+      step_name: STEPS[step - 1]?.label,
+    });
     setStep((s) => Math.min(s + 1, 4));
   }
 
@@ -288,7 +303,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
       }
 
       const booking = await res.json();
-      posthog.capture("booking_submitted", {
+      posthog.capture(ANALYTICS_EVENTS.BOOKING_SUBMITTED, {
         booking_id: booking.id,
         service_id: selectedServiceId,
         service_name: selectedService?.name,
@@ -441,7 +456,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                     type="button"
                     role="radio"
                     aria-checked={selectedServiceId === s.id}
-                    onClick={() => setSelectedServiceId(s.id)}
+                    onClick={() => handleSelectService(s)}
                     className={cn(
                       "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
                       selectedServiceId === s.id
@@ -476,7 +491,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                       type="button"
                       role="radio"
                       aria-checked={selectedServiceId === s.id}
-                      onClick={() => setSelectedServiceId(s.id)}
+                      onClick={() => handleSelectService(s)}
                       className={cn(
                         "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
                         selectedServiceId === s.id
@@ -517,7 +532,7 @@ export function BookingForm({ services, userInfo }: { services: Service[]; userI
                     type="button"
                     role="radio"
                     aria-checked={selectedServiceId === s.id}
-                    onClick={() => setSelectedServiceId(s.id)}
+                    onClick={() => handleSelectService(s)}
                     className={cn(
                       "flex flex-col rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50",
                       selectedServiceId === s.id

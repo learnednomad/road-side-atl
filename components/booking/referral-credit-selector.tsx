@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import posthog from "posthog-js";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -31,6 +33,11 @@ export function ReferralCreditSelector({ bookingPrice, onCreditChange }: Referra
   const handleToggle = (checked: boolean) => {
     setApplied(checked);
     onCreditChange(checked ? creditToApply : 0);
+    if (checked) {
+      posthog.capture(ANALYTICS_EVENTS.BOOKING_REFERRAL_CREDIT_APPLIED, {
+        amount_cents: creditToApply,
+      });
+    }
   };
 
   return (

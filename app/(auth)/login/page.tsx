@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { signIn, getSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -89,7 +90,7 @@ function LoginForm() {
           name: session.user.name ?? undefined,
         });
       }
-      posthog.capture("user_logged_in", { method: "credentials", role });
+      posthog.capture(ANALYTICS_EVENTS.USER_LOGGED_IN, { method: "credentials", role });
 
       if (callbackUrl) {
         router.push(callbackUrl);
@@ -125,7 +126,7 @@ function LoginForm() {
 
   async function handleGoogleSignIn() {
     setLoading("google");
-    posthog.capture("user_logged_in", { method: "google" });
+    posthog.capture(ANALYTICS_EVENTS.USER_LOGGED_IN, { method: "google" });
     await signIn("google", { callbackUrl: callbackUrl || "/my-bookings" });
   }
 

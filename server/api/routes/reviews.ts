@@ -5,6 +5,8 @@ import { eq, desc, avg, count } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireAuth } from "../middleware/auth";
 import { triggerNovu, WF, provSub, adminsTopic } from "@/lib/notifications/novu";
+import { captureServer } from "@/lib/posthog-server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 
 type AuthEnv = {
   Variables: {
@@ -146,6 +148,14 @@ app.post("/", requireAuth, async (c) => {
       updatedAt: new Date(),
     })
     .where(eq(providers.id, booking.providerId));
+
+  captureServer(ANALYTICS_EVENTS.REVIEW_SUBMITTED, {
+    distinctId: userId,
+    review_id: newReview.id,
+    booking_id: bookingId,
+    provider_id: booking.providerId,
+    rating,
+  });
 
   // Novu: notify provider of the new review; alert ops on low ratings
   void triggerNovu(WF.reviewReceived, provSub(booking.providerId), { rating, comment });

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import posthog from "posthog-js";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,6 +80,11 @@ export function QuoteApprovalCard({
         toast.error(data?.error || `Failed to ${action} quote`);
         return;
       }
+      posthog.capture(ANALYTICS_EVENTS.QUOTE_APPROVAL_SUBMITTED, {
+        booking_id: bookingId,
+        decision: action === "approve" ? "approved" : "rejected",
+        total_cents: quote?.totalCents,
+      });
       if (action === "approve" && quote) {
         toast.success(`Quote approved — ${formatPrice(quote.totalCents)} locked in.`);
         onApproved?.(quote.totalCents);
