@@ -66,6 +66,11 @@ vi.mock("@/server/api/middleware/rate-limit", () => ({
   ),
 }));
 
+vi.mock("@/lib/posthog-server", () => ({
+  getPostHogClient: vi.fn(() => ({ capture: vi.fn() })),
+  shutdownPostHog: vi.fn(),
+}));
+
 // We do NOT mock @/lib/validators — we use the real schemas and the real
 // isPaymentMethodAllowedForTier function so we test the actual validation logic.
 

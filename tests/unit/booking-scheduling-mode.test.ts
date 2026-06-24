@@ -60,6 +60,11 @@ vi.mock("@/server/api/middleware/auth", () => ({
   requireAuth: vi.fn((_c: unknown, next: () => Promise<void>) => next()),
 }));
 
+vi.mock("@/lib/posthog-server", () => ({
+  getPostHogClient: vi.fn(() => ({ capture: vi.fn() })),
+  shutdownPostHog: vi.fn(),
+}));
+
 import { db } from "@/db";
 import app from "@/server/api/routes/bookings";
 
