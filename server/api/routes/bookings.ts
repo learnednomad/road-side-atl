@@ -17,6 +17,7 @@ import { autoDispatchBooking } from "../lib/auto-dispatch";
 import { reverseB2bCreditForBooking, adjustB2bCreditToFinalPrice } from "../lib/b2b-credit";
 import { rateLimitStrict } from "../middleware/rate-limit";
 import { logAudit, getRequestInfo } from "../lib/audit-logger";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 const app = new Hono();
 
@@ -162,6 +163,22 @@ app.post("/", async (c) => {
   // Fire-and-forget notifications
   notifyBookingCreated(booking).catch((err) => {
     console.error("[Notifications] Failed to send booking created notification:", err);
+  });
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: userId ?? booking.id,
+    event: "booking_created",
+    properties: {
+      booking_id: booking.id,
+      service_name: service.name,
+      service_slug: service.slug,
+      service_category: service.category,
+      estimated_price: estimatedPrice,
+      pricing_source: pricingSource,
+      is_scheduled: !!booking.scheduledAt,
+      is_authenticated: !!userId,
+    },
   });
 
   // Auto-dispatch for immediate bookings (deferred for scheduled)
@@ -333,6 +350,16 @@ app.patch("/:id/cancel", requireAuth, async (c) => {
     console.error("[Notifications] Failed to send cancellation notification:", err);
   });
 
+  const posthogCancel = getPostHogClient();
+  posthogCancel.capture({
+    distinctId: user.id,
+    event: "booking_cancelled",
+    properties: {
+      booking_id: bookingId,
+      previous_status: booking.status,
+    },
+  });
+
   return c.json(updated);
 });
 
@@ -381,6 +408,17 @@ app.post("/:id/quote/approve", requireAuth, async (c) => {
   // Keep NET B2B AR in sync with the billed (final) price (idempotent; no-op
   // for non-B2B). The initial charge was estimatedPrice; the invoice bills this.
   await adjustB2bCreditToFinalPrice(booking.id, quote.totalCents);
+
+  const posthogQuote = getPostHogClient();
+  posthogQuote.capture({
+    distinctId: user.id,
+    event: "quote_approved",
+    properties: {
+      booking_id: booking.id,
+      quote_id: quote.id,
+      total_cents: quote.totalCents,
+    },
+  });
 
   return c.json({ quote: approved, booking: updated });
 });

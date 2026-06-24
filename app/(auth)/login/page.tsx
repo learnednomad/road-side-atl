@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { signIn, getSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
+import posthog from "posthog-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,12 +79,21 @@ function LoginForm() {
       // Refresh the router cache so middleware/layouts see the new session
       router.refresh();
 
+      // Fetch fresh session for role-based redirect and identify
+      const session = await getSession();
+      const role = session?.user?.role;
+
+      if (session?.user?.id) {
+        posthog.identify(session.user.id, {
+          email: session.user.email ?? undefined,
+          name: session.user.name ?? undefined,
+        });
+      }
+      posthog.capture("user_logged_in", { method: "credentials", role });
+
       if (callbackUrl) {
         router.push(callbackUrl);
       } else {
-        // Fetch fresh session to determine role-based redirect
-        const session = await getSession();
-        const role = session?.user?.role;
         if (role === "admin") {
           router.push("/admin");
         } else if (role === "provider") {
@@ -115,6 +125,7 @@ function LoginForm() {
 
   async function handleGoogleSignIn() {
     setLoading("google");
+    posthog.capture("user_logged_in", { method: "google" });
     await signIn("google", { callbackUrl: callbackUrl || "/my-bookings" });
   }
 

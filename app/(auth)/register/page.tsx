@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import posthog from "posthog-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +51,7 @@ export default function RegisterPage() {
         return;
       }
 
+      posthog.capture("user_signed_up", { email, name, method: "credentials" });
       setRegistered(true);
     } catch {
       setError("Something went wrong. Please try again.");
