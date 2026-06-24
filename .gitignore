@@ -45,6 +45,11 @@ _bmad/
 
 # temp screenshots
 staging-login*.png
+# Stray dev/test screenshots dropped at the repo root (real assets live in
+# app/ and public/). Ignore root-level images so they don't get committed.
+/*.png
+/*.jpg
+/*.jpeg
 
 # vercel
 .vercel
