@@ -6,10 +6,18 @@
 -- Safety:
 --   * bookings table snapshots estimatedPrice/finalPrice at creation, so this
 --     migration does NOT affect existing bookings.
---   * Rename the file to 0030_pricing_alignment_2026.sql when you're ready
---     to commit it to the migration history.
 --   * Apply during low-traffic window so customers don't see prices change
 --     mid-flow.
+--
+-- How to apply (the "0031"/"0030" in this filename is NOT a journal index — the
+-- squash baseline reset the counter; the next real drizzle index is 0021):
+--   * Do NOT rename this to 0030_*.sql / 0031_*.sql — that would create a journal
+--     numbering gap and diverge from the squashed history.
+--   * Run `drizzle-kit generate` and merge this SQL into the generated 0021_*.sql,
+--     converting it to drizzle format: drop the BEGIN/COMMIT wrapper (drizzle-kit
+--     does NOT use transaction wrappers) and separate statements with
+--     `--> statement-breakpoint` comments instead. OR apply it as a standalone
+--     data migration outside drizzle.
 
 BEGIN;
 
