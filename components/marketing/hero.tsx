@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, Info, Phone, Play } from "lucide-react";
+import { ArrowDown, ArrowRight, Info, Phone } from "lucide-react";
 import { BUSINESS } from "@/lib/constants";
 
 const STATS = [

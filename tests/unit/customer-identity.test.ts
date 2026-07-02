@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ── Mocks ────────────────────────────────────────────────────────
 
 const mockUserFindFirst = vi.fn();
-const mockUserUpdate = vi.fn((..._a: unknown[]) => ({ set: () => ({ where: vi.fn().mockResolvedValue(undefined) }) }));
+const mockUserUpdate = vi.fn().mockReturnValue({ set: () => ({ where: vi.fn().mockResolvedValue(undefined) }) });
 
 vi.mock("@/db", () => ({
   db: {

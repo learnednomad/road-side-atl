@@ -26,8 +26,6 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-const H = (p) => `{{${p}}}`; // tiny helper to keep templates readable
-
 // ---- step builders -------------------------------------------------------
 // PHASE 1: only the in-app (Inbox) channel is active. Email/SMS/push templates
 // are defined and version-controlled here but staged inactive, because the app
