@@ -95,7 +95,7 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export function MyBookingsClient({ initialBookings, userId, loyaltyBalance }: MyBookingsClientProps) {
+export function MyBookingsClient({ initialBookings, loyaltyBalance }: MyBookingsClientProps) {
   const [bookings, setBookings] = useState(initialBookings);
   const [pointsBalance, setPointsBalance] = useState(loyaltyBalance);
 
